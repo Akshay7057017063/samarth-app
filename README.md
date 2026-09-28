@@ -1,4 +1,4 @@
-# Samarth India - Full-Stack MERN Platform
+# DIGITAL LYF PVT. LTD. - Full-Stack MERN Platform
 ### Smart Bio-Magnetic Wellness • Captcha Micro-Earning • Referral Tree Network • TDS Ledger • React CMS Admin
 
 This is a production-grade full-stack MERN (MongoDB, Express, React, Node.js) platform built to modernize the original website into an animatic, live, and interactive web application with:

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -32,12 +32,9 @@ const Customer = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const [showAddCustomer, setShowAddCustomer] =
-    useState(false);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
 
-  const [deleteCustomerData, setDeleteCustomerData] =
-    useState(null);
-
+  const [deleteCustomerData, setDeleteCustomerData] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   // =====================================================
@@ -45,16 +42,11 @@ const Customer = () => {
   // =====================================================
 
   const getCustomerId = (customer) => {
-    return (
-      customer?._id ||
-      customer?.id ||
-      customer?.memberId ||
-      customer?.userCode
-    );
+    return customer?._id || customer?.id || null;
   };
 
   // =====================================================
-  // OPEN CUSTOMER DASHBOARD
+  // OPEN CUSTOMER DETAILS
   // =====================================================
 
   const openCustomerDashboard = (customer) => {
@@ -69,52 +61,78 @@ const Customer = () => {
   };
 
   // =====================================================
+  // EDIT CUSTOMER
+  // =====================================================
+
+  const openEditCustomer = (customer) => {
+    const customerId = getCustomerId(customer);
+
+    if (!customerId) {
+      setError("Customer ID is missing.");
+      return;
+    }
+
+    navigate(`/customers/${customerId}/edit`);
+  };
+
+  // =====================================================
   // LOAD CUSTOMERS
   // =====================================================
 
-  const loadCustomers = async (
-    showRefreshLoader = false
-  ) => {
-    try {
-      setError("");
+  const loadCustomers = useCallback(
+    async (showRefreshLoader = false) => {
+      try {
+        setError("");
 
-      if (showRefreshLoader) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+        if (showRefreshLoader) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
 
-      const response = await api.get("/admin/users", {
-        params: {
-          search: search.trim(),
-          userType,
-        },
-      });
+        const params = {};
 
-      if (!response.data?.success) {
-        throw new Error(
-          response.data?.message ||
+        if (search.trim()) {
+          params.search = search.trim();
+        }
+
+        if (userType) {
+          params.userType = userType;
+        }
+
+        const response = await api.get("/admin/users", {
+          params,
+        });
+
+        if (!response.data?.success) {
+          throw new Error(
+            response.data?.message ||
+              "Failed to load customers."
+          );
+        }
+
+        setCustomers(
+          Array.isArray(response.data?.users)
+            ? response.data.users
+            : []
+        );
+      } catch (err) {
+        console.error("Load customers error:", err);
+
+        setCustomers([]);
+
+        setError(
+          err.response?.data?.message ||
+            err.message ||
             "Failed to load customers."
         );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-      setCustomers(response.data.users || []);
-    } catch (err) {
-      console.error(
-        "Load customers error:",
-        err
-      );
-
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to load customers."
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    },
+    [search, userType]
+  );
 
   // =====================================================
   // INITIAL LOAD
@@ -122,7 +140,7 @@ const Customer = () => {
 
   useEffect(() => {
     loadCustomers();
-  }, []);
+  }, [loadCustomers]);
 
   // =====================================================
   // SEARCH
@@ -147,6 +165,8 @@ const Customer = () => {
   // =====================================================
 
   const handleAddSuccess = async (data) => {
+    setShowAddCustomer(false);
+
     setMessage(
       data?.message ||
         "Customer created successfully."
@@ -164,7 +184,7 @@ const Customer = () => {
   // =====================================================
 
   const handleToggleStatus = async (customer) => {
-    const customerId = customer?._id;
+    const customerId = getCustomerId(customer);
 
     if (!customerId) {
       setError("Customer ID is missing.");
@@ -215,8 +235,7 @@ const Customer = () => {
   // =====================================================
 
   const handleDeleteClick = (customer) => {
-    const customerId =
-      getCustomerId(customer);
+    const customerId = getCustomerId(customer);
 
     if (!customerId) {
       setError("Customer ID is missing.");
@@ -239,8 +258,7 @@ const Customer = () => {
         customer.userCode ||
         "-",
 
-      email:
-        customer.email || "-",
+      email: customer.email || "-",
     });
   };
 
@@ -302,12 +320,8 @@ const Customer = () => {
   // CUSTOMER CARD - MOBILE
   // =====================================================
 
-  const renderCustomerCard = (
-    customer,
-    index
-  ) => {
-    const customerId =
-      getCustomerId(customer);
+  const renderCustomerCard = (customer, index) => {
+    const customerId = getCustomerId(customer);
 
     const name =
       customer.name ||
@@ -319,8 +333,7 @@ const Customer = () => {
       customer.userCode ||
       "-";
 
-    const email =
-      customer.email || "-";
+    const email = customer.email || "-";
 
     const phone =
       customer.phone ||
@@ -332,12 +345,10 @@ const Customer = () => {
       customer.type ||
       "UNPAID";
 
-    const status =
-      customer.status || "active";
+    const status = customer.status || "active";
 
     const isActive =
-      String(status).toLowerCase() ===
-      "active";
+      String(status).toLowerCase() === "active";
 
     return (
       <div
@@ -349,19 +360,14 @@ const Customer = () => {
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600">
-              {name
-                .charAt(0)
-                .toUpperCase()}
+              {name.charAt(0).toUpperCase()}
             </div>
 
             <div className="min-w-0">
-              {/* CUSTOMER NAME */}
               <button
                 type="button"
                 onClick={() =>
-                  openCustomerDashboard(
-                    customer
-                  )
+                  openCustomerDashboard(customer)
                 }
                 className="block max-w-full truncate text-left text-sm font-bold text-slate-900 transition hover:text-blue-600 sm:text-base"
               >
@@ -373,8 +379,6 @@ const Customer = () => {
               </p>
             </div>
           </div>
-
-          {/* STATUS */}
 
           <span
             className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold sm:px-3 sm:text-xs ${
@@ -391,17 +395,13 @@ const Customer = () => {
               }`}
             />
 
-            {isActive
-              ? "Active"
-              : "Inactive"}
+            {isActive ? "Active" : "Inactive"}
           </span>
         </div>
 
         {/* CUSTOMER DETAILS */}
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {/* MEMBER ID */}
-
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               Member ID
@@ -414,8 +414,6 @@ const Customer = () => {
             </div>
           </div>
 
-          {/* TYPE */}
-
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               Type
@@ -424,20 +422,15 @@ const Customer = () => {
             <div className="mt-1.5">
               <span
                 className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                  String(type).toUpperCase() ===
-                  "PAID"
+                  String(type).toUpperCase() === "PAID"
                     ? "bg-emerald-100 text-emerald-700"
                     : "bg-amber-100 text-amber-700"
                 }`}
               >
-                {String(
-                  type
-                ).toUpperCase()}
+                {String(type).toUpperCase()}
               </span>
             </div>
           </div>
-
-          {/* EMAIL */}
 
           <div className="min-w-0 sm:col-span-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -448,8 +441,6 @@ const Customer = () => {
               {email}
             </p>
           </div>
-
-          {/* PHONE */}
 
           <div className="min-w-0 sm:col-span-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -470,38 +461,27 @@ const Customer = () => {
           </p>
 
           <div className="grid grid-cols-4 gap-2">
-            {/* EYE */}
-
             <button
               type="button"
-              title="View Customer Dashboard"
+              title="View Customer"
               onClick={() =>
-                openCustomerDashboard(
-                  customer
-                )
+                openCustomerDashboard(customer)
               }
               className="flex items-center justify-center rounded-lg border border-slate-200 p-2.5 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
             >
               <Eye className="h-4 w-4" />
             </button>
 
-            {/* EDIT */}
-
             <button
               type="button"
               title="Edit Customer"
-              onClick={() => {
-                console.log(
-                  "Edit customer:",
-                  customerId
-                );
-              }}
+              onClick={() =>
+                openEditCustomer(customer)
+              }
               className="flex items-center justify-center rounded-lg border border-slate-200 p-2.5 text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600"
             >
               <Pencil className="h-4 w-4" />
             </button>
-
-            {/* STATUS */}
 
             <button
               type="button"
@@ -511,9 +491,7 @@ const Customer = () => {
                   : "Activate Customer"
               }
               onClick={() =>
-                handleToggleStatus(
-                  customer
-                )
+                handleToggleStatus(customer)
               }
               className={`flex items-center justify-center rounded-lg border p-2.5 transition ${
                 isActive
@@ -524,15 +502,11 @@ const Customer = () => {
               <Power className="h-4 w-4" />
             </button>
 
-            {/* DELETE */}
-
             <button
               type="button"
               title="Delete Customer"
               onClick={() =>
-                handleDeleteClick(
-                  customer
-                )
+                handleDeleteClick(customer)
               }
               className="flex items-center justify-center rounded-lg border border-red-200 p-2.5 text-red-500 transition hover:bg-red-50 hover:text-red-600"
             >
@@ -550,9 +524,7 @@ const Customer = () => {
 
   return (
     <div className="w-full min-w-0 space-y-5 sm:space-y-6">
-      {/* =================================================
-          PAGE HEADER
-      ================================================= */}
+      {/* PAGE HEADER */}
 
       <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
@@ -561,8 +533,7 @@ const Customer = () => {
           </h1>
 
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-            Manage customer accounts and
-            customer information.
+            Manage customer accounts and customer information.
           </p>
         </div>
 
@@ -580,9 +551,7 @@ const Customer = () => {
         </button>
       </div>
 
-      {/* =================================================
-          SUCCESS MESSAGE
-      ================================================= */}
+      {/* SUCCESS MESSAGE */}
 
       {message && (
         <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
@@ -594,9 +563,7 @@ const Customer = () => {
         </div>
       )}
 
-      {/* =================================================
-          ERROR MESSAGE
-      ================================================= */}
+      {/* ERROR MESSAGE */}
 
       {error && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
@@ -608,17 +575,13 @@ const Customer = () => {
         </div>
       )}
 
-      {/* =================================================
-          FILTERS
-      ================================================= */}
+      {/* FILTERS */}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <form
           onSubmit={handleSearch}
           className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_200px_auto_auto]"
         >
-          {/* SEARCH */}
-
           <div className="relative min-w-0">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
 
@@ -626,60 +589,38 @@ const Customer = () => {
               type="text"
               value={search}
               onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
+                setSearch(event.target.value)
               }
               placeholder="Search by name, email, phone, member ID..."
               className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
 
-          {/* CUSTOMER TYPE */}
-
           <select
             value={userType}
             onChange={(event) =>
-              setUserType(
-                event.target.value
-              )
+              setUserType(event.target.value)
             }
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
-            <option value="">
-              All Customer Types
-            </option>
-
-            <option value="PAID">
-              Paid
-            </option>
-
-            <option value="UNPAID">
-              Unpaid
-            </option>
+            <option value="">All Customer Types</option>
+            <option value="PAID">Paid</option>
+            <option value="UNPAID">Unpaid</option>
           </select>
-
-          {/* SEARCH BUTTON */}
 
           <button
             type="submit"
-            disabled={
-              loading || refreshing
-            }
+            disabled={loading || refreshing}
             className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 xl:w-auto"
           >
             <Search className="h-4 w-4" />
             Search
           </button>
 
-          {/* REFRESH */}
-
           <button
             type="button"
             onClick={handleRefresh}
-            disabled={
-              loading || refreshing
-            }
+            disabled={loading || refreshing}
             className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 xl:w-auto"
           >
             {refreshing ? (
@@ -693,18 +634,12 @@ const Customer = () => {
         </form>
       </div>
 
-      {/* =================================================
-          CUSTOMER LIST
-      ================================================= */}
+      {/* CUSTOMER LIST */}
 
       <div className="w-full min-w-0">
-        {/* =================================================
-            DESKTOP / TABLET
-        ================================================= */}
+        {/* DESKTOP */}
 
         <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
-          {/* HEADER */}
-
           <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-slate-900">
@@ -713,15 +648,10 @@ const Customer = () => {
 
               <p className="mt-1 text-xs text-slate-500">
                 {customers.length} customer
-                {customers.length !== 1
-                  ? "s"
-                  : ""}{" "}
-                found
+                {customers.length !== 1 ? "s" : ""} found
               </p>
             </div>
           </div>
-
-          {/* LOADING */}
 
           {loading ? (
             <div className="flex min-h-[300px] items-center justify-center px-5">
@@ -734,7 +664,6 @@ const Customer = () => {
               </div>
             </div>
           ) : customers.length === 0 ? (
-            /* EMPTY */
             <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
                 <Search className="h-6 w-6 text-slate-400" />
@@ -745,13 +674,10 @@ const Customer = () => {
               </h3>
 
               <p className="mt-1 max-w-md text-sm text-slate-500">
-                Try changing your search
-                or filter, or create a
-                new customer.
+                Try changing your search or filter, or create a new customer.
               </p>
             </div>
           ) : (
-            /* TABLE */
             <div className="w-full overflow-x-auto">
               <table className="w-full min-w-[1000px]">
                 <thead>
@@ -787,249 +713,202 @@ const Customer = () => {
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-                  {customers.map(
-                    (
-                      customer,
-                      index
-                    ) => {
-                      const customerId =
-                        getCustomerId(
-                          customer
-                        );
+                  {customers.map((customer, index) => {
+                    const customerId =
+                      getCustomerId(customer);
 
-                      const name =
-                        customer.name ||
-                        customer.fullName ||
-                        "Unnamed Customer";
+                    const name =
+                      customer.name ||
+                      customer.fullName ||
+                      "Unnamed Customer";
 
-                      const memberId =
-                        customer.memberId ||
-                        customer.userCode ||
-                        "-";
+                    const memberId =
+                      customer.memberId ||
+                      customer.userCode ||
+                      "-";
 
-                      const email =
-                        customer.email ||
-                        "-";
+                    const email =
+                      customer.email || "-";
 
-                      const phone =
-                        customer.phone ||
-                        customer.mobile ||
-                        "-";
+                    const phone =
+                      customer.phone ||
+                      customer.mobile ||
+                      "-";
 
-                      const type =
-                        customer.userType ||
-                        customer.type ||
-                        "UNPAID";
+                    const type =
+                      customer.userType ||
+                      customer.type ||
+                      "UNPAID";
 
-                      const status =
-                        customer.status ||
-                        "active";
+                    const status =
+                      customer.status || "active";
 
-                      const isActive =
-                        String(
-                          status
-                        ).toLowerCase() ===
-                        "active";
+                    const isActive =
+                      String(status).toLowerCase() ===
+                      "active";
 
-                      return (
-                        <tr
-                          key={
-                            customerId ||
-                            index
-                          }
-                          className="transition hover:bg-slate-50"
-                        >
-                          {/* CUSTOMER */}
-
-                          <td className="px-5 py-4">
-                            <div className="flex min-w-[180px] items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600">
-                                {name
-                                  .charAt(
-                                    0
-                                  )
-                                  .toUpperCase()}
-                              </div>
-
-                              <div className="min-w-0">
-                                {/* CUSTOMER NAME */}
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    openCustomerDashboard(
-                                      customer
-                                    )
-                                  }
-                                  className="block max-w-[180px] truncate text-left text-sm font-semibold text-slate-800 transition hover:text-blue-600"
-                                  title="Open Customer Dashboard"
-                                >
-                                  {name}
-                                </button>
-
-                                <p className="mt-0.5 text-xs text-slate-400">
-                                  Customer #
-                                  {index +
-                                    1}
-                                </p>
-                              </div>
+                    return (
+                      <tr
+                        key={
+                          customerId || index
+                        }
+                        className="transition hover:bg-slate-50"
+                      >
+                        <td className="px-5 py-4">
+                          <div className="flex min-w-[180px] items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600">
+                              {name
+                                .charAt(0)
+                                .toUpperCase()}
                             </div>
-                          </td>
 
-                          {/* MEMBER ID */}
-
-                          <td className="whitespace-nowrap px-5 py-4">
-                            <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                              {memberId}
-                            </span>
-                          </td>
-
-                          {/* EMAIL */}
-
-                          <td className="px-5 py-4">
-                            <span className="block max-w-[220px] truncate text-sm text-slate-600">
-                              {email}
-                            </span>
-                          </td>
-
-                          {/* PHONE */}
-
-                          <td className="whitespace-nowrap px-5 py-4">
-                            <span className="text-sm text-slate-600">
-                              {phone}
-                            </span>
-                          </td>
-
-                          {/* TYPE */}
-
-                          <td className="whitespace-nowrap px-5 py-4">
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                String(
-                                  type
-                                ).toUpperCase() ===
-                                "PAID"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-amber-100 text-amber-700"
-                              }`}
-                            >
-                              {String(
-                                type
-                              ).toUpperCase()}
-                            </span>
-                          </td>
-
-                          {/* STATUS */}
-
-                          <td className="whitespace-nowrap px-5 py-4">
-                            <span
-                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                                isActive
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-red-100 text-red-700"
-                              }`}
-                            >
-                              <span
-                                className={`h-1.5 w-1.5 rounded-full ${
-                                  isActive
-                                    ? "bg-emerald-500"
-                                    : "bg-red-500"
-                                }`}
-                              />
-
-                              {isActive
-                                ? "Active"
-                                : "Inactive"}
-                            </span>
-                          </td>
-
-                          {/* ACTIONS */}
-
-                          <td className="whitespace-nowrap px-5 py-4">
-                            <div className="flex items-center justify-end gap-2">
-                              {/* EYE */}
-
+                            <div className="min-w-0">
                               <button
                                 type="button"
-                                title="View Customer Dashboard"
                                 onClick={() =>
                                   openCustomerDashboard(
                                     customer
                                   )
                                 }
-                                className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                                className="block max-w-[180px] truncate text-left text-sm font-semibold text-slate-800 transition hover:text-blue-600"
+                                title="Open Customer"
                               >
-                                <Eye className="h-4 w-4" />
+                                {name}
                               </button>
 
-                              {/* EDIT */}
-
-                              <button
-                                type="button"
-                                title="Edit Customer"
-                                onClick={() => {
-                                  console.log(
-                                    "Edit customer:",
-                                    customerId
-                                  );
-                                }}
-                                className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-
-                              {/* STATUS */}
-
-                              <button
-                                type="button"
-                                title={
-                                  isActive
-                                    ? "Deactivate Customer"
-                                    : "Activate Customer"
-                                }
-                                onClick={() =>
-                                  handleToggleStatus(
-                                    customer
-                                  )
-                                }
-                                className={`rounded-lg border p-2 transition ${
-                                  isActive
-                                    ? "border-red-200 text-red-500 hover:bg-red-50"
-                                    : "border-emerald-200 text-emerald-500 hover:bg-emerald-50"
-                                }`}
-                              >
-                                <Power className="h-4 w-4" />
-                              </button>
-
-                              {/* DELETE */}
-
-                              <button
-                                type="button"
-                                title="Delete Customer"
-                                onClick={() =>
-                                  handleDeleteClick(
-                                    customer
-                                  )
-                                }
-                                className="rounded-lg border border-red-200 p-2 text-red-500 transition hover:bg-red-50 hover:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              <p className="mt-0.5 text-xs text-slate-400">
+                                Customer #{index + 1}
+                              </p>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-                  )}
+                          </div>
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4">
+                          <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                            {memberId}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <span className="block max-w-[220px] truncate text-sm text-slate-600">
+                            {email}
+                          </span>
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4">
+                          <span className="text-sm text-slate-600">
+                            {phone}
+                          </span>
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              String(type).toUpperCase() ===
+                              "PAID"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {String(type).toUpperCase()}
+                          </span>
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                              isActive
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                isActive
+                                  ? "bg-emerald-500"
+                                  : "bg-red-500"
+                              }`}
+                            />
+
+                            {isActive
+                              ? "Active"
+                              : "Inactive"}
+                          </span>
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              title="View Customer"
+                              onClick={() =>
+                                openCustomerDashboard(
+                                  customer
+                                )
+                              }
+                              className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              title="Edit Customer"
+                              onClick={() =>
+                                openEditCustomer(
+                                  customer
+                                )
+                              }
+                              className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              title={
+                                isActive
+                                  ? "Deactivate Customer"
+                                  : "Activate Customer"
+                              }
+                              onClick={() =>
+                                handleToggleStatus(
+                                  customer
+                                )
+                              }
+                              className={`rounded-lg border p-2 transition ${
+                                isActive
+                                  ? "border-red-200 text-red-500 hover:bg-red-50"
+                                  : "border-emerald-200 text-emerald-500 hover:bg-emerald-50"
+                              }`}
+                            >
+                              <Power className="h-4 w-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              title="Delete Customer"
+                              onClick={() =>
+                                handleDeleteClick(
+                                  customer
+                                )
+                              }
+                              className="rounded-lg border border-red-200 p-2 text-red-500 transition hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
 
-        {/* =================================================
-            MOBILE CUSTOMER CARDS
-        ================================================= */}
+        {/* MOBILE */}
 
         <div className="md:hidden">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -1040,10 +919,7 @@ const Customer = () => {
 
               <p className="mt-1 text-xs text-slate-500">
                 {customers.length} customer
-                {customers.length !== 1
-                  ? "s"
-                  : ""}{" "}
-                found
+                {customers.length !== 1 ? "s" : ""} found
               </p>
             </div>
 
@@ -1068,43 +944,31 @@ const Customer = () => {
                 </h3>
 
                 <p className="mt-1 max-w-sm text-sm text-slate-500">
-                  Try changing your search
-                  or filter, or create a
-                  new customer.
+                  Try changing your search or filter, or create a new customer.
                 </p>
               </div>
             ) : (
               <div className="space-y-3 bg-slate-50 p-3 sm:p-4">
-                {customers.map(
-                  renderCustomerCard
-                )}
+                {customers.map(renderCustomerCard)}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* =================================================
-          ADD CUSTOMER
-      ================================================= */}
+      {/* ADD CUSTOMER */}
 
       <AddCustomer
         open={showAddCustomer}
-        onClose={() =>
-          setShowAddCustomer(false)
-        }
+        onClose={() => setShowAddCustomer(false)}
         onSuccess={handleAddSuccess}
       />
 
-      {/* =================================================
-          DELETE CONFIRMATION MODAL
-      ================================================= */}
+      {/* DELETE CONFIRMATION */}
 
       {deleteCustomerData && (
         <div className="fixed inset-0 z-[100] flex min-h-screen items-center justify-center overflow-y-auto bg-slate-900/40 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6">
           <div className="my-auto w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            {/* MODAL HEADER */}
-
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
@@ -1126,9 +990,7 @@ const Customer = () => {
                 type="button"
                 onClick={() =>
                   !deleting &&
-                  setDeleteCustomerData(
-                    null
-                  )
+                  setDeleteCustomerData(null)
                 }
                 className="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed"
                 disabled={deleting}
@@ -1137,12 +999,9 @@ const Customer = () => {
               </button>
             </div>
 
-            {/* MODAL BODY */}
-
             <div className="px-4 py-5 sm:px-5">
               <p className="text-sm leading-6 text-slate-600">
-                Are you sure you want to
-                delete this customer?
+                Are you sure you want to delete this customer?
               </p>
 
               <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
@@ -1155,21 +1014,15 @@ const Customer = () => {
 
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900">
-                      {
-                        deleteCustomerData.name
-                      }
+                      {deleteCustomerData.name}
                     </p>
 
                     <p className="mt-0.5 truncate text-xs text-slate-500">
-                      {
-                        deleteCustomerData.memberId
-                      }
+                      {deleteCustomerData.memberId}
                     </p>
 
                     <p className="mt-0.5 truncate text-xs text-slate-500">
-                      {
-                        deleteCustomerData.email
-                      }
+                      {deleteCustomerData.email}
                     </p>
                   </div>
                 </div>
@@ -1177,24 +1030,17 @@ const Customer = () => {
 
               <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-3 sm:px-4">
                 <p className="text-xs font-medium leading-5 text-red-700">
-                  This will permanently
-                  remove the customer and
-                  their associated wallet and
-                  sales records.
+                  This will permanently remove the customer and their associated wallet and transaction records.
                 </p>
               </div>
             </div>
-
-            {/* MODAL FOOTER */}
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:justify-end sm:gap-3 sm:px-5">
               <button
                 type="button"
                 disabled={deleting}
                 onClick={() =>
-                  setDeleteCustomerData(
-                    null
-                  )
+                  setDeleteCustomerData(null)
                 }
                 className="w-full rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
@@ -1204,9 +1050,7 @@ const Customer = () => {
               <button
                 type="button"
                 disabled={deleting}
-                onClick={
-                  handleDeleteCustomer
-                }
+                onClick={handleDeleteCustomer}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {deleting ? (

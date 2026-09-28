@@ -1,237 +1,1175 @@
-import express from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import express from "express";
+import mongoose from "mongoose";
+
+import { authenticateToken } from "../middleware/auth.js";
+
+import { User } from "../models/User.js";
+import { Wallet } from "../models/Wallet.js";
+import { Transaction } from "../models/Transaction.js";
+import { CaptchaAttempt } from "../models/CaptchaAttempt.js";
+import { SiteContent } from "../models/SiteContent.js";
+
 import {
   generateCaptcha,
-  verifyCaptchaSolution
-} from '../utils/captchaGenerator.js';
-import { store } from '../dataStore.js';
+  verifyCaptchaToken,
+} from "../utils/captchaGenerator.js";
 
 const router = express.Router();
 
-// GET /api/captcha/new
-router.get('/new', authenticateToken, (req, res) => {
+// =====================================================
+// CAPTCHA SECURITY SETTINGS
+// =====================================================
+
+// CAPTCHA must be solved within 10 seconds.
+const CAPTCHA_EXPIRY_SECONDS = 10;
+const CAPTCHA_EXPIRY_MS =
+  CAPTCHA_EXPIRY_SECONDS * 1000;
+
+// Minimum realistic response time.
+const MIN_RESPONSE_TIME_MS = 700;
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+const toNumber = (value, fallback = 0) => {
+  const number = Number(value);
+
+  return Number.isFinite(number)
+    ? number
+    : fallback;
+};
+
+// -----------------------------------------------------
+// GET CAPTCHA SETTINGS FROM MONGODB
+// -----------------------------------------------------
+
+const getCaptchaSettings = async () => {
   try {
-    const { svg, token } = generateCaptcha(6);
+    const content =
+      await SiteContent.findOne({
+        key: "main",
+      }).lean();
 
-    res.json({
-      success: true,
-      svg,
-      token
-    });
-  } catch (err) {
-    console.error('Captcha generation error:', err);
+    const settings =
+      content?.settings || {};
 
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate captcha.'
-    });
+    const captchaLength = Math.min(
+      10,
+      Math.max(
+        4,
+        Math.floor(
+          toNumber(
+            settings.captchaLength,
+            6
+          )
+        )
+      )
+    );
+
+    const captchaReward = Math.max(
+      0,
+      toNumber(
+        settings.captchaReward,
+        0.5
+      )
+    );
+
+    const dailyCaptchaLimit =
+      Math.max(
+        1,
+        Math.floor(
+          toNumber(
+            settings.dailyCaptchaLimit,
+            50
+          )
+        )
+      );
+
+    return {
+      captchaLength,
+      captchaReward,
+      dailyCaptchaLimit,
+    };
+  } catch (error) {
+    console.error(
+      "❌ CAPTCHA SETTINGS ERROR:",
+      error.message
+    );
+
+    return {
+      captchaLength: 6,
+      captchaReward: 0.5,
+      dailyCaptchaLimit: 50,
+    };
   }
-});
+};
 
-// POST /api/captcha/solve
-router.post('/solve', authenticateToken, (req, res) => {
-  try {
-    const { token, answer } = req.body;
+// -----------------------------------------------------
+// GET TODAY DATE KEY
+// -----------------------------------------------------
 
-    // Basic validation
-    if (!token || !answer) {
-      return res.status(400).json({
-        success: false,
-        message: 'Captcha solution and token are required.'
-      });
-    }
+const getTodayDateKey = () => {
+  const date = new Date();
 
-    const userId = req.user.id;
-    const memberId = req.user.memberId;
+  const year =
+    date.getFullYear();
 
-    const now = new Date().toISOString();
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
 
-    // Make sure captchaAttempts exists even if an old database
-    // is being used before dataStore initialization.
-    if (!Array.isArray(store.data.captchaAttempts)) {
-      store.data.captchaAttempts = [];
-    }
+  const day = String(
+    date.getDate()
+  ).padStart(2, "0");
 
-    /*
-     * Verify captcha
-     *
-     * Important:
-     * Only an actual incorrect captcha answer is stored as "wrong".
-     * Expired, invalid signature, missing input, or suspicious-speed
-     * failures are NOT treated as wrong answers.
-     */
-    const verification = verifyCaptchaSolution(answer, token, 1.0);
+  return `${year}-${month}-${day}`;
+};
 
-    if (!verification.valid) {
-      const isWrongAnswer =
-        verification.reason === 'Incorrect captcha text. Try again.';
+// -----------------------------------------------------
+// GET USER FROM JWT
+// -----------------------------------------------------
 
-      if (isWrongAnswer) {
-        const wrongAttempt = {
-          _id: `captcha_attempt_${Date.now()}_${Math.random()
-            .toString(36)
-            .slice(2, 8)}`,
+const getUserFromRequest =
+  async (req) => {
+    try {
+      const userId =
+        req.user?.id ||
+        req.user?._id ||
+        req.user?.userId ||
+        null;
 
-          userId,
-          memberId,
-
-          result: 'wrong',
-          status: 'wrong',
-
-          answer: String(answer).trim(),
-
-          rewardEarned: 0,
-
-          reason: verification.reason,
-
-          createdAt: now
-        };
-
-        store.data.captchaAttempts.push(wrongAttempt);
-        store.save();
+      if (!userId) {
+        return null;
       }
 
-      return res.status(400).json({
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          userId
+        )
+      ) {
+        return null;
+      }
+
+      return User.findById(userId);
+    } catch (error) {
+      console.error(
+        "❌ GET CAPTCHA USER ERROR:",
+        error.message
+      );
+
+      return null;
+    }
+  };
+
+// -----------------------------------------------------
+// CHECK ACTIVE USER
+// -----------------------------------------------------
+
+const checkActiveUser =
+  async (req, res) => {
+    const user =
+      await getUserFromRequest(req);
+
+    if (!user) {
+      res.status(401).json({
         success: false,
-        message: verification.reason
+        message: "User not found.",
+      });
+
+      return null;
+    }
+
+    if (
+      user.status &&
+      String(user.status).toLowerCase() !==
+        "active"
+    ) {
+      res.status(403).json({
+        success: false,
+        message:
+          "Your account is inactive.",
+      });
+
+      return null;
+    }
+
+    // Customer route only.
+    const role = String(
+      user.role || "user"
+    )
+      .trim()
+      .toLowerCase();
+
+    if (
+      role === "admin" ||
+      role === "superadmin"
+    ) {
+      res.status(403).json({
+        success: false,
+        message:
+          "Administrator accounts cannot use the customer CAPTCHA workstation.",
+      });
+
+      return null;
+    }
+
+    return user;
+  };
+
+// =====================================================
+// GET /api/captcha/new
+// =====================================================
+//
+// Generate a new CAPTCHA.
+// =====================================================
+
+router.get(
+  "/new",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const user =
+        await checkActiveUser(
+          req,
+          res
+        );
+
+      if (!user) {
+        return;
+      }
+
+      const {
+        captchaLength,
+      } = await getCaptchaSettings();
+
+      const captcha =
+        generateCaptcha(
+          captchaLength
+        );
+
+      return res.status(200).json({
+        success: true,
+
+        svg: captcha.svg,
+
+        token: captcha.token,
+
+        length: captcha.length,
+
+        // Frontend can also use this value.
+        expiresInSeconds:
+          CAPTCHA_EXPIRY_SECONDS,
+      });
+    } catch (error) {
+      console.error(
+        "❌ CAPTCHA GENERATION ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to generate CAPTCHA.",
       });
     }
-
-    // Get current captcha settings
-    const rewardRate =
-      store.data.siteContent?.settings?.captchaReward ?? 0.50;
-
-    const dailyLimit =
-      store.data.siteContent?.settings?.dailyCaptchaLimit ?? 50;
-
-    // Find user's wallet
-    const wallet = store.data.wallets.find(
-      w =>
-        w.userId === req.user.id ||
-        w.memberId === req.user.memberId
-    );
-
-    if (!wallet) {
-      return res.status(404).json({
-        success: false,
-        message: 'Wallet not found.'
-      });
-    }
-
-    // Current date
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    // Reset daily successful captcha count on a new day
-    if (wallet.lastCaptchaDate !== todayStr) {
-      wallet.todayCaptchasSolved = 0;
-      wallet.lastCaptchaDate = todayStr;
-    }
-
-    // Check daily successful captcha limit
-    if (wallet.todayCaptchasSolved >= dailyLimit) {
-      return res.status(429).json({
-        success: false,
-        message: `Daily limit of ${dailyLimit} captchas reached! Please return tomorrow.`
-      });
-    }
-
-    /*
-     * Successful captcha
-     */
-
-    wallet.todayCaptchasSolved += 1;
-
-    wallet.currentBalance = parseFloat(
-      (wallet.currentBalance + rewardRate).toFixed(2)
-    );
-
-    wallet.captchaEarnings = parseFloat(
-      (wallet.captchaEarnings + rewardRate).toFixed(2)
-    );
-
-    // Save successful captcha attempt
-    const correctAttempt = {
-      _id: `captcha_attempt_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2, 8)}`,
-
-      userId,
-      memberId,
-
-      result: 'correct',
-      status: 'correct',
-
-      answer: String(answer).trim(),
-
-      rewardEarned: rewardRate,
-
-      dailySolveNumber: wallet.todayCaptchasSolved,
-
-      reason: 'Captcha solved successfully.',
-
-      createdAt: now
-    };
-
-    store.data.captchaAttempts.push(correctAttempt);
-
-    // Create wallet transaction
-    const tx = {
-      _id: `tx_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2, 8)}`,
-
-      userId: req.user.id,
-
-      memberId: wallet.memberId,
-
-      type: 'captcha_reward',
-
-      grossAmount: rewardRate,
-
-      tdsPercentage: 0,
-
-      tdsAmount: 0,
-
-      adminFeePercentage: 0,
-
-      adminFeeAmount: 0,
-
-      netAmount: rewardRate,
-
-      status: 'completed',
-
-      description: `Daily Captcha Solve Reward (#${wallet.todayCaptchasSolved})`,
-
-      createdAt: now
-    };
-
-    store.data.transactions.push(tx);
-
-    // Save wallet + transaction + captcha attempt together
-    store.save();
-
-    // Response to customer frontend
-    return res.json({
-      success: true,
-
-      message: `Great job! ₹${rewardRate.toFixed(2)} added to your wallet.`,
-
-      rewardEarned: rewardRate,
-
-      currentBalance: wallet.currentBalance,
-
-      todayCaptchasSolved: wallet.todayCaptchasSolved,
-
-      dailyLimit
-    });
-  } catch (err) {
-    console.error('Captcha solve error:', err);
-
-    return res.status(500).json({
-      success: false,
-      message: 'Server error processing captcha reward.'
-    });
   }
-});
+);
+
+// =====================================================
+// POST /api/captcha/solve
+// =====================================================
+//
+// Verify and process CAPTCHA.
+// =====================================================
+
+router.post(
+  "/solve",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      // -------------------------------------------------
+      // USER
+      // -------------------------------------------------
+
+      const user =
+        await checkActiveUser(
+          req,
+          res
+        );
+
+      if (!user) {
+        return;
+      }
+
+      // -------------------------------------------------
+      // REQUEST DATA
+      // -------------------------------------------------
+
+      const {
+        token,
+        answer,
+      } = req.body || {};
+
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          counted: false,
+          reason:
+            "CAPTCHA token is required.",
+        });
+      }
+
+      if (
+        typeof answer !== "string" ||
+        answer.trim().length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          counted: false,
+          reason:
+            "CAPTCHA answer is required.",
+        });
+      }
+
+      // -------------------------------------------------
+      // VERIFY SIGNED CAPTCHA TOKEN
+      // -------------------------------------------------
+
+      const verification =
+        verifyCaptchaToken(token);
+
+      if (
+        !verification ||
+        !verification.valid
+      ) {
+        return res.status(400).json({
+          success: false,
+          counted: false,
+          result: "expired",
+          reason:
+            verification?.reason ||
+            "CAPTCHA has expired or is invalid.",
+        });
+      }
+
+      // -------------------------------------------------
+      // CAPTCHA TIMESTAMP IS REQUIRED
+      // -------------------------------------------------
+      //
+      // The signed CAPTCHA token must provide the
+      // generation timestamp so the server can enforce
+      // the 10-second rule.
+      // -------------------------------------------------
+
+      const generatedAt =
+        Number(
+          verification.timestamp
+        );
+
+      if (
+        !Number.isFinite(
+          generatedAt
+        ) ||
+        generatedAt <= 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          counted: false,
+          result: "expired",
+          reason:
+            "CAPTCHA timestamp is invalid.",
+        });
+      }
+
+      // -------------------------------------------------
+      // RESPONSE TIME
+      // -------------------------------------------------
+
+      const responseTimeMs =
+        Math.max(
+          0,
+          Date.now() -
+            generatedAt
+        );
+
+      // -------------------------------------------------
+      // SERVER-SIDE 10 SECOND EXPIRY
+      // -------------------------------------------------
+      //
+      // This is the important security check.
+      //
+      // Even if someone bypasses the frontend countdown,
+      // the backend rejects the CAPTCHA after 10 seconds.
+      // -------------------------------------------------
+
+      if (
+        responseTimeMs >=
+        CAPTCHA_EXPIRY_MS
+      ) {
+        return res.status(400).json({
+          success: false,
+          counted: false,
+          result: "expired",
+
+          reason:
+            "CAPTCHA expired. You must solve each CAPTCHA within 10 seconds.",
+
+          message:
+            "CAPTCHA expired after 10 seconds. Please use the new CAPTCHA.",
+        });
+      }
+
+      // -------------------------------------------------
+      // SUSPICIOUSLY FAST SUBMISSION
+      // -------------------------------------------------
+
+      if (
+        responseTimeMs <
+        MIN_RESPONSE_TIME_MS
+      ) {
+        return res.status(400).json({
+          success: false,
+          counted: false,
+
+          message:
+            "CAPTCHA submitted too quickly. Please try again.",
+        });
+      }
+
+      // -------------------------------------------------
+      // ACTUAL CAPTCHA ANSWER
+      // -------------------------------------------------
+
+      const actualSolution =
+        verification.text ||
+        verification.answer ||
+        verification.captchaText;
+
+      if (
+        typeof actualSolution !==
+          "string" ||
+        actualSolution.length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          counted: false,
+          reason:
+            "Invalid CAPTCHA data.",
+        });
+      }
+
+      // -------------------------------------------------
+      // EXACT CASE-SENSITIVE COMPARISON
+      // -------------------------------------------------
+
+      const submittedAnswer =
+        answer.trim();
+
+      const isCorrect =
+        submittedAnswer ===
+        actualSolution;
+
+      // -------------------------------------------------
+      // SETTINGS
+      // -------------------------------------------------
+
+      const {
+        captchaReward,
+        dailyCaptchaLimit,
+      } =
+        await getCaptchaSettings();
+
+      const memberId =
+        user.memberId ||
+        user.userCode;
+
+      if (!memberId) {
+        console.error(
+          "❌ CAPTCHA USER HAS NO MEMBER ID:",
+          user._id
+        );
+
+        return res.status(500).json({
+          success: false,
+          counted: false,
+          message:
+            "User account is missing member ID.",
+        });
+      }
+
+      // =================================================
+      // WRONG CAPTCHA
+      // =================================================
+
+      if (!isCorrect) {
+        await CaptchaAttempt.create({
+          userId:
+            user._id,
+
+          memberId,
+
+          result:
+            "wrong",
+
+          status:
+            "failed",
+
+          reward: 0,
+
+          responseTimeMs,
+
+          attemptDate:
+            getTodayDateKey(),
+
+          ipAddress:
+            req.ip || "",
+
+          userAgent:
+            req.get(
+              "user-agent"
+            ) || "",
+        });
+
+        return res.status(200).json({
+          success: false,
+
+          counted: true,
+
+          result:
+            "wrong",
+
+          message:
+            "Incorrect CAPTCHA. Please try again.",
+        });
+      }
+
+      // =================================================
+      // DAILY SUCCESS LIMIT
+      // =================================================
+
+      const todayDate =
+        getTodayDateKey();
+
+      const todayCorrectCount =
+        await CaptchaAttempt.countDocuments(
+          {
+            userId:
+              user._id,
+
+            attemptDate:
+              todayDate,
+
+            result:
+              "correct",
+
+            status:
+              "success",
+          }
+        );
+
+      if (
+        todayCorrectCount >=
+        dailyCaptchaLimit
+      ) {
+        return res.status(429).json({
+          success: false,
+
+          counted: false,
+
+          result: "limit",
+
+          message:
+            `Daily CAPTCHA limit of ${dailyCaptchaLimit} reached.`,
+
+          todayCaptchasSolved:
+            todayCorrectCount,
+
+          dailyCaptchaLimit,
+        });
+      }
+
+      // =================================================
+      // MONGODB TRANSACTION
+      // =================================================
+
+      const session =
+        await mongoose.startSession();
+
+      let walletAfterSave;
+
+      try {
+        await session.withTransaction(
+          async () => {
+            // -------------------------------------------
+            // FIND / CREATE WALLET
+            // -------------------------------------------
+
+            let wallet =
+              await Wallet.findOne({
+                userId:
+                  user._id,
+              }).session(
+                session
+              );
+
+            if (!wallet) {
+              wallet =
+                new Wallet({
+                  userId:
+                    user._id,
+
+                  memberId,
+
+                  currentBalance:
+                    0,
+
+                  totalEarnings:
+                    0,
+
+                  captchaEarnings:
+                    0,
+
+                  referralCommissions:
+                    0,
+
+                  totalWithdrawn:
+                    0,
+
+                  todayCaptchasSolved:
+                    0,
+
+                  lastCaptchaDate:
+                    new Date().toISOString(),
+                });
+            }
+
+            // -------------------------------------------
+            // RESET DAILY WALLET COUNTER
+            // -------------------------------------------
+
+            const lastCaptchaDate =
+              wallet.lastCaptchaDate;
+
+            if (
+              lastCaptchaDate
+            ) {
+              const lastDate =
+                new Date(
+                  lastCaptchaDate
+                );
+
+              if (
+                !Number.isNaN(
+                  lastDate.getTime()
+                )
+              ) {
+                const lastYear =
+                  lastDate.getFullYear();
+
+                const lastMonth =
+                  lastDate.getMonth();
+
+                const lastDay =
+                  lastDate.getDate();
+
+                const now =
+                  new Date();
+
+                const sameDay =
+                  lastYear ===
+                    now.getFullYear() &&
+                  lastMonth ===
+                    now.getMonth() &&
+                  lastDay ===
+                    now.getDate();
+
+                if (!sameDay) {
+                  wallet.todayCaptchasSolved = 0;
+                }
+              }
+            }
+
+            // -------------------------------------------
+            // NORMALIZE WALLET
+            // -------------------------------------------
+
+            wallet.currentBalance =
+              toNumber(
+                wallet.currentBalance
+              );
+
+            wallet.totalEarnings =
+              toNumber(
+                wallet.totalEarnings
+              );
+
+            wallet.captchaEarnings =
+              toNumber(
+                wallet.captchaEarnings
+              );
+
+            wallet.todayCaptchasSolved =
+              toNumber(
+                wallet.todayCaptchasSolved
+              );
+
+            // -------------------------------------------
+            // SECOND DAILY LIMIT CHECK
+            // -------------------------------------------
+            //
+            // Check again inside the transaction so the
+            // latest wallet state is used before crediting.
+            // -------------------------------------------
+
+            if (
+              wallet.todayCaptchasSolved >=
+              dailyCaptchaLimit
+            ) {
+              throw new Error(
+                "DAILY_CAPTCHA_LIMIT_REACHED"
+              );
+            }
+
+            // -------------------------------------------
+            // ADD CAPTCHA REWARD
+            // -------------------------------------------
+
+            wallet.todayCaptchasSolved +=
+              1;
+
+            wallet.currentBalance =
+              Number(
+                (
+                  wallet.currentBalance +
+                  captchaReward
+                ).toFixed(2)
+              );
+
+            wallet.totalEarnings =
+              Number(
+                (
+                  wallet.totalEarnings +
+                  captchaReward
+                ).toFixed(2)
+              );
+
+            wallet.captchaEarnings =
+              Number(
+                (
+                  wallet.captchaEarnings +
+                  captchaReward
+                ).toFixed(2)
+              );
+
+            wallet.lastCaptchaDate =
+              new Date().toISOString();
+
+            wallet.memberId =
+              memberId;
+
+            // -------------------------------------------
+            // SAVE WALLET
+            // -------------------------------------------
+
+            await wallet.save({
+              session,
+            });
+
+            // -------------------------------------------
+            // CREATE CAPTCHA ATTEMPT
+            // -------------------------------------------
+
+            await CaptchaAttempt.create(
+              [
+                {
+                  userId:
+                    user._id,
+
+                  memberId,
+
+                  result:
+                    "correct",
+
+                  status:
+                    "success",
+
+                  reward:
+                    captchaReward,
+
+                  responseTimeMs,
+
+                  attemptDate:
+                    todayDate,
+
+                  ipAddress:
+                    req.ip || "",
+
+                  userAgent:
+                    req.get(
+                      "user-agent"
+                    ) || "",
+                },
+              ],
+              {
+                session,
+              }
+            );
+
+            // -------------------------------------------
+            // CREATE WALLET TRANSACTION
+            // -------------------------------------------
+
+            await Transaction.create(
+              [
+                {
+                  userId:
+                    user._id,
+
+                  memberId,
+
+                  type:
+                    "captcha_reward",
+
+                  category:
+                    "captcha",
+
+                  amount:
+                    captchaReward,
+
+                  grossAmount:
+                    captchaReward,
+
+                  netAmount:
+                    captchaReward,
+
+                  balanceAfter:
+                    wallet.currentBalance,
+
+                  status:
+                    "completed",
+
+                  description:
+                    "CAPTCHA solved successfully",
+
+                  createdBy:
+                    user._id,
+
+                  timestamp:
+                    new Date(),
+                },
+              ],
+              {
+                session,
+              }
+            );
+
+            walletAfterSave =
+              wallet;
+          }
+        );
+      } catch (error) {
+        if (
+          error.message ===
+          "DAILY_CAPTCHA_LIMIT_REACHED"
+        ) {
+          return res.status(429).json({
+            success: false,
+
+            counted: false,
+
+            result: "limit",
+
+            message:
+              `Daily CAPTCHA limit of ${dailyCaptchaLimit} reached.`,
+
+            todayCaptchasSolved:
+              dailyCaptchaLimit,
+
+            dailyCaptchaLimit,
+          });
+        }
+
+        throw error;
+      } finally {
+        await session.endSession();
+      }
+
+      // =================================================
+      // SUCCESS RESPONSE
+      // =================================================
+
+      return res.status(200).json({
+        success: true,
+
+        counted: true,
+
+        result:
+          "correct",
+
+        message:
+          "CAPTCHA solved successfully.",
+
+        reward:
+          captchaReward,
+
+        todayCaptchasSolved:
+          walletAfterSave
+            ?.todayCaptchasSolved ??
+          todayCorrectCount + 1,
+
+        dailyCaptchaLimit,
+
+        currentBalance:
+          walletAfterSave
+            ?.currentBalance ??
+          0,
+
+        captchaEarnings:
+          walletAfterSave
+            ?.captchaEarnings ??
+          0,
+
+        responseTimeMs,
+      });
+    } catch (error) {
+      console.error(
+        "❌ CAPTCHA SOLVE ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+
+        counted: false,
+
+        message:
+          "Unable to process CAPTCHA.",
+      });
+    }
+  }
+);
+
+// =====================================================
+// GET /api/captcha/my-stats
+// =====================================================
+
+router.get(
+  "/my-stats",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      // -------------------------------------------------
+      // USER
+      // -------------------------------------------------
+
+      const user =
+        await checkActiveUser(
+          req,
+          res
+        );
+
+      if (!user) {
+        return;
+      }
+
+      // -------------------------------------------------
+      // SETTINGS
+      // -------------------------------------------------
+
+      const {
+        captchaReward,
+        dailyCaptchaLimit,
+      } =
+        await getCaptchaSettings();
+
+      // -------------------------------------------------
+      // TODAY
+      // -------------------------------------------------
+
+      const todayDate =
+        getTodayDateKey();
+
+      // -------------------------------------------------
+      // TOTAL ATTEMPTS
+      // -------------------------------------------------
+
+      const total =
+        await CaptchaAttempt.countDocuments(
+          {
+            userId:
+              user._id,
+          }
+        );
+
+      // -------------------------------------------------
+      // CORRECT
+      // -------------------------------------------------
+
+      const correct =
+        await CaptchaAttempt.countDocuments(
+          {
+            userId:
+              user._id,
+
+            result:
+              "correct",
+
+            status:
+              "success",
+          }
+        );
+
+      // -------------------------------------------------
+      // WRONG
+      // -------------------------------------------------
+
+      const wrong =
+        await CaptchaAttempt.countDocuments(
+          {
+            userId:
+              user._id,
+
+            result:
+              "wrong",
+
+            status:
+              "failed",
+          }
+        );
+
+      // -------------------------------------------------
+      // TODAY CORRECT
+      // -------------------------------------------------
+
+      const todayCorrect =
+        await CaptchaAttempt.countDocuments(
+          {
+            userId:
+              user._id,
+
+            attemptDate:
+              todayDate,
+
+            result:
+              "correct",
+
+            status:
+              "success",
+          }
+        );
+
+      // -------------------------------------------------
+      // TODAY WRONG
+      // -------------------------------------------------
+
+      const todayWrong =
+        await CaptchaAttempt.countDocuments(
+          {
+            userId:
+              user._id,
+
+            attemptDate:
+              todayDate,
+
+            result:
+              "wrong",
+
+            status:
+              "failed",
+          }
+        );
+
+      // -------------------------------------------------
+      // ACCURACY
+      // -------------------------------------------------
+
+      const accuracy =
+        total > 0
+          ? Number(
+              (
+                (correct /
+                  total) *
+                100
+              ).toFixed(2)
+            )
+          : 0;
+
+      // -------------------------------------------------
+      // WALLET
+      // -------------------------------------------------
+
+      const wallet =
+        await Wallet.findOne({
+          userId:
+            user._id,
+        }).lean();
+
+      // -------------------------------------------------
+      // RESPONSE
+      // -------------------------------------------------
+
+      return res.status(200).json({
+        success: true,
+
+        stats: {
+          totalAttempts:
+            total,
+
+          correct,
+
+          wrong,
+
+          accuracy,
+
+          todayAttempts:
+            todayCorrect +
+            todayWrong,
+
+          todayCorrect,
+
+          todayWrong,
+
+          todayLimit:
+            dailyCaptchaLimit,
+
+          remainingToday:
+            Math.max(
+              0,
+              dailyCaptchaLimit -
+                todayCorrect
+            ),
+
+          captchaReward,
+
+          captchaExpirySeconds:
+            CAPTCHA_EXPIRY_SECONDS,
+
+          captchaEarnings:
+            toNumber(
+              wallet?.captchaEarnings
+            ),
+
+          currentBalance:
+            toNumber(
+              wallet?.currentBalance
+            ),
+        },
+      });
+    } catch (error) {
+      console.error(
+        "❌ MY CAPTCHA STATS ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Unable to load CAPTCHA statistics.",
+      });
+    }
+  }
+);
 
 export default router;

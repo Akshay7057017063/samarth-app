@@ -1,78 +1,202 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: Number(process.env.MAIL_PORT || 587),
-  secure: process.env.MAIL_SECURE === "true",
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASSWORD,
-  },
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
+  auth:
+    process.env.SMTP_USER && process.env.SMTP_PASSWORD
+      ? {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASSWORD,
+        }
+      : undefined,
 });
 
-export const sendLoginCredentialsEmail = async ({
+function escapeHtml(value = "") {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+export async function sendMail({ to, subject, html, text }) {
+  if (!to) {
+    throw new Error("Recipient email is required.");
+  }
+
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+    throw new Error(
+      "SMTP credentials are not configured. Please update SMTP_USER and SMTP_PASSWORD in .env."
+    );
+  }
+
+  const info = await transporter.sendMail({
+    from:
+      process.env.SMTP_FROM ||
+      `"Digital Lyf PVT. LTD." <${process.env.SMTP_USER}>`,
+    to,
+    subject,
+    text,
+    html,
+  });
+
+  return info;
+}
+
+export async function sendLoginCodeEmail({
+  email,
+  name,
+  loginCode,
+}) {
+  const safeName = escapeHtml(name || "User");
+  const safeCode = escapeHtml(loginCode);
+
+  return sendMail({
+    to: email,
+    subject: "Your Digital Lyf Login Code",
+    text: `Hello ${name || "User"}, your login code is ${loginCode}. This code will expire soon.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;">
+        <h2>Digital Lyf PVT. LTD.</h2>
+        <p>Hello ${safeName},</p>
+        <p>Your login verification code is:</p>
+
+        <div style="
+          font-size:32px;
+          font-weight:bold;
+          letter-spacing:8px;
+          padding:20px;
+          background:#f3f4f6;
+          text-align:center;
+          border-radius:8px;
+          margin:20px 0;
+        ">
+          ${safeCode}
+        </div>
+
+        <p>Please do not share this code with anyone.</p>
+        <p>Regards,<br />Digital Lyf PVT. LTD.</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendPasswordResetCodeEmail({
+  email,
+  name,
+  resetCode,
+}) {
+  const safeName = escapeHtml(name || "User");
+  const safeCode = escapeHtml(resetCode);
+
+  return sendMail({
+    to: email,
+    subject: "Password Reset Code - Digital Lyf PVT. LTD.",
+    text: `Hello ${name || "User"}, your password reset code is ${resetCode}.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;">
+        <h2>Digital Lyf PVT. LTD.</h2>
+
+        <p>Hello ${safeName},</p>
+
+        <p>
+          We received a request to reset your password.
+          Use the verification code below:
+        </p>
+
+        <div style="
+          font-size:32px;
+          font-weight:bold;
+          letter-spacing:8px;
+          padding:20px;
+          background:#f3f4f6;
+          text-align:center;
+          border-radius:8px;
+          margin:20px 0;
+        ">
+          ${safeCode}
+        </div>
+
+        <p>
+          If you did not request a password reset, you can safely ignore this email.
+        </p>
+
+        <p>
+          Regards,<br />
+          Digital Lyf PVT. LTD.
+        </p>
+      </div>
+    `,
+  });
+}
+
+export async function sendLoginCredentialsEmail({
   email,
   name,
   loginId,
   password,
-}) => {
-  const mailOptions = {
-    from: process.env.MAIL_FROM || process.env.MAIL_USER,
+}) {
+  const safeName = escapeHtml(name || "User");
+  const safeLoginId = escapeHtml(loginId);
+  const safePassword = escapeHtml(password);
+
+  return sendMail({
     to: email,
-    subject: "Your Samarth Login Credentials",
+    subject: "Your Digital Lyf Login Credentials",
+    text: `Hello ${name || "User"}, your login ID is ${loginId} and password is ${password}.`,
     html: `
-      <div style="margin:0;padding:30px;background:#f8fafc;font-family:Arial,sans-serif;">
-        <div style="max-width:600px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
-          
-          <div style="padding:24px;background:#2563eb;color:#ffffff;">
-            <h1 style="margin:0;font-size:24px;">Samarth</h1>
-            <p style="margin:6px 0 0;font-size:14px;">
-              Welcome to Samarth Platform
-            </p>
-          </div>
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;">
+        <h2>Digital Lyf PVT. LTD.</h2>
 
-          <div style="padding:28px;">
-            <h2 style="margin-top:0;color:#0f172a;">
-              Welcome, ${name}
-            </h2>
+        <p>Hello ${safeName},</p>
 
-            <p style="color:#475569;line-height:1.6;">
-              Your Samarth customer account has been created successfully.
-              You can use the following credentials to login.
-            </p>
+        <p>Your account has been created successfully.</p>
 
-            <div style="margin:24px 0;padding:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
-              <p style="margin:0 0 12px;color:#64748b;font-size:13px;">
-                Login ID
-              </p>
+        <div style="
+          background:#f3f4f6;
+          padding:20px;
+          border-radius:8px;
+          margin:20px 0;
+        ">
+          <p>
+            <strong>Login ID:</strong>
+            ${safeLoginId}
+          </p>
 
-              <p style="margin:0;color:#0f172a;font-size:18px;font-weight:bold;">
-                ${loginId}
-              </p>
-
-              <p style="margin:20px 0 12px;color:#64748b;font-size:13px;">
-                Password
-              </p>
-
-              <p style="margin:0;color:#0f172a;font-size:18px;font-weight:bold;">
-                ${password}
-              </p>
-            </div>
-
-            <p style="color:#475569;line-height:1.6;">
-              Please keep your login credentials secure and do not share your
-              password with anyone.
-            </p>
-
-            <p style="margin-top:28px;color:#64748b;font-size:13px;">
-              Regards,<br />
-              <strong>Samarth Team</strong>
-            </p>
-          </div>
+          <p>
+            <strong>Password:</strong>
+            ${safePassword}
+          </p>
         </div>
+
+        <p>
+          Please change your password after your first login.
+        </p>
+
+        <p>
+          Regards,<br />
+          Digital Lyf PVT. LTD.
+        </p>
       </div>
     `,
-  };
+  });
+}
 
-  return transporter.sendMail(mailOptions);
-};
+export async function verifyMailerConnection() {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+    return {
+      success: false,
+      message: "SMTP credentials are not configured.",
+    };
+  }
+
+  await transporter.verify();
+
+  return {
+    success: true,
+    message: "SMTP connection is working.",
+  };
+}

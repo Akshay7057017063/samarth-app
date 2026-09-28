@@ -1,12 +1,14 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  ArrowDownToLine,
   CircleDollarSign,
   Clock3,
   IndianRupee,
   RefreshCw,
   ShoppingCart,
+  TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
@@ -32,11 +34,13 @@ const Dashboard = () => {
       const response = await api.get("/admin/stats");
 
       if (response.data?.success) {
-        setStats(response.data.stats);
+        setStats(response.data.stats || {});
       } else {
-        setStats(response.data);
+        setStats(response.data?.stats || response.data || {});
       }
     } catch (err) {
+      console.error("Dashboard stats error:", err);
+
       setError(
         err.response?.data?.message ||
           "Unable to load dashboard statistics."
@@ -52,20 +56,41 @@ const Dashboard = () => {
   }, []);
 
   const formatCurrency = (value) => {
-    return `₹${Number(value || 0).toLocaleString("en-IN")}`;
+    const amount = Number(value || 0);
+
+    return `₹${amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
+
+  const formatNumber = (value) => {
+    return Number(value || 0).toLocaleString("en-IN");
+  };
+
+  const derivedStats = useMemo(() => {
+    const totalUsers = Number(stats?.totalUsers || 0);
+    const activeUsers = Number(stats?.activeUsers || 0);
+    const inactiveUsers = Math.max(totalUsers - activeUsers, 0);
+
+    return {
+      totalUsers,
+      activeUsers,
+      inactiveUsers,
+    };
+  }, [stats]);
 
   const cards = [
     {
       title: "Total Customers",
-      value: stats?.totalUsers ?? 0,
+      value: formatNumber(derivedStats.totalUsers),
       icon: Users,
       iconBg: "bg-blue-100",
       iconColor: "text-blue-600",
     },
     {
       title: "Active Customers",
-      value: stats?.activeUsers ?? 0,
+      value: formatNumber(derivedStats.activeUsers),
       icon: Activity,
       iconBg: "bg-emerald-100",
       iconColor: "text-emerald-600",
@@ -93,14 +118,14 @@ const Dashboard = () => {
     },
     {
       title: "Pending Withdrawals",
-      value: stats?.pendingWithdrawalsCount ?? 0,
+      value: formatNumber(stats?.pendingWithdrawalsCount),
       icon: Clock3,
       iconBg: "bg-yellow-100",
       iconColor: "text-yellow-600",
     },
     {
       title: "Sales Count",
-      value: stats?.totalSalesCount ?? 0,
+      value: formatNumber(stats?.totalSalesCount),
       icon: ShoppingCart,
       iconBg: "bg-cyan-100",
       iconColor: "text-cyan-600",
@@ -108,7 +133,7 @@ const Dashboard = () => {
     {
       title: "Sales Volume",
       value: formatCurrency(stats?.totalSalesVolume),
-      icon: CircleDollarSign,
+      icon: TrendingUp,
       iconBg: "bg-indigo-100",
       iconColor: "text-indigo-600",
     },
@@ -146,13 +171,13 @@ const Dashboard = () => {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 sm:flex-row sm:items-center sm:justify-between">
           <span>{error}</span>
 
           <button
             type="button"
             onClick={() => fetchStats()}
-            className="font-semibold text-red-700 underline"
+            className="self-start font-semibold text-red-700 underline sm:self-auto"
           >
             Retry
           </button>
@@ -179,7 +204,7 @@ const Dashboard = () => {
                 key={card.title}
                 className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-500">
                       {card.title}
@@ -204,18 +229,26 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Additional Overview */}
+      {/* Detailed Overview */}
       {!loading && (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           {/* Customers Overview */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-800">
-              Customers Overview
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-blue-100 p-2.5">
+                <Users className="h-5 w-5 text-blue-600" />
+              </div>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Customer account status
-            </p>
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  Customers Overview
+                </h2>
+
+                <p className="text-sm text-slate-500">
+                  Customer account status
+                </p>
+              </div>
+            </div>
 
             <div className="mt-6 space-y-4">
               <div className="flex items-center justify-between">
@@ -224,7 +257,7 @@ const Dashboard = () => {
                 </span>
 
                 <span className="font-semibold text-slate-800">
-                  {stats?.totalUsers ?? 0}
+                  {formatNumber(derivedStats.totalUsers)}
                 </span>
               </div>
 
@@ -234,7 +267,17 @@ const Dashboard = () => {
                 </span>
 
                 <span className="font-semibold text-emerald-600">
-                  {stats?.activeUsers ?? 0}
+                  {formatNumber(derivedStats.activeUsers)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">
+                  Inactive / Suspended
+                </span>
+
+                <span className="font-semibold text-red-600">
+                  {formatNumber(derivedStats.inactiveUsers)}
                 </span>
               </div>
 
@@ -244,7 +287,7 @@ const Dashboard = () => {
                 </span>
 
                 <span className="font-semibold text-blue-600">
-                  {stats?.paidUsers ?? 0}
+                  {formatNumber(stats?.paidUsers)}
                 </span>
               </div>
 
@@ -254,7 +297,7 @@ const Dashboard = () => {
                 </span>
 
                 <span className="font-semibold text-orange-600">
-                  {stats?.unpaidUsers ?? 0}
+                  {formatNumber(stats?.unpaidUsers)}
                 </span>
               </div>
             </div>
@@ -262,13 +305,21 @@ const Dashboard = () => {
 
           {/* Withdrawal Overview */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-800">
-              Withdrawal Overview
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-yellow-100 p-2.5">
+                <ArrowDownToLine className="h-5 w-5 text-yellow-600" />
+              </div>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Current withdrawal information
-            </p>
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  Withdrawal Overview
+                </h2>
+
+                <p className="text-sm text-slate-500">
+                  Current withdrawal information
+                </p>
+              </div>
+            </div>
 
             <div className="mt-6 space-y-4">
               <div className="flex items-center justify-between">
@@ -277,7 +328,7 @@ const Dashboard = () => {
                 </span>
 
                 <span className="font-semibold text-yellow-600">
-                  {stats?.pendingWithdrawalsCount ?? 0}
+                  {formatNumber(stats?.pendingWithdrawalsCount)}
                 </span>
               </div>
 
@@ -287,9 +338,7 @@ const Dashboard = () => {
                 </span>
 
                 <span className="font-semibold text-slate-800">
-                  {formatCurrency(
-                    stats?.pendingWithdrawalsNet
-                  )}
+                  {formatCurrency(stats?.pendingWithdrawalsNet)}
                 </span>
               </div>
 
@@ -299,9 +348,7 @@ const Dashboard = () => {
                 </span>
 
                 <span className="font-semibold text-blue-600">
-                  {formatCurrency(
-                    stats?.totalWithdrawnPaid
-                  )}
+                  {formatCurrency(stats?.totalWithdrawnPaid)}
                 </span>
               </div>
             </div>
@@ -309,13 +356,21 @@ const Dashboard = () => {
 
           {/* Financial Overview */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-800">
-              Financial Overview
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-emerald-100 p-2.5">
+                <CircleDollarSign className="h-5 w-5 text-emerald-600" />
+              </div>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Platform financial summary
-            </p>
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  Financial Overview
+                </h2>
+
+                <p className="text-sm text-slate-500">
+                  Platform financial summary
+                </p>
+              </div>
+            </div>
 
             <div className="mt-6 space-y-4">
               <div className="flex items-center justify-between">
@@ -347,6 +402,90 @@ const Dashboard = () => {
                   {formatCurrency(stats?.totalSalesVolume)}
                 </span>
               </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">
+                  Captcha Earnings
+                </span>
+
+                <span className="font-semibold text-orange-600">
+                  {formatCurrency(stats?.totalCaptchaPaid)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">
+                  Referral Earnings
+                </span>
+
+                <span className="font-semibold text-pink-600">
+                  {formatCurrency(stats?.totalReferralPaid)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Platform Summary */}
+      {!loading && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">
+                Platform Summary
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Live information from the Samarth backend
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-emerald-600">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              Backend Connected
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Total Current Balance
+              </p>
+
+              <p className="mt-2 text-xl font-bold text-slate-800">
+                {formatCurrency(stats?.totalCurrentBalance)}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Total Captcha Paid
+              </p>
+
+              <p className="mt-2 text-xl font-bold text-slate-800">
+                {formatCurrency(stats?.totalCaptchaPaid)}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Total Referral Paid
+              </p>
+
+              <p className="mt-2 text-xl font-bold text-slate-800">
+                {formatCurrency(stats?.totalReferralPaid)}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Total Withdrawn
+              </p>
+
+              <p className="mt-2 text-xl font-bold text-slate-800">
+                {formatCurrency(stats?.totalWithdrawnPaid)}
+              </p>
             </div>
           </div>
         </div>
@@ -354,14 +493,22 @@ const Dashboard = () => {
 
       {/* Welcome Banner */}
       <div className="overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white shadow-lg">
-        <h2 className="text-xl font-bold">
-          Welcome to Samarth Admin Panel 👋
-        </h2>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold">
+              Welcome to Samarth Admin Panel 👋
+            </h2>
 
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
-          Monitor customers, captcha work, wallets, withdrawals,
-          referrals and platform activity from one place.
-        </p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
+              Monitor customers, captcha work, wallets, withdrawals,
+              referrals and platform activity from one place.
+            </p>
+          </div>
+
+          <div className="hidden rounded-2xl bg-white/10 p-4 sm:block">
+            <Wallet className="h-10 w-10 text-white" />
+          </div>
+        </div>
       </div>
     </div>
   );

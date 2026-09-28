@@ -1,39 +1,22 @@
-const requireSuperOrAdmin = (req, res, next) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required.",
-      });
-    }
 
-    const role = String(req.user.role || "")
-      .trim()
-      .toLowerCase();
+import { requireSuperOrAdmin } from "./auth.js";
 
-    if (role !== "admin" && role !== "superadmin") {
-      console.log("❌ Admin authorization failed:", {
-        userId: req.user.id,
-        memberId: req.user.memberId,
-        role: req.user.role,
-      });
-
-      return res.status(403).json({
-        success: false,
-        message: "Admin access required.",
-      });
-    }
-
-    next();
-  } catch (error) {
-    console.error("Admin authorization error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Authorization error.",
-    });
-  }
-};
+// =====================================================
+// ADMIN AUTHORIZATION COMPATIBILITY MIDDLEWARE
+// =====================================================
+//
+// This file is kept because existing routes import:
+//     ../middleware/adminAuth.js
+//
+// The actual authorization logic is maintained in:
+//     middleware/auth.js
+//
+// Allowed roles:
+// - admin
+// - superadmin
+// =====================================================
 
 export { requireSuperOrAdmin };
+
 export default requireSuperOrAdmin;
+

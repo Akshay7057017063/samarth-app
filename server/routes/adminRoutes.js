@@ -1,54 +1,35 @@
+
 import express from "express";
 
 import { authenticateToken } from "../middleware/auth.js";
-
 import { requireSuperOrAdmin } from "../middleware/adminAuth.js";
 
 import {
   getAdminStats,
-
   getUsers,
-
   createCustomer,
-
   getCustomerDetails,
-
   updateCustomer,
-
   resetCustomerPassword,
-
   adjustWallet,
-
   sellPackage,
-
   impersonateCustomer,
-
   deleteCustomer,
-
   getSales,
-
   toggleCustomerStatus,
-
   getWithdrawals,
-
   withdrawalAction,
-
   getTdsReport,
-
   getSiteContent,
-
   updateSiteContent,
-
-  // Captcha statistics
   getCaptchaStats,
-
   getCustomerCaptchaStats,
 } from "../controllers/adminController.js";
 
 const router = express.Router();
 
 // =====================================================
-// Admin Authentication
+// ADMIN AUTHENTICATION
 // =====================================================
 
 router.use(
@@ -57,7 +38,7 @@ router.use(
 );
 
 // =====================================================
-// Dashboard
+// ADMIN DASHBOARD
 // =====================================================
 
 router.get(
@@ -66,40 +47,44 @@ router.get(
 );
 
 // =====================================================
-// Captcha Statistics
+// CAPTCHA STATISTICS
 // =====================================================
 
-// Overall captcha statistics for admin dashboard
+// Overall CAPTCHA statistics
 router.get(
   "/captcha/stats",
   getCaptchaStats
 );
 
-// Captcha statistics for a specific customer
+// Specific customer's CAPTCHA statistics
 router.get(
   "/users/:id/captcha-stats",
   getCustomerCaptchaStats
 );
 
 // =====================================================
-// Customers
+// CUSTOMER MANAGEMENT
 // =====================================================
 
+// Get all customers
 router.get(
   "/users",
   getUsers
 );
 
+// Create customer
 router.post(
   "/users",
   createCustomer
 );
 
+// Get customer details
 router.get(
   "/users/:id/details",
   getCustomerDetails
 );
 
+// Update customer
 router.put(
   "/users/:id/update-all",
   updateCustomer
@@ -111,32 +96,36 @@ router.put(
   resetCustomerPassword
 );
 
+// Delete customer
 router.delete(
   "/users/:id",
   deleteCustomer
 );
 
+// Activate / deactivate customer
 router.put(
   "/users/:id/toggle-status",
   toggleCustomerStatus
 );
 
 // =====================================================
-// Customer Wallet / Package
+// CUSTOMER WALLET / PACKAGE
 // =====================================================
 
+// Adjust wallet
 router.post(
   "/users/:id/adjust-wallet",
   adjustWallet
 );
 
+// Sell package
 router.post(
   "/users/:id/sell-package",
   sellPackage
 );
 
 // =====================================================
-// Customer Impersonation
+// CUSTOMER IMPERSONATION
 // =====================================================
 
 router.post(
@@ -145,7 +134,7 @@ router.post(
 );
 
 // =====================================================
-// Sales
+// SALES
 // =====================================================
 
 router.get(
@@ -154,7 +143,7 @@ router.get(
 );
 
 // =====================================================
-// Withdrawals
+// WITHDRAWALS
 // =====================================================
 
 router.get(
@@ -162,13 +151,14 @@ router.get(
   getWithdrawals
 );
 
+// Withdrawal action
 router.put(
   "/withdrawals/:id/action",
   withdrawalAction
 );
 
 // =====================================================
-// TDS
+// TDS REPORT
 // =====================================================
 
 router.get(
@@ -177,17 +167,20 @@ router.get(
 );
 
 // =====================================================
-// Site Content
+// SITE CONTENT / CAPTCHA SETTINGS
 // =====================================================
 
+// Get website + CAPTCHA settings
 router.get(
   "/site-content",
   getSiteContent
 );
 
+// Update website + CAPTCHA settings
 router.put(
   "/site-content",
   updateSiteContent
 );
 
 export default router;
+

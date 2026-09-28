@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -48,12 +48,9 @@ const CustomerDetails = () => {
     useState(false);
 
   const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [showNewPassword, setShowNewPassword] =
-    useState(false);
-
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] =
     useState(false);
 
@@ -70,7 +67,7 @@ const CustomerDetails = () => {
   // LOAD CUSTOMER DETAILS + CAPTCHA DETAILS
   // =====================================================
 
-  const loadCustomerDetails = async () => {
+  const loadCustomerDetails = useCallback(async () => {
     if (!id) {
       setError("Customer ID is missing.");
       setLoading(false);
@@ -86,23 +83,19 @@ const CustomerDetails = () => {
           api.get(
             `/admin/users/${encodeURIComponent(id)}/details`
           ),
+
           api.get(
-            `/admin/users/${encodeURIComponent(
-              id
-            )}/captcha-stats`
+            `/admin/users/${encodeURIComponent(id)}/captcha-stats`
           ),
         ]);
 
       // ===================================================
-      // CUSTOMER DETAILS RESPONSE
+      // CUSTOMER DETAILS
       // ===================================================
 
       if (detailsResult.status === "fulfilled") {
-        const detailsResponse =
-          detailsResult.value;
-
         const detailsData =
-          detailsResponse.data;
+          detailsResult.value?.data;
 
         if (!detailsData?.success) {
           throw new Error(
@@ -134,15 +127,12 @@ const CustomerDetails = () => {
       }
 
       // ===================================================
-      // CAPTCHA RESPONSE
+      // CAPTCHA STATISTICS
       // ===================================================
 
       if (captchaResult.status === "fulfilled") {
-        const captchaResponse =
-          captchaResult.value;
-
         const captchaData =
-          captchaResponse.data;
+          captchaResult.value?.data;
 
         if (captchaData?.success) {
           setCaptchaStats(
@@ -166,18 +156,18 @@ const CustomerDetails = () => {
       );
 
       setError(
-        err.response?.data?.message ||
-          err.message ||
+        err?.response?.data?.message ||
+          err?.message ||
           "Failed to load customer details."
       );
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     loadCustomerDetails();
-  }, [id]);
+  }, [loadCustomerDetails]);
 
   // =====================================================
   // OPEN RESET PASSWORD MODAL
@@ -221,13 +211,8 @@ const CustomerDetails = () => {
     setResetPasswordError("");
     setResetPasswordSuccess("");
 
-    const cleanPassword = String(
-      newPassword
-    );
-
-    const cleanConfirmPassword = String(
-      confirmPassword
-    );
+    const cleanPassword = String(newPassword);
+    const cleanConfirmPassword = String(confirmPassword);
 
     if (!cleanPassword) {
       setResetPasswordError(
@@ -250,10 +235,7 @@ const CustomerDetails = () => {
       return;
     }
 
-    if (
-      cleanPassword !==
-      cleanConfirmPassword
-    ) {
+    if (cleanPassword !== cleanConfirmPassword) {
       setResetPasswordError(
         "Passwords do not match."
       );
@@ -279,7 +261,7 @@ const CustomerDetails = () => {
         }
       );
 
-      const data = response.data;
+      const data = response?.data;
 
       if (!data?.success) {
         throw new Error(
@@ -306,8 +288,8 @@ const CustomerDetails = () => {
       );
 
       setResetPasswordError(
-        err.response?.data?.message ||
-          err.message ||
+        err?.response?.data?.message ||
+          err?.message ||
           "Failed to reset customer password."
       );
     } finally {
@@ -392,15 +374,27 @@ const CustomerDetails = () => {
     "active";
 
   const isActive =
-    String(status).toLowerCase() ===
-    "active";
+    String(status).toLowerCase() === "active";
 
   const userType =
     customer.userType ||
     customer.type ||
     "UNPAID";
 
+  /*
+   * Account ID must show the generated login ID.
+   *
+   * The backend generates:
+   * user_downline_1
+   * user_downline_2
+   * user_downline_3
+   * ...
+   *
+   * Prefer accountId/_id/id depending on the actual
+   * customer object.
+   */
   const accountId =
+    customer.accountId ||
     customer._id ||
     customer.id ||
     "-";
@@ -414,6 +408,7 @@ const CustomerDetails = () => {
       stats?.currentBalance ??
         stats?.walletBalance ??
         captchaStats?.currentBalance ??
+        customer?.wallet?.currentBalance ??
         customer?.wallet?.balance ??
         0
     );
@@ -473,64 +468,80 @@ const CustomerDetails = () => {
 
   const totalCaptchaAttempts =
     Number(
-      captchaStats?.totalAttempts ||
+      captchaStats?.totalAttempts ??
+        captchaStats?.attemptsCount ??
         0
     );
 
   const correctCaptchas =
     Number(
-      captchaStats?.totalCorrect ??
+      captchaStats?.correct ??
+        captchaStats?.totalCorrect ??
         captchaStats?.correctAttempts ??
         0
     );
 
   const wrongCaptchas =
     Number(
-      captchaStats?.totalWrong ??
+      captchaStats?.wrong ??
+        captchaStats?.totalWrong ??
         captchaStats?.wrongAttempts ??
         0
     );
 
   const captchaAccuracy =
     Number(
-      captchaStats?.accuracy ||
-        0
+      captchaStats?.accuracy ?? 0
     );
 
   const todayCaptchaAttempts =
     Number(
-      captchaStats?.todayAttempts ||
+      captchaStats?.todayAttempts ??
         0
     );
 
   const todayCorrectCaptchas =
     Number(
-      captchaStats?.todayCorrect ||
+      captchaStats?.todayCorrect ??
         0
     );
 
   const todayWrongCaptchas =
     Number(
-      captchaStats?.todayWrong ||
+      captchaStats?.todayWrong ??
         0
+    );
+
+  /*
+   * Today's solved CAPTCHA count should be based
+   * on today's correct CAPTCHA count.
+   *
+   * This keeps admin statistics aligned with the
+   * backend definition of a successful CAPTCHA solve.
+   */
+  const todayCaptchasSolved =
+    Number(
+      captchaStats?.todayCaptchasSolved ??
+        todayCorrectCaptchas
     );
 
   const captchaEarnings =
     Number(
-      captchaStats?.captchaEarnings ||
+      captchaStats?.captchaEarnings ??
+        captchaStats?.totalCaptchaEarnings ??
         0
     );
 
-  const todayCaptchasSolved =
-    Number(
-      captchaStats?.todayCaptchasSolved ||
-        0
-    );
-
+  /*
+   * Backend may return the recent attempts using
+   * either "recentAttempts" or "attempts".
+   */
   const recentCaptchaAttempts =
     Array.isArray(
-      captchaStats?.attempts
+      captchaStats?.recentAttempts
     )
+      ? captchaStats.recentAttempts
+      : Array.isArray(captchaStats?.attempts)
       ? captchaStats.attempts
       : [];
 
@@ -555,12 +566,18 @@ const CustomerDetails = () => {
   // =====================================================
 
   const formatDate = (value) => {
-    if (!value) return "-";
+    if (!value) {
+      return "-";
+    }
 
     try {
-      return new Date(
-        value
-      ).toLocaleDateString(
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return "-";
+      }
+
+      return date.toLocaleDateString(
         "en-IN",
         {
           day: "2-digit",
@@ -578,12 +595,18 @@ const CustomerDetails = () => {
   // =====================================================
 
   const formatDateTime = (value) => {
-    if (!value) return "-";
+    if (!value) {
+      return "-";
+    }
 
     try {
-      return new Date(
-        value
-      ).toLocaleString(
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return "-";
+      }
+
+      return date.toLocaleString(
         "en-IN",
         {
           day: "2-digit",
@@ -598,6 +621,10 @@ const CustomerDetails = () => {
     }
   };
 
+  // =====================================================
+  // RENDER
+  // =====================================================
+
   return (
     <div className="w-full min-w-0 space-y-5 sm:space-y-6">
       {/* =================================================
@@ -605,8 +632,6 @@ const CustomerDetails = () => {
       ================================================= */}
 
       <div className="flex flex-col gap-4">
-        {/* Back */}
-
         <Link
           to="/customers"
           className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-600"
@@ -615,21 +640,15 @@ const CustomerDetails = () => {
           Back to Customers
         </Link>
 
-        {/* Customer Header */}
-
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="p-5 sm:p-6 lg:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 items-center gap-4">
-                {/* Avatar */}
-
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-xl font-black text-blue-600 sm:h-20 sm:w-20 sm:text-2xl">
                   {name
                     .charAt(0)
                     .toUpperCase()}
                 </div>
-
-                {/* Customer Info */}
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -679,8 +698,6 @@ const CustomerDetails = () => {
                 </div>
               </div>
 
-              {/* Header Actions */}
-
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:flex-col xl:flex-row">
                 <button
                   type="button"
@@ -693,16 +710,13 @@ const CustomerDetails = () => {
 
                 <span
                   className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-bold ${
-                    String(
-                      userType
-                    ).toUpperCase() === "PAID"
+                    String(userType).toUpperCase() ===
+                    "PAID"
                       ? "bg-emerald-100 text-emerald-700"
                       : "bg-amber-100 text-amber-700"
                   }`}
                 >
-                  {String(
-                    userType
-                  ).toUpperCase()}{" "}
+                  {String(userType).toUpperCase()}{" "}
                   CUSTOMER
                 </span>
               </div>
@@ -717,7 +731,9 @@ const CustomerDetails = () => {
 
       <div>
         <div className="flex items-center gap-2">
-          <LayoutDashboardIcon />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50">
+            <Activity className="h-4 w-4 text-blue-600" />
+          </div>
 
           <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
             Customer Dashboard
@@ -736,9 +752,7 @@ const CustomerDetails = () => {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Wallet Balance"
-          value={formatCurrency(
-            walletBalance
-          )}
+          value={formatCurrency(walletBalance)}
           icon={Wallet}
           iconClass="bg-blue-50 text-blue-600"
           valueClass="text-slate-900"
@@ -746,9 +760,7 @@ const CustomerDetails = () => {
 
         <StatCard
           title="Total Earnings"
-          value={formatCurrency(
-            totalEarnings
-          )}
+          value={formatCurrency(totalEarnings)}
           icon={IndianRupee}
           iconClass="bg-emerald-50 text-emerald-600"
           valueClass="text-emerald-700"
@@ -756,9 +768,7 @@ const CustomerDetails = () => {
 
         <StatCard
           title="Total Withdrawn"
-          value={formatCurrency(
-            totalWithdrawn
-          )}
+          value={formatCurrency(totalWithdrawn)}
           icon={TrendingUp}
           iconClass="bg-purple-50 text-purple-600"
           valueClass="text-purple-700"
@@ -766,9 +776,7 @@ const CustomerDetails = () => {
 
         <StatCard
           title="Pending Withdrawal"
-          value={formatCurrency(
-            pendingWithdrawals
-          )}
+          value={formatCurrency(pendingWithdrawals)}
           icon={Clock}
           iconClass="bg-amber-50 text-amber-600"
           valueClass="text-amber-700"
@@ -857,9 +865,7 @@ const CustomerDetails = () => {
 
           <StatCard
             title="Accuracy"
-            value={`${captchaAccuracy.toFixed(
-              2
-            )}%`}
+            value={`${captchaAccuracy.toFixed(2)}%`}
             icon={Target}
             iconClass="bg-purple-50 text-purple-600"
             valueClass="text-purple-700"
@@ -893,9 +899,7 @@ const CustomerDetails = () => {
 
             <CaptchaSummaryItem
               label="Captcha Earnings"
-              value={formatCurrency(
-                captchaEarnings
-              )}
+              value={formatCurrency(captchaEarnings)}
               valueClass="text-emerald-600"
             />
           </div>
@@ -957,19 +961,30 @@ const CustomerDetails = () => {
                 {recentCaptchaAttempts.map(
                   (attempt, index) => {
                     const result = String(
-                      attempt.result ||
-                        attempt.status ||
+                      attempt?.result ||
+                        attempt?.status ||
                         ""
                     ).toLowerCase();
 
                     const isCorrect =
                       result === "correct";
 
+                    /*
+                     * Backend uses "reward".
+                     * Support older "rewardEarned" too.
+                     */
+                    const reward =
+                      Number(
+                        attempt?.reward ??
+                          attempt?.rewardEarned ??
+                          0
+                      );
+
                     return (
                       <tr
                         key={
-                          attempt._id ||
-                          `${attempt.createdAt}-${index}`
+                          attempt?._id ||
+                          `${attempt?.createdAt || attempt?.timestamp}-${index}`
                         }
                         className="transition hover:bg-slate-50"
                       >
@@ -998,15 +1013,13 @@ const CustomerDetails = () => {
                         </td>
 
                         <td className="whitespace-nowrap px-5 py-3.5 text-sm font-semibold text-slate-700">
-                          {formatCurrency(
-                            attempt.rewardEarned ||
-                              0
-                          )}
+                          {formatCurrency(reward)}
                         </td>
 
                         <td className="whitespace-nowrap px-5 py-3.5 text-sm text-slate-500">
                           {formatDateTime(
-                            attempt.createdAt
+                            attempt?.createdAt ||
+                              attempt?.timestamp
                           )}
                         </td>
                       </tr>
@@ -1143,30 +1156,22 @@ const CustomerDetails = () => {
         <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
           <WalletItem
             label="Current Balance"
-            value={formatCurrency(
-              walletBalance
-            )}
+            value={formatCurrency(walletBalance)}
           />
 
           <WalletItem
             label="Total Earnings"
-            value={formatCurrency(
-              totalEarnings
-            )}
+            value={formatCurrency(totalEarnings)}
           />
 
           <WalletItem
             label="Total Withdrawn"
-            value={formatCurrency(
-              totalWithdrawn
-            )}
+            value={formatCurrency(totalWithdrawn)}
           />
 
           <WalletItem
             label="Pending Withdrawal"
-            value={formatCurrency(
-              pendingWithdrawals
-            )}
+            value={formatCurrency(pendingWithdrawals)}
           />
         </div>
       </div>
@@ -1222,7 +1227,7 @@ const CustomerDetails = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
-                    <KeyRound className="h-4.5 w-4.5 text-blue-600" />
+                    <KeyRound className="h-4 w-4 text-blue-600" />
                   </div>
 
                   <h3 className="text-base font-bold text-slate-900">
@@ -1241,9 +1246,7 @@ const CustomerDetails = () => {
               <button
                 type="button"
                 onClick={closeResetPasswordModal}
-                disabled={
-                  resetPasswordLoading
-                }
+                disabled={resetPasswordLoading}
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 title="Close"
               >
@@ -1257,8 +1260,6 @@ const CustomerDetails = () => {
               onSubmit={handleResetPassword}
               className="space-y-5 p-5"
             >
-              {/* Account ID */}
-
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   Account ID
@@ -1297,9 +1298,7 @@ const CustomerDetails = () => {
                     }
                     placeholder="Enter new password"
                     autoComplete="new-password"
-                    disabled={
-                      resetPasswordLoading
-                    }
+                    disabled={resetPasswordLoading}
                     minLength={6}
                     className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50"
                   />
@@ -1311,9 +1310,7 @@ const CustomerDetails = () => {
                         (value) => !value
                       )
                     }
-                    disabled={
-                      resetPasswordLoading
-                    }
+                    disabled={resetPasswordLoading}
                     className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                     title={
                       showNewPassword
@@ -1354,9 +1351,7 @@ const CustomerDetails = () => {
                         ? "text"
                         : "password"
                     }
-                    value={
-                      confirmPassword
-                    }
+                    value={confirmPassword}
                     onChange={(event) =>
                       setConfirmPassword(
                         event.target.value
@@ -1364,9 +1359,7 @@ const CustomerDetails = () => {
                     }
                     placeholder="Re-enter password"
                     autoComplete="new-password"
-                    disabled={
-                      resetPasswordLoading
-                    }
+                    disabled={resetPasswordLoading}
                     minLength={6}
                     className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50"
                   />
@@ -1378,9 +1371,7 @@ const CustomerDetails = () => {
                         (value) => !value
                       )
                     }
-                    disabled={
-                      resetPasswordLoading
-                    }
+                    disabled={resetPasswordLoading}
                     className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                     title={
                       showConfirmPassword
@@ -1440,12 +1431,8 @@ const CustomerDetails = () => {
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={
-                    closeResetPasswordModal
-                  }
-                  disabled={
-                    resetPasswordLoading
-                  }
+                  onClick={closeResetPasswordModal}
+                  disabled={resetPasswordLoading}
                   className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
@@ -1453,9 +1440,7 @@ const CustomerDetails = () => {
 
                 <button
                   type="submit"
-                  disabled={
-                    resetPasswordLoading
-                  }
+                  disabled={resetPasswordLoading}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {resetPasswordLoading ? (
@@ -1584,18 +1569,6 @@ const WalletItem = ({
       <p className="mt-2 text-xl font-bold text-slate-900">
         {value}
       </p>
-    </div>
-  );
-};
-
-// =====================================================
-// DASHBOARD ICON
-// =====================================================
-
-const LayoutDashboardIcon = () => {
-  return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50">
-      <Activity className="h-4 w-4 text-blue-600" />
     </div>
   );
 };

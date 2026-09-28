@@ -1,352 +1,1039 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { 
-  Wallet, IndianRupee, ShieldCheck, AlertCircle, CheckCircle2, 
-  ArrowRight, FileText, Building, Send, Clock
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+
+import React, { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../../context/AuthContext";
+import {
+  Wallet,
+  IndianRupee,
+  ShieldCheck,
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  Building,
+  Send,
+  Clock,
+  Sparkles,
+  ArrowUpRight,
+  Landmark,
+  CircleDollarSign,
+} from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function WithdrawalPage() {
-  const { user, wallet, token, updateWalletLocally } = useAuth();
-  const [amount, setAmount] = useState('');
-  const [payoutMethod, setPayoutMethod] = useState('UPI');
-  const [payoutDetails, setPayoutDetails] = useState('');
+  const {
+    user,
+    wallet,
+    token,
+    updateWalletLocally,
+  } = useAuth();
+
+  const [amount, setAmount] = useState("");
+  const [payoutMethod, setPayoutMethod] = useState("UPI");
+  const [payoutDetails, setPayoutDetails] = useState("");
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState({ text: '', type: '' });
+
+  const [feedback, setFeedback] = useState({
+    text: "",
+    type: "",
+  });
+
   const [transactions, setTransactions] = useState([]);
+
   const [settings, setSettings] = useState({
     tdsRateWithPan: 5,
     tdsRateNoPan: 20,
     adminFeeRate: 5,
-    minWithdrawalAmount: 200
+    minWithdrawalAmount: 200,
   });
 
-  const loadData = () => {
-    if (token) {
-      fetch('/api/wallet/summary', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          if (data.settings) setSettings(data.settings);
-          if (payoutMethod === 'UPI' && data.user?.bankDetails?.upiId) {
-            setPayoutDetails(data.user.bankDetails.upiId);
-          } else if (payoutMethod === 'BANK' && data.user?.bankDetails?.accountNumber) {
-            setPayoutDetails(`${data.user.bankDetails.accountNumber} (${data.user.bankDetails.ifscCode})`);
-          }
-        }
-      });
+  /* ------------------------------------------------------------
+     Load Wallet / Settings / Withdrawal History
+  ------------------------------------------------------------ */
 
-      fetch('/api/wallet/transactions', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setTransactions(data.transactions.filter(t => t.type === 'withdrawal'));
-        }
-      });
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [token, payoutMethod]);
-
-  // Real-time TDS & Admin Fee calculation
-  const gross = parseFloat(amount) || 0;
-  const hasPan = Boolean(user?.panVerified && user?.panNumber && user?.panNumber.length >= 10);
-  const tdsRate = hasPan ? settings.tdsRateWithPan : settings.tdsRateNoPan;
-  const tdsDeduction = parseFloat(((gross * tdsRate) / 100).toFixed(2));
-  const adminFee = parseFloat(((gross * settings.adminFeeRate) / 100).toFixed(2));
-  const netPayable = Math.max(0, parseFloat((gross - tdsDeduction - adminFee).toFixed(2)));
-
-  const handleWithdraw = async (e) => {
-    e.preventDefault();
-    if (!amount || gross < settings.minWithdrawalAmount) {
-      setFeedback({ text: `Minimum withdrawal is ₹${settings.minWithdrawalAmount}.`, type: 'error' });
+  const loadData = useCallback(async () => {
+    if (!token) {
       return;
     }
 
-    if (gross > (wallet?.currentBalance || 0)) {
-      setFeedback({ text: 'Insufficient wallet balance.', type: 'error' });
+    try {
+      const summaryResponse = await fetch(
+        "/api/wallet/summary",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const summaryData = await summaryResponse.json();
+
+      if (summaryData.success) {
+        if (summaryData.settings) {
+          setSettings(summaryData.settings);
+        }
+
+        if (
+          payoutMethod === "UPI" &&
+          summaryData.user?.bankDetails?.upiId
+        ) {
+          setPayoutDetails(
+            summaryData.user.bankDetails.upiId
+          );
+        } else if (
+          payoutMethod === "BANK" &&
+          summaryData.user?.bankDetails?.accountNumber
+        ) {
+          const accountNumber =
+            summaryData.user.bankDetails.accountNumber;
+
+          const ifscCode =
+            summaryData.user.bankDetails.ifscCode || "";
+
+          setPayoutDetails(
+            ifscCode
+              ? `${accountNumber} (${ifscCode})`
+              : String(accountNumber)
+          );
+        }
+      }
+
+      const transactionResponse = await fetch(
+        "/api/wallet/transactions",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const transactionData =
+        await transactionResponse.json();
+
+      if (transactionData.success) {
+        const withdrawalTransactions =
+          Array.isArray(transactionData.transactions)
+            ? transactionData.transactions.filter(
+                (transaction) =>
+                  transaction.type === "withdrawal"
+              )
+            : [];
+
+        setTransactions(withdrawalTransactions);
+      }
+    } catch (error) {
+      console.error(
+        "LOAD WITHDRAWAL DATA ERROR:",
+        error
+      );
+    }
+  }, [token, payoutMethod]);
+
+  /* ------------------------------------------------------------
+     Initial Load
+  ------------------------------------------------------------ */
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  /* ------------------------------------------------------------
+     Amount / TDS / Fee Calculations
+  ------------------------------------------------------------ */
+
+  const gross = parseFloat(amount) || 0;
+
+  const hasPan = Boolean(
+    user?.panVerified &&
+      user?.panNumber &&
+      String(user.panNumber).length >= 10
+  );
+
+  const tdsRate = hasPan
+    ? Number(settings.tdsRateWithPan || 0)
+    : Number(settings.tdsRateNoPan || 0);
+
+  const tdsDeduction = parseFloat(
+    ((gross * tdsRate) / 100).toFixed(2)
+  );
+
+  const adminFee = parseFloat(
+    (
+      (gross * Number(settings.adminFeeRate || 0)) /
+      100
+    ).toFixed(2)
+  );
+
+  const netPayable = Math.max(
+    0,
+    parseFloat(
+      (gross - tdsDeduction - adminFee).toFixed(2)
+    )
+  );
+
+  const currentBalance = Number(
+    wallet?.currentBalance || 0
+  );
+
+  const minimumWithdrawal = Number(
+    settings.minWithdrawalAmount || 200
+  );
+
+  /* ------------------------------------------------------------
+     Withdrawal Submit
+  ------------------------------------------------------------ */
+
+  const handleWithdraw = async (e) => {
+    e.preventDefault();
+
+    if (!amount || gross < minimumWithdrawal) {
+      setFeedback({
+        text: `Minimum withdrawal is ₹${minimumWithdrawal}.`,
+        type: "error",
+      });
+
+      return;
+    }
+
+    if (gross > currentBalance) {
+      setFeedback({
+        text: "Insufficient wallet balance.",
+        type: "error",
+      });
+
       return;
     }
 
     if (!payoutDetails.trim()) {
-      setFeedback({ text: `Please provide your ${payoutMethod} details.`, type: 'error' });
+      setFeedback({
+        text: `Please provide your ${payoutMethod} details.`,
+        type: "error",
+      });
+
       return;
     }
 
     setLoading(true);
-    setFeedback({ text: '', type: '' });
+
+    setFeedback({
+      text: "",
+      type: "",
+    });
 
     try {
-      const res = await fetch('/api/wallet/withdraw', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          amount: gross,
-          payoutMethod,
-          payoutDetails: payoutDetails.trim()
-        })
-      });
+      const res = await fetch(
+        "/api/wallet/withdraw",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+
+          body: JSON.stringify({
+            amount: gross,
+            payoutMethod,
+            payoutDetails: payoutDetails.trim(),
+          }),
+        }
+      );
 
       const data = await res.json();
+
       if (data.success) {
-        setFeedback({ text: data.message, type: 'success' });
-        setAmount('');
-        updateWalletLocally(data.newBalance);
-        loadData();
+        setFeedback({
+          text:
+            data.message ||
+            "Withdrawal request submitted successfully.",
+          type: "success",
+        });
+
+        setAmount("");
+
+        if (data.newBalance !== undefined) {
+          updateWalletLocally(
+            Number(data.newBalance)
+          );
+        }
+
+        await loadData();
       } else {
-        setFeedback({ text: data.message, type: 'error' });
+        setFeedback({
+          text:
+            data.message ||
+            "Unable to submit withdrawal request.",
+          type: "error",
+        });
       }
-    } catch (err) {
-      setFeedback({ text: 'Network error. Please try again.', type: 'error' });
+    } catch (error) {
+      console.error(
+        "WITHDRAWAL ERROR:",
+        error
+      );
+
+      setFeedback({
+        text: "Network error. Please try again.",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  /* ------------------------------------------------------------
+     Format Helpers
+  ------------------------------------------------------------ */
+
+  const formatAmount = (value) =>
+    Number(value || 0).toFixed(2);
+
+  const formatDate = (value) => {
+    if (!value) {
+      return "—";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleDateString();
+  };
+
+  const getStatusClasses = (status) => {
+    const normalized = String(
+      status || ""
+    ).toLowerCase();
+
+    if (
+      normalized === "approved" ||
+      normalized === "completed"
+    ) {
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    }
+
+    if (normalized === "pending") {
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    }
+
+    return "border-red-200 bg-red-50 text-red-700";
+  };
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-10 space-y-8">
-      
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
-            <IndianRupee className="w-4 h-4" />
-            <span>Tax Compliant Payout Desk</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
-            Wallet Withdrawal & TDS Ledger
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Compliant with Section 194H of the Income Tax Act. Instant transfer to bank or UPI after admin review.
-          </p>
-        </div>
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-violet-50 via-white to-orange-50">
 
-        <div className="bg-slate-900 border border-slate-800 px-5 py-3 rounded-2xl flex items-center gap-3 shadow-xl">
-          <Wallet className="w-6 h-6 text-emerald-400" />
+      {/* --------------------------------------------------------
+          Ambient Background
+      -------------------------------------------------------- */}
+
+      <div className="pointer-events-none absolute -left-32 -top-24 h-80 w-80 rounded-full bg-violet-400/10 blur-3xl" />
+
+      <div className="pointer-events-none absolute right-[-120px] top-40 h-80 w-80 rounded-full bg-pink-400/10 blur-3xl" />
+
+      <div className="pointer-events-none absolute bottom-0 left-[35%] h-72 w-72 rounded-full bg-orange-400/10 blur-3xl" />
+
+      <div className="relative mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-8 sm:py-10">
+
+        {/* ------------------------------------------------------
+            Header
+        ------------------------------------------------------ */}
+
+        <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
+
           <div>
-            <div className="text-[10px] text-slate-400 uppercase font-semibold">Available for Payout</div>
-            <div className="text-xl font-black text-white">₹{wallet?.currentBalance?.toFixed(2) || '0.00'}</div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-gradient-to-r from-violet-50 via-pink-50 to-orange-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-violet-700">
+              <IndianRupee className="h-3.5 w-3.5 text-pink-500" />
+
+              <span>Tax Compliant Payout Desk</span>
+            </div>
+
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              Wallet Withdrawal{" "}
+              <span className="gradient-heading">
+                & TDS Ledger
+              </span>
+            </h1>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              Request a payout through UPI or bank transfer.
+              Your withdrawal request will be processed after
+              admin review.
+            </p>
+          </div>
+
+          {/* Available Balance */}
+
+          <div className="flex min-w-[220px] items-center gap-3 rounded-2xl border border-violet-100 bg-white/90 px-5 py-3.5 shadow-[0_12px_35px_rgba(15,23,42,0.07)] backdrop-blur">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500 text-white shadow-lg shadow-violet-500/20">
+              <Wallet className="h-5 w-5" />
+            </div>
+
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Available for Payout
+              </div>
+
+              <div className="mt-0.5 text-xl font-black text-slate-900">
+                ₹{formatAmount(currentBalance)}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Left: Withdrawal Form */}
-        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl">
-          <h3 className="text-lg font-bold text-white mb-4">
-            Request Payout
-          </h3>
+        {/* ------------------------------------------------------
+            Quick Info Cards
+        ------------------------------------------------------ */}
 
-          {feedback.text && (
-            <div className={`p-4 rounded-xl text-xs mb-6 flex items-center gap-2.5 ${
-              feedback.type === 'success' 
-                ? 'bg-emerald-950/70 border border-emerald-500/40 text-emerald-300' 
-                : 'bg-red-950/70 border border-red-500/40 text-red-300'
-            }`}>
-              {feedback.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-              <span>{feedback.text}</span>
-            </div>
-          )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 
-          <form onSubmit={handleWithdraw} className="space-y-5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Gross Withdrawal Amount (₹)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-3.5 text-slate-500 font-bold">₹</span>
-                <input
-                  type="number"
-                  min={settings.minWithdrawalAmount}
-                  step="1"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder={`Enter amount (Min ₹${settings.minWithdrawalAmount})`}
-                  required
-                  className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-bold text-sm focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-              </div>
+          <div className="rounded-2xl border border-violet-100 bg-violet-50/80 p-4">
+            <div className="flex items-center gap-2 text-xs font-bold text-violet-700">
+              <CircleDollarSign className="h-4 w-4" />
+              <span>Minimum Withdrawal</span>
             </div>
 
-            {/* Payout Destination Selection */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Payout Channel
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPayoutMethod('UPI')}
-                  className={`py-2.5 px-4 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                    payoutMethod === 'UPI'
-                      ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Instant UPI ID</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPayoutMethod('BANK')}
-                  className={`py-2.5 px-4 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                    payoutMethod === 'BANK'
-                      ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <Building className="w-3.5 h-3.5" />
-                  <span>Bank Account / IMPS</span>
-                </button>
-              </div>
+            <div className="mt-2 text-xl font-black text-slate-900">
+              ₹{minimumWithdrawal}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-pink-100 bg-pink-50/80 p-4">
+            <div className="flex items-center gap-2 text-xs font-bold text-pink-700">
+              <ShieldCheck className="h-4 w-4" />
+              <span>PAN TDS Rate</span>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                {payoutMethod === 'UPI' ? 'Recipient UPI ID' : 'Bank Account & IFSC'}
-              </label>
-              <input
-                type="text"
-                value={payoutDetails}
-                onChange={(e) => setPayoutDetails(e.target.value)}
-                placeholder={payoutMethod === 'UPI' ? 'e.g. mobile@upi' : 'Account No, Bank Name, IFSC'}
-                required
-                className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:outline-none focus:border-emerald-500 transition-colors font-mono"
-              />
-            </div>
-
-            {/* Real-time TDS Calculation Table */}
-            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2 text-xs">
-              <div className="flex justify-between text-slate-400">
-                <span>Gross Requested:</span>
-                <span className="font-mono font-bold text-white">₹{gross.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-red-400">
-                <span>TDS Tax ({tdsRate}% {hasPan ? 'with PAN' : 'No PAN'}):</span>
-                <span className="font-mono font-bold">-₹{tdsDeduction.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Admin & Processing Fee ({settings.adminFeeRate}%):</span>
-                <span className="font-mono font-bold">-₹{adminFee.toFixed(2)}</span>
-              </div>
-              <div className="pt-2 border-t border-slate-800 flex justify-between font-bold text-emerald-400 text-sm">
-                <span>Net Transfer Amount:</span>
-                <span className="font-mono text-base">₹{netPayable.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || gross < settings.minWithdrawalAmount || gross > (wallet?.currentBalance || 0)}
-              className="w-full py-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? <span>Submitting Request...</span> : (
-                <>
-                  <IndianRupee className="w-4 h-4" />
-                  <span>Submit Withdrawal Request</span>
-                </>
+            <div className="mt-2 text-xl font-black text-slate-900">
+              {Number(
+                settings.tdsRateWithPan || 0
               )}
-            </button>
-          </form>
+              %
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-orange-100 bg-orange-50/80 p-4">
+            <div className="flex items-center gap-2 text-xs font-bold text-orange-700">
+              <Clock className="h-4 w-4" />
+              <span>Processing</span>
+            </div>
+
+            <div className="mt-2 text-xl font-black text-slate-900">
+              Admin Review
+            </div>
+          </div>
         </div>
 
-        {/* Right: Tax & KYC Compliance Explainer */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              Tax Compliance Guidelines (TDS)
-            </h4>
-            <div className="text-xs text-slate-400 space-y-2.5 leading-relaxed">
-              <p>
-                As per Indian Direct Selling & Income Tax laws (Section 194H), TDS is deducted at source from commission and task earnings before payout.
-              </p>
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                <div className="text-emerald-400 font-bold">• With Valid PAN Card: 5% TDS</div>
-                <div className="text-amber-400 font-bold">• Without PAN Card: 20% TDS (Sec 206AA)</div>
+        {/* ------------------------------------------------------
+            Main Grid
+        ------------------------------------------------------ */}
+
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+
+          {/* ====================================================
+              LEFT: WITHDRAWAL FORM
+          ==================================================== */}
+
+          <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.07)] backdrop-blur-xl sm:p-8 lg:col-span-7">
+
+            <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-violet-400/10 blur-3xl" />
+
+            <div className="relative">
+
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                  <ArrowUpRight className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">
+                    Request Payout
+                  </h3>
+
+                  <p className="text-xs text-slate-500">
+                    Enter your amount and payout destination.
+                  </p>
+                </div>
               </div>
-              <p>
-                All TDS deducted is deposited under your PAN and can be claimed back during your annual Income Tax Return (ITR) via Form 26AS.
-              </p>
+
+              {/* Feedback */}
+
+              {feedback.text && (
+                <div
+                  className={`mb-6 flex items-start gap-3 rounded-2xl border p-4 text-sm ${
+                    feedback.type === "success"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-red-200 bg-red-50 text-red-700"
+                  }`}
+                >
+                  {feedback.type === "success" ? (
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                  ) : (
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                  )}
+
+                  <span>{feedback.text}</span>
+                </div>
+              )}
+
+              <form
+                onSubmit={handleWithdraw}
+                className="space-y-6"
+              >
+
+                {/* Amount */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Gross Withdrawal Amount (₹)
+                  </label>
+
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 z-10 -translate-y-1/2 font-bold text-violet-600">
+                      ₹
+                    </span>
+
+                    <input
+                      type="number"
+                      min={minimumWithdrawal}
+                      step="1"
+                      value={amount}
+                      onChange={(e) =>
+                        setAmount(e.target.value)
+                      }
+                      placeholder={`Enter amount (Min ₹${minimumWithdrawal})`}
+                      required
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-10 pr-4 text-sm font-bold text-slate-800 shadow-sm transition-all placeholder:font-normal placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-500/10"
+                    />
+                  </div>
+                </div>
+
+                {/* Payout Channel */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Payout Channel
+                  </label>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPayoutMethod("UPI")
+                      }
+                      className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold transition-all ${
+                        payoutMethod === "UPI"
+                          ? "border-violet-300 bg-gradient-to-r from-violet-50 via-pink-50 to-orange-50 text-violet-700 shadow-sm"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-violet-200 hover:bg-violet-50/50"
+                      }`}
+                    >
+                      <Send className="h-4 w-4" />
+
+                      <span>Instant UPI ID</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPayoutMethod("BANK")
+                      }
+                      className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold transition-all ${
+                        payoutMethod === "BANK"
+                          ? "border-violet-300 bg-gradient-to-r from-violet-50 via-pink-50 to-orange-50 text-violet-700 shadow-sm"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-violet-200 hover:bg-violet-50/50"
+                      }`}
+                    >
+                      <Building className="h-4 w-4" />
+
+                      <span>
+                        Bank Account / IMPS
+                      </span>
+                    </button>
+
+                  </div>
+                </div>
+
+                {/* Payout Details */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    {payoutMethod === "UPI"
+                      ? "Recipient UPI ID"
+                      : "Bank Account & IFSC"}
+                  </label>
+
+                  <div className="relative">
+                    {payoutMethod === "UPI" ? (
+                      <Send className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-500" />
+                    ) : (
+                      <Landmark className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-500" />
+                    )}
+
+                    <input
+                      type="text"
+                      value={payoutDetails}
+                      onChange={(e) =>
+                        setPayoutDetails(
+                          e.target.value
+                        )
+                      }
+                      placeholder={
+                        payoutMethod === "UPI"
+                          ? "e.g. mobile@upi"
+                          : "Account No, Bank Name, IFSC"
+                      }
+                      required
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-11 pr-4 font-mono text-xs text-slate-800 shadow-sm transition-all placeholder:font-sans placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-500/10"
+                    />
+                  </div>
+                </div>
+
+                {/* TDS Calculation */}
+
+                <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-violet-50/60 p-5">
+
+                  <div className="mb-4 flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-violet-600" />
+
+                    <h4 className="text-sm font-black text-slate-800">
+                      Payout Calculation
+                    </h4>
+                  </div>
+
+                  <div className="space-y-3 text-sm">
+
+                    <div className="flex justify-between gap-4 text-slate-500">
+                      <span>Gross Requested</span>
+
+                      <span className="font-mono font-bold text-slate-800">
+                        ₹{gross.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between gap-4 text-red-500">
+                      <span>
+                        TDS Tax ({tdsRate}%{" "}
+                        {hasPan
+                          ? "with PAN"
+                          : "No PAN"})
+                      </span>
+
+                      <span className="font-mono font-bold">
+                        -₹{tdsDeduction.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between gap-4 text-slate-500">
+                      <span>
+                        Admin & Processing Fee (
+                        {Number(
+                          settings.adminFeeRate || 0
+                        )}
+                        %)
+                      </span>
+
+                      <span className="font-mono font-bold text-slate-700">
+                        -₹{adminFee.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="my-2 border-t border-slate-200" />
+
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="font-black text-slate-800">
+                        Net Transfer Amount
+                      </span>
+
+                      <span className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text font-mono text-lg font-black text-transparent">
+                        ₹{netPayable.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit */}
+
+                <button
+                  type="submit"
+                  disabled={
+                    loading ||
+                    gross < minimumWithdrawal ||
+                    gross > currentBalance
+                  }
+                  className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 py-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-pink-500/20 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <Clock className="h-4 w-4 animate-spin" />
+                      <span>Submitting Request...</span>
+                    </>
+                  ) : (
+                    <>
+                      <IndianRupee className="h-4 w-4" />
+                      <span>
+                        Submit Withdrawal Request
+                      </span>
+                    </>
+                  )}
+                </button>
+
+              </form>
+            </div>
+          </div>
+
+          {/* ====================================================
+              RIGHT: COMPLIANCE
+          ==================================================== */}
+
+          <div className="space-y-6 lg:col-span-5">
+
+            {/* Tax Card */}
+
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.07)] backdrop-blur-xl">
+
+              <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-pink-400/10 blur-3xl" />
+
+              <div className="relative">
+
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900">
+                      Tax Compliance Guidelines
+                    </h4>
+
+                    <p className="text-[11px] text-slate-500">
+                      TDS information for payouts
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 text-xs leading-6 text-slate-500">
+
+                  <p>
+                    TDS may be deducted from eligible
+                    commission and task earnings before
+                    payout, according to the applicable
+                    platform and tax rules.
+                  </p>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+
+                    <div className="mb-2 flex items-center gap-2 font-bold text-emerald-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>
+                        With Valid PAN:{" "}
+                        {Number(
+                          settings.tdsRateWithPan || 0
+                        )}
+                        % TDS
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 font-bold text-amber-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>
+                        Without PAN:{" "}
+                        {Number(
+                          settings.tdsRateNoPan || 0
+                        )}
+                        % TDS
+                      </span>
+                    </div>
+                  </div>
+
+                  <p>
+                    Keep your PAN and payout details updated
+                    in your profile so that your account
+                    information remains complete for payout
+                    processing.
+                  </p>
+                </div>
+
+                <div className="mt-5">
+                  <Link
+                    to="/dashboard/profile"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-xs font-bold text-violet-700 transition-all hover:border-violet-300 hover:bg-violet-100"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+
+                    <span>
+                      Update PAN & Bank Details
+                    </span>
+
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+
+              </div>
             </div>
 
-            <div className="pt-2">
-              <Link
-                to="/dashboard/profile"
-                className="block text-center py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
-              >
-                Update PAN & Bank Details →
-              </Link>
+            {/* Payout Info Card */}
+
+            <div className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-orange-50 p-6 shadow-sm">
+
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500 text-white shadow-lg shadow-violet-500/20">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">
+                    Payout Information
+                  </h4>
+
+                  <p className="text-[11px] text-slate-500">
+                    Keep these points in mind
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+
+                <div className="flex items-start gap-3 rounded-2xl border border-white bg-white/80 p-3">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+
+                  <p className="text-xs leading-5 text-slate-600">
+                    Minimum withdrawal amount is ₹
+                    {minimumWithdrawal}.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3 rounded-2xl border border-white bg-white/80 p-3">
+                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+
+                  <p className="text-xs leading-5 text-slate-600">
+                    Withdrawal requests are reviewed before
+                    payout processing.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3 rounded-2xl border border-white bg-white/80 p-3">
+                  <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-pink-500" />
+
+                  <p className="text-xs leading-5 text-slate-600">
+                    Your available wallet balance is checked
+                    before submitting the request.
+                  </p>
+                </div>
+
+              </div>
             </div>
           </div>
         </div>
 
-      </div>
+        {/* ------------------------------------------------------
+            Withdrawal History
+        ------------------------------------------------------ */}
 
-      {/* Withdrawal History Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-        <h3 className="text-base font-bold text-white mb-4">
-          Withdrawal Requests & Payout Log
-        </h3>
+        <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.07)] backdrop-blur-xl sm:p-8">
 
-        {transactions.length === 0 ? (
-          <div className="py-8 text-center text-xs text-slate-500">
-            No withdrawal requests made yet.
+          <div className="pointer-events-none absolute -left-16 bottom-[-60px] h-40 w-40 rounded-full bg-orange-400/10 blur-3xl" />
+
+          <div className="relative">
+
+            <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+                  <FileText className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <h3 className="text-base font-black text-slate-900 sm:text-lg">
+                    Withdrawal Requests & Payout Log
+                  </h3>
+
+                  <p className="text-xs text-slate-500">
+                    Track your previous payout requests.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-full border border-violet-100 bg-violet-50 px-3 py-1.5 text-[11px] font-bold text-violet-700">
+                {transactions.length} Request
+                {transactions.length === 1
+                  ? ""
+                  : "s"}
+              </div>
+            </div>
+
+            {transactions.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 py-12 text-center">
+
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
+                  <FileText className="h-6 w-6" />
+                </div>
+
+                <p className="mt-4 text-sm font-semibold text-slate-600">
+                  No withdrawal requests made yet.
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Your payout history will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full min-w-[900px] text-left text-xs">
+
+                  <thead className="bg-slate-50">
+                    <tr className="border-b border-slate-200 text-slate-500">
+
+                      <th className="px-4 py-3 font-bold">
+                        Date
+                      </th>
+
+                      <th className="px-4 py-3 font-bold">
+                        Gross Amount
+                      </th>
+
+                      <th className="px-4 py-3 font-bold">
+                        TDS Deducted
+                      </th>
+
+                      <th className="px-4 py-3 font-bold">
+                        Admin Fee
+                      </th>
+
+                      <th className="px-4 py-3 font-bold">
+                        Net Paid
+                      </th>
+
+                      <th className="px-4 py-3 font-bold">
+                        Channel / UTR
+                      </th>
+
+                      <th className="px-4 py-3 font-bold">
+                        Status
+                      </th>
+
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100 bg-white">
+
+                    {transactions.map(
+                      (tx, idx) => {
+                        const status =
+                          String(
+                            tx.status || "pending"
+                          ).toLowerCase();
+
+                        const payoutMethodValue =
+                          tx.payoutMethod ||
+                          "—";
+
+                        const payoutDetailsValue =
+                          tx.payoutDetails ||
+                          "—";
+
+                        const utr =
+                          tx.utrNumber ||
+                          "";
+
+                        return (
+                          <tr
+                            key={
+                              tx._id ||
+                              tx.id ||
+                              idx
+                            }
+                            className="transition-colors hover:bg-violet-50/40"
+                          >
+
+                            <td className="px-4 py-4 text-slate-500">
+                              {formatDate(
+                                tx.createdAt
+                              )}
+                            </td>
+
+                            <td className="px-4 py-4 font-mono font-bold text-slate-800">
+                              ₹
+                              {formatAmount(
+                                tx.grossAmount ??
+                                  tx.amount
+                              )}
+                            </td>
+
+                            <td className="px-4 py-4 font-mono text-red-500">
+                              -₹
+                              {formatAmount(
+                                tx.tdsAmount ??
+                                  tx.tds
+                              )}
+
+                              {tx.tdsPercentage !==
+                              undefined &&
+                              tx.tdsPercentage !==
+                                null
+                                ? ` (${tx.tdsPercentage}%)`
+                                : ""}
+                            </td>
+
+                            <td className="px-4 py-4 font-mono text-slate-500">
+                              -₹
+                              {formatAmount(
+                                tx.adminFeeAmount ??
+                                  tx.adminFee
+                              )}
+                            </td>
+
+                            <td className="px-4 py-4 font-mono font-black text-emerald-600">
+                              ₹
+                              {formatAmount(
+                                tx.netAmount ??
+                                  tx.amount
+                              )}
+                            </td>
+
+                            <td className="max-w-[240px] px-4 py-4 font-mono text-[11px] text-slate-500">
+
+                              {utr ? (
+                                <span>
+                                  UTR: {utr}
+                                </span>
+                              ) : (
+                                <span>
+                                  {
+                                    payoutMethodValue
+                                  }
+                                  :{" "}
+                                  {
+                                    payoutDetailsValue
+                                  }
+                                </span>
+                              )}
+
+                            </td>
+
+                            <td className="px-4 py-4">
+                              <span
+                                className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${getStatusClasses(
+                                  status
+                                )}`}
+                              >
+                                {status}
+                              </span>
+                            </td>
+
+                          </tr>
+                        );
+                      }
+                    )}
+
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-400 border-b border-slate-800/80">
-                  <th className="pb-3">Date</th>
-                  <th className="pb-3">Gross Amount</th>
-                  <th className="pb-3">TDS Deducted</th>
-                  <th className="pb-3">Admin Fee</th>
-                  <th className="pb-3">Net Paid</th>
-                  <th className="pb-3">Channel / UTR</th>
-                  <th className="pb-3">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {transactions.map((tx, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/30">
-                    <td className="py-3 text-slate-400">{new Date(tx.createdAt).toLocaleDateString()}</td>
-                    <td className="py-3 font-mono font-bold text-white">₹{tx.grossAmount.toFixed(2)}</td>
-                    <td className="py-3 font-mono text-red-400">-₹{tx.tdsAmount.toFixed(2)} ({tx.tdsPercentage}%)</td>
-                    <td className="py-3 font-mono text-slate-400">-₹{tx.adminFeeAmount.toFixed(2)}</td>
-                    <td className="py-3 font-mono font-bold text-emerald-400">₹{tx.netAmount.toFixed(2)}</td>
-                    <td className="py-3 font-mono text-slate-400 text-[11px]">
-                      {tx.utrNumber ? `UTR: ${tx.utrNumber}` : `${tx.payoutMethod}: ${tx.payoutDetails}`}
-                    </td>
-                    <td className="py-3">
-                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold ${
-                        tx.status === 'approved' || tx.status === 'completed'
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : tx.status === 'pending'
-                          ? 'bg-amber-500/20 text-amber-300'
-                          : 'bg-red-500/20 text-red-300'
-                      }`}>
-                        {tx.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        </div>
 
+      </div>
     </div>
   );
 }
+

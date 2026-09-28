@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { 
-  ShieldCheck, Phone, Mail, Clock, Wallet, User as UserIcon, 
-  LogOut, LayoutDashboard, KeyRound, Sparkles, Menu, X, Network
-} from 'lucide-react';
+import React, { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import {
+  Phone,
+  Mail,
+  Clock,
+  Wallet,
+  User as UserIcon,
+  LogOut,
+  LayoutDashboard,
+  KeyRound,
+  Menu,
+  X,
+} from "lucide-react";
+
+import logo from "../assets/logo.png";
 
 export default function Navbar() {
   const { user, wallet, logout, cmsContent } = useAuth();
@@ -12,209 +22,462 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const phone = cmsContent?.supportPhone || "+91 98765 43210";
-  const email = cmsContent?.supportEmail || "contact@samarthindia.com";
-  const hours = cmsContent?.workingHours || "Mon - Sat: 9:00 AM - 6:00 PM";
-  const topText = cmsContent?.topBarText || "Welcome to Samarth India Wellness & Rewards Network";
+
+  const email =
+    cmsContent?.supportEmail || "contact@samarthindia.com";
+
+  const hours =
+    cmsContent?.workingHours || "Mon - Sat: 9:00 AM - 6:00 PM";
+
+  const topText =
+    cmsContent?.topBarText ||
+    "Welcome to DIGITAL LYF PVT. LTD. Wellness & Rewards Network";
 
   const isActive = (path) => location.pathname === path;
 
+  // Common desktop nav button style
+  const navButton =
+    "group relative px-4 py-2 rounded-full text-slate-600 font-medium transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md border border-transparent";
+
+  // Mobile menu item style
+  const mobileButton =
+    "block w-full px-4 py-2.5 rounded-xl text-slate-700 font-medium transition-all duration-300 hover:-translate-y-0.5 hover:shadow-sm";
+
   return (
     <header className="sticky top-0 z-50 w-full">
-      {/* Top Contact Strip */}
-      <div className="bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 text-xs py-2 px-4 sm:px-8 text-slate-400">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="font-medium text-slate-300">{topText}</span>
+      {/* =========================================================
+          TOP CONTACT STRIP
+      ========================================================= */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 via-fuchsia-500 via-pink-500 to-orange-400 px-4 py-2 text-xs shadow-sm sm:px-8">
+        <div className="pointer-events-none absolute inset-0 bg-white/10" />
+
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 sm:flex-row">
+          {/* Welcome Text */}
+          <div className="flex items-center gap-2 text-white">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white shadow-sm" />
+
+            <span className="font-semibold">
+              {topText}
+            </span>
           </div>
-          <div className="flex items-center flex-wrap gap-4 text-[11px]">
-            <a href={`tel:${phone}`} className="flex items-center gap-1.5 hover:text-emerald-400 transition-colors">
-              <Phone className="w-3.5 h-3.5 text-emerald-400" />
+
+          {/* Contact Information */}
+          <div className="flex flex-wrap items-center gap-4 text-[11px] text-white/95">
+            <a
+              href={`tel:${phone}`}
+              className="flex items-center gap-1.5 transition-all duration-200 hover:-translate-y-0.5 hover:text-yellow-100"
+            >
+              <Phone className="h-3.5 w-3.5" />
               <span>{phone}</span>
             </a>
-            <div className="hidden md:flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-emerald-400" />
+
+            <div className="hidden items-center gap-1.5 md:flex">
+              <Clock className="h-3.5 w-3.5" />
               <span>{hours}</span>
             </div>
-            <a href={`mailto:${email}`} className="hidden lg:flex items-center gap-1.5 hover:text-emerald-400 transition-colors">
-              <Mail className="w-3.5 h-3.5 text-emerald-400" />
+
+            <a
+              href={`mailto:${email}`}
+              className="hidden items-center gap-1.5 transition-all duration-200 hover:-translate-y-0.5 hover:text-yellow-100 lg:flex"
+            >
+              <Mail className="h-3.5 w-3.5" />
               <span>{email}</span>
             </a>
           </div>
         </div>
       </div>
 
-      {/* Main Glassmorphic Navbar */}
-      <nav className="bg-slate-900/85 backdrop-blur-xl border-b border-slate-800/80 px-4 sm:px-8 py-3.5 transition-all">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          
-          {/* Brand Logo */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-amber-400 p-[2px] shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-emerald-400" />
-              </div>
-            </div>
-            <div>
-              <div className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-emerald-300 bg-clip-text text-transparent">
-                SAMARTH <span className="text-emerald-400">INDIA</span>
-              </div>
-              <div className="text-[10px] tracking-wider text-slate-400 uppercase font-semibold">
-                Wellness & Chain Network
-              </div>
-            </div>
-          </Link>
+      {/* =========================================================
+          MAIN NAVBAR
+      ========================================================= */}
+      <nav className="relative border-b border-white/60 bg-white/90 px-4 py-3.5 shadow-md backdrop-blur-xl transition-all sm:px-8">
+        {/* Soft Rainbow Background Glow */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -left-10 -top-16 h-40 w-40 rounded-full bg-violet-400/10 blur-3xl" />
 
-          {/* Desktop Nav Links */}
-          <div className="hidden md:flex items-center gap-1 bg-slate-800/50 p-1 rounded-full border border-slate-700/50 text-sm">
-            <Link 
-              to="/" 
-              className={`px-4 py-1.5 rounded-full transition-all ${
-                isActive('/') ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
-              }`}
-            >
-              Home
-            </Link>
-            <a 
-              href="#products" 
-              className="px-4 py-1.5 rounded-full text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all"
-            >
-              Products
-            </a>
-            <a 
-              href="#working-process" 
-              className="px-4 py-1.5 rounded-full text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all"
-            >
-              Process
-            </a>
-            <a 
-              href="#about" 
-              className="px-4 py-1.5 rounded-full text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all"
-            >
-              About Us
-            </a>
-            <a 
-              href="#rewards" 
-              className="px-4 py-1.5 rounded-full text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all"
-            >
-              Rewards
-            </a>
-          </div>
+          <div className="absolute left-[30%] -top-16 h-40 w-40 rounded-full bg-pink-400/10 blur-3xl" />
 
-          {/* Right Action / Auth Buttons */}
-          <div className="hidden md:flex items-center gap-3">
-            {user ? (
-              <div className="flex items-center gap-3">
-                {/* User Wallet Badge */}
-                <Link 
-                  to="/dashboard/wallet"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:border-emerald-400 transition-colors"
-                >
-                  <Wallet className="w-4 h-4 text-emerald-400" />
-                  <span>₹{wallet?.currentBalance?.toFixed(2) || '0.00'}</span>
-                </Link>
+          <div className="absolute left-[55%] -top-16 h-40 w-40 rounded-full bg-blue-400/10 blur-3xl" />
 
-                {/* Dashboard Shortcut */}
-                {(user.role === 'admin' || user.role === 'superadmin') ? (
-                  <Link 
-                    to="/admin" 
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 text-white text-xs font-bold shadow-md shadow-amber-600/20 hover:brightness-110 transition-all"
-                  >
-                    <LayoutDashboard className="w-4 h-4" />
-                    {user.role === 'superadmin' ? '👑 Super Admin' : 'Admin Panel'}
-                  </Link>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      to="/dashboard/captcha" 
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-teal-500/20 border border-teal-500/40 text-teal-300 text-xs font-bold hover:bg-teal-500/30 transition-all"
-                    >
-                      <KeyRound className="w-3.5 h-3.5 text-teal-400" />
-                      Solve Captcha
-                    </Link>
-                    <Link 
-                      to="/dashboard" 
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all shadow-md shadow-emerald-600/20"
-                    >
-                      <LayoutDashboard className="w-3.5 h-3.5" />
-                      Dashboard
-                    </Link>
-                  </div>
-                )}
+          <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-orange-400/10 blur-3xl" />
 
-                {/* Logout Button */}
-                <button 
-                  onClick={logout}
-                  title="Sign out"
-                  className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Link 
-                  to="/login"
-                  className="px-4 py-2 text-xs font-semibold text-slate-200 hover:text-white transition-colors"
-                >
-                  Log In
-                </Link>
-                <Link 
-                  to="/register"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all"
-                >
-                  <UserIcon className="w-3.5 h-3.5" />
-                  Join Network
-                </Link>
-              </div>
-            )}
-          </div>
-
-          {/* Mobile Menu Hamburger */}
-          <div className="md:hidden flex items-center gap-2">
-            {user && (
-              <Link 
-                to="/dashboard"
-                className="px-2.5 py-1 rounded bg-emerald-600 text-white text-xs font-bold"
-              >
-                ₹{wallet?.currentBalance?.toFixed(0) || '0'}
-              </Link>
-            )}
-            <button 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-slate-400 hover:text-white"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-
+          <div className="absolute bottom-[-50px] left-1/2 h-32 w-32 -translate-x-1/2 rounded-full bg-emerald-400/10 blur-3xl" />
         </div>
 
-        {/* Mobile Dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden mt-3 pt-3 border-t border-slate-800 space-y-2 text-sm">
-            <Link to="/" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-md hover:bg-slate-800 text-slate-200">Home</Link>
-            <a href="#products" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-md hover:bg-slate-800 text-slate-200">Products</a>
-            <a href="#working-process" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-md hover:bg-slate-800 text-slate-200">Working Process</a>
-            <a href="#about" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-md hover:bg-slate-800 text-slate-200">About Us</a>
-            {user ? (
-              <>
-                <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-md bg-emerald-600/30 text-emerald-300 font-semibold">Member Dashboard</Link>
-                <Link to="/dashboard/captcha" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-md hover:bg-slate-800 text-teal-300">Earn from Captchas</Link>
-                <Link to="/dashboard/tree" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-md hover:bg-slate-800 text-slate-200">My Referral Tree</Link>
-                {user.role === 'admin' && (
-                  <Link to="/admin" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-md bg-amber-600/30 text-amber-300 font-semibold">Admin Panel</Link>
-                )}
-                <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left px-3 py-2 text-red-400">Sign Out</button>
-              </>
-            ) : (
-              <div className="pt-2 flex flex-col gap-2">
-                <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2 rounded-lg bg-slate-800 text-white font-semibold">Log In</Link>
-                <Link to="/register" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2 rounded-lg bg-emerald-600 text-white font-bold">Join Now</Link>
+        <div className="relative mx-auto max-w-7xl">
+          {/* =====================================================
+              DESKTOP / MAIN ROW
+          ===================================================== */}
+          <div className="flex items-center justify-between">
+            {/* ===================================================
+                BRAND LOGO + COMPANY NAME
+            =================================================== */}
+            <Link
+              to="/"
+              className="group flex items-center gap-3"
+            >
+              {/* Logo */}
+              <div className="relative h-11 w-11 shrink-0 sm:h-12 sm:w-12">
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-violet-500 via-pink-500 via-orange-400 to-emerald-400 p-[2px] shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:shadow-pink-500/20">
+                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[10px] bg-white">
+                    <img
+                      src={logo}
+                      alt="DIGITAL LYF PVT. LTD. Logo"
+                      className="h-full w-full object-contain p-1"
+                    />
+                  </div>
+                </div>
               </div>
-            )}
+
+              {/* Company Name */}
+              <div className="hidden sm:block">
+                <div className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-xl font-bold tracking-tight text-transparent">
+                  DIGITAL LYF PVT. LTD.
+                </div>
+
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Wellness & Chain Network
+                </div>
+              </div>
+            </Link>
+
+            {/* ===================================================
+                DESKTOP NAV LINKS
+            =================================================== */}
+            <div className="hidden items-center gap-1 rounded-full border border-slate-200 bg-white/75 p-1 shadow-sm backdrop-blur-md md:flex">
+              {/* Home */}
+              <Link
+                to="/"
+                className={`${navButton} ${
+                  isActive("/")
+                    ? "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 text-white shadow-md"
+                    : "hover:border-violet-200 hover:bg-gradient-to-r hover:from-violet-50 hover:to-pink-50 hover:text-violet-700"
+                }`}
+              >
+                Home
+              </Link>
+
+              {/* Products */}
+              <a
+                href="#products"
+                className={`${navButton} hover:border-pink-200 hover:bg-gradient-to-r hover:from-pink-50 hover:to-orange-50 hover:text-pink-700`}
+              >
+                Products
+              </a>
+
+              {/* Process */}
+              <a
+                href="#working-process"
+                className={`${navButton} hover:border-blue-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-violet-50 hover:text-blue-700`}
+              >
+                Process
+              </a>
+
+              {/* About */}
+              <a
+                href="#about"
+                className={`${navButton} hover:border-emerald-200 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-blue-50 hover:text-emerald-700`}
+              >
+                About Us
+              </a>
+
+              {/* Rewards */}
+              <a
+                href="#rewards"
+                className={`${navButton} hover:border-orange-200 hover:bg-gradient-to-r hover:from-orange-50 hover:to-pink-50 hover:text-orange-600`}
+              >
+                Rewards
+              </a>
+            </div>
+
+            {/* ===================================================
+                RIGHT ACTION / AUTH BUTTONS
+            =================================================== */}
+            <div className="hidden items-center gap-3 md:flex">
+              {user ? (
+                <div className="flex items-center gap-3">
+                  {/* Wallet */}
+                  <Link
+                    to="/dashboard/wallet"
+                    className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md"
+                  >
+                    <Wallet className="h-4 w-4 text-emerald-600" />
+
+                    <span>
+                      ₹
+                      {wallet?.currentBalance?.toFixed(2) ||
+                        "0.00"}
+                    </span>
+                  </Link>
+
+                  {/* Admin */}
+                  {user.role === "admin" ||
+                  user.role === "superadmin" ? (
+                    <Link
+                      to="/admin"
+                      className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 via-pink-500 to-violet-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg"
+                    >
+                      <LayoutDashboard className="h-4 w-4" />
+
+                      {user.role === "superadmin"
+                        ? "👑 Super Admin"
+                        : "Admin Panel"}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {/* Captcha */}
+                      <Link
+                        to="/dashboard/captcha"
+                        className="flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-gradient-to-r from-cyan-50 to-blue-50 px-3 py-2 text-xs font-bold text-cyan-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-md"
+                      >
+                        <KeyRound className="h-3.5 w-3.5 text-cyan-600" />
+                        Solve Captcha
+                      </Link>
+
+                      {/* Dashboard */}
+                      <Link
+                        to="/dashboard"
+                        className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 px-3.5 py-2 text-xs font-bold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg"
+                      >
+                        <LayoutDashboard className="h-3.5 w-3.5" />
+                        Dashboard
+                      </Link>
+                    </div>
+                  )}
+
+                  {/* Logout */}
+                  <button
+                    onClick={logout}
+                    title="Sign out"
+                    className="rounded-lg p-2 text-slate-500 transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-50 hover:text-red-500 hover:shadow-sm"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {/* Login */}
+                  <Link
+                    to="/login"
+                    className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 transition-all duration-300 hover:-translate-y-0.5 hover:bg-violet-50 hover:text-violet-600 hover:shadow-sm"
+                  >
+                    Log In
+                  </Link>
+
+                  {/* Join Network */}
+                  <Link
+                    to="/register"
+                    className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:brightness-110 hover:shadow-xl"
+                  >
+                    <UserIcon className="h-3.5 w-3.5" />
+                    Join Network
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* ===================================================
+                MOBILE ACTIONS
+            =================================================== */}
+            <div className="flex items-center gap-2 md:hidden">
+              {user && (
+                <Link
+                  to="/dashboard"
+                  className="rounded-lg bg-gradient-to-r from-violet-600 to-pink-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  ₹{wallet?.currentBalance?.toFixed(0) || "0"}
+                </Link>
+              )}
+
+              <button
+                onClick={() =>
+                  setMobileMenuOpen(!mobileMenuOpen)
+                }
+                aria-label={
+                  mobileMenuOpen
+                    ? "Close menu"
+                    : "Open menu"
+                }
+                className="rounded-xl p-2 text-slate-600 transition-all duration-300 hover:-translate-y-0.5 hover:bg-violet-50 hover:text-violet-600 hover:shadow-sm"
+              >
+                {mobileMenuOpen ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
+              </button>
+            </div>
           </div>
-        )}
+
+          {/* =====================================================
+              MOBILE COMPANY NAME
+          ===================================================== */}
+          <div className="mt-2 sm:hidden">
+            <div className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-base font-bold tracking-tight text-transparent">
+              DIGITAL LYF PVT. LTD.
+            </div>
+
+            <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+              Wellness & Chain Network
+            </div>
+          </div>
+
+          {/* =====================================================
+              MOBILE DROPDOWN
+          ===================================================== */}
+          {mobileMenuOpen && (
+            <div className="relative mt-4 space-y-2 border-t border-slate-200 pt-4 md:hidden">
+              {/* Home */}
+              <Link
+                to="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`${mobileButton} ${
+                  isActive("/")
+                    ? "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 font-bold text-white shadow-md"
+                    : "hover:bg-violet-50 hover:text-violet-700"
+                }`}
+              >
+                Home
+              </Link>
+
+              {/* Products */}
+              <a
+                href="#products"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`${mobileButton} hover:bg-gradient-to-r hover:from-pink-50 hover:to-orange-50 hover:text-pink-700`}
+              >
+                Products
+              </a>
+
+              {/* Process */}
+              <a
+                href="#working-process"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`${mobileButton} hover:bg-gradient-to-r hover:from-blue-50 hover:to-violet-50 hover:text-blue-700`}
+              >
+                Working Process
+              </a>
+
+              {/* About */}
+              <a
+                href="#about"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`${mobileButton} hover:bg-gradient-to-r hover:from-emerald-50 hover:to-blue-50 hover:text-emerald-700`}
+              >
+                About Us
+              </a>
+
+              {/* Rewards */}
+              <a
+                href="#rewards"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`${mobileButton} hover:bg-gradient-to-r hover:from-orange-50 hover:to-pink-50 hover:text-orange-600`}
+              >
+                Rewards
+              </a>
+
+              {/* =================================================
+                  AUTHENTICATED MOBILE MENU
+              ================================================= */}
+              {user ? (
+                <>
+                  {/* Dashboard */}
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`${mobileButton} bg-gradient-to-r from-violet-50 to-pink-50 text-violet-700 hover:from-violet-100 hover:to-pink-100`}
+                  >
+                    Member Dashboard
+                  </Link>
+
+                  {/* Captcha */}
+                  <Link
+                    to="/dashboard/captcha"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`${mobileButton} hover:bg-cyan-50 hover:text-cyan-700`}
+                  >
+                    Earn from Captchas
+                  </Link>
+
+                  {/* Tree */}
+                  <Link
+                    to="/dashboard/tree"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`${mobileButton} hover:bg-emerald-50 hover:text-emerald-700`}
+                  >
+                    My Referral Tree
+                  </Link>
+
+                  {/* Wallet */}
+                  <Link
+                    to="/dashboard/wallet"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`${mobileButton} hover:bg-violet-50 hover:text-violet-700`}
+                  >
+                    Wallet & Earnings
+                  </Link>
+
+                  {/* Profile */}
+                  <Link
+                    to="/dashboard/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`${mobileButton} hover:bg-pink-50 hover:text-pink-700`}
+                  >
+                    My Profile
+                  </Link>
+
+                  {/* Admin */}
+                  {(user.role === "admin" ||
+                    user.role === "superadmin") && (
+                    <Link
+                      to="/admin"
+                      onClick={() =>
+                        setMobileMenuOpen(false)
+                      }
+                      className={`${mobileButton} bg-gradient-to-r from-orange-50 to-pink-50 font-bold text-orange-700 hover:from-orange-100 hover:to-pink-100`}
+                    >
+                      {user.role === "superadmin"
+                        ? "👑 Super Admin"
+                        : "Admin Panel"}
+                    </Link>
+                  )}
+
+                  {/* Logout */}
+                  <button
+                    onClick={() => {
+                      logout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="block w-full rounded-xl px-4 py-2.5 text-left font-medium text-red-500 transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-50 hover:shadow-sm"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                /* =================================================
+                   GUEST MOBILE MENU
+                ================================================= */
+                <div className="flex flex-col gap-2 pt-2">
+                  <Link
+                    to="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-center font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 hover:shadow-md"
+                  >
+                    Log In
+                  </Link>
+
+                  <Link
+                    to="/register"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full rounded-xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 py-2.5 text-center font-bold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg"
+                  >
+                    Join Now
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </nav>
     </header>
   );

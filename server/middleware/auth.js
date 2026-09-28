@@ -1,25 +1,40 @@
+
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "samarth_jwt_secret_token_key_2026_prod";
+// =====================================================
+// JWT SECRET
+// =====================================================
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.warn(
+    "⚠️ JWT_SECRET is not defined in .env. Authentication will fail until it is configured."
+  );
+}
 
 // =====================================================
 // AUTHENTICATE JWT TOKEN
 // =====================================================
 
-export const authenticateToken = (
-  req,
-  res,
-  next
-) => {
+export const authenticateToken = (req, res, next) => {
   try {
-    const authHeader =
-      req.headers.authorization;
+    // -------------------------------------------------
+    // CHECK JWT SECRET
+    // -------------------------------------------------
 
-    // -----------------------------------------------
-    // CHECK AUTHORIZATION HEADER
-    // -----------------------------------------------
+    if (!JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message: "Server authentication configuration is missing.",
+      });
+    }
+
+    // -------------------------------------------------
+    // GET AUTHORIZATION HEADER
+    // -------------------------------------------------
+
+    const authHeader = req.headers.authorization;
 
     if (!authHeader) {
       return res.status(401).json({
@@ -29,12 +44,11 @@ export const authenticateToken = (
       });
     }
 
-    // -----------------------------------------------
+    // -------------------------------------------------
     // CHECK BEARER FORMAT
-    // -----------------------------------------------
+    // -------------------------------------------------
 
-    const parts =
-      authHeader.trim().split(/\s+/);
+    const parts = authHeader.trim().split(/\s+/);
 
     if (
       parts.length !== 2 ||
@@ -52,23 +66,19 @@ export const authenticateToken = (
     if (!token) {
       return res.status(401).json({
         success: false,
-        message:
-          "Access denied. Token is missing.",
+        message: "Access denied. Token is missing.",
       });
     }
 
-    // -----------------------------------------------
-    // VERIFY TOKEN
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // VERIFY JWT
+    // -------------------------------------------------
 
-    const decoded = jwt.verify(
-      token,
-      JWT_SECRET
-    );
+    const decoded = jwt.verify(token, JWT_SECRET);
 
-    // -----------------------------------------------
-    // STORE USER INFORMATION
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // STORE DECODED USER INFORMATION
+    // -------------------------------------------------
 
     req.user = decoded;
 
@@ -86,6 +96,10 @@ export const authenticateToken = (
       error.message
     );
 
+    // -------------------------------------------------
+    // TOKEN EXPIRED
+    // -------------------------------------------------
+
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
@@ -94,10 +108,29 @@ export const authenticateToken = (
       });
     }
 
+    // -------------------------------------------------
+    // INVALID TOKEN
+    // -------------------------------------------------
+
+    if (
+      error.name === "JsonWebTokenError" ||
+      error.name === "NotBeforeError"
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid or expired authentication token.",
+      });
+    }
+
+    // -------------------------------------------------
+    // OTHER AUTH ERRORS
+    // -------------------------------------------------
+
     return res.status(401).json({
       success: false,
       message:
-        "Invalid or expired authentication token.",
+        "Authentication failed.",
     });
   }
 };
@@ -110,26 +143,19 @@ export const authenticateToken = (
 // - admin
 // - superadmin
 //
-// This keeps compatibility with existing routes.
+// Must be used AFTER authenticateToken.
 // =====================================================
 
-export const requireAdmin = (
-  req,
-  res,
-  next
-) => {
+export const requireAdmin = (req, res, next) => {
   try {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message:
-          "Authentication required.",
+        message: "Authentication required.",
       });
     }
 
-    const role = String(
-      req.user.role || ""
-    )
+    const role = String(req.user.role || "")
       .trim()
       .toLowerCase();
 
@@ -137,14 +163,11 @@ export const requireAdmin = (
       role !== "admin" &&
       role !== "superadmin"
     ) {
-      console.log(
-        "❌ Admin access denied:",
-        {
-          id: req.user.id,
-          memberId: req.user.memberId,
-          role: req.user.role,
-        }
-      );
+      console.log("❌ Admin access denied:", {
+        id: req.user.id,
+        memberId: req.user.memberId,
+        role: req.user.role,
+      });
 
       return res.status(403).json({
         success: false,
@@ -157,13 +180,76 @@ export const requireAdmin = (
   } catch (error) {
     console.error(
       "❌ Admin authorization error:",
-      error
+      error.message
     );
 
     return res.status(500).json({
       success: false,
-      message:
-        "Authorization error.",
+      message: "Authorization error.",
     });
   }
 };
+
+// =====================================================
+// REQUIRE SUPERADMIN
+// =====================================================
+//
+// Only superadmin can access the route.
+// =====================================================
+
+export const requireSuperAdmin = (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
+    const role = String(req.user.role || "")
+      .trim()
+      .toLowerCase();
+
+    if (role !== "superadmin") {
+      console.log("❌ Superadmin access denied:", {
+        id: req.user.id,
+        memberId: req.user.memberId,
+        role: req.user.role,
+      });
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "Access forbidden. Superadmin privileges required.",
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error(
+      "❌ Superadmin authorization error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Authorization error.",
+    });
+  }
+};
+
+// =====================================================
+// REQUIRE ADMIN OR SUPERADMIN
+// =====================================================
+//
+// Compatibility helper for existing admin routes.
+// =====================================================
+
+export const requireSuperOrAdmin = (
+  req,
+  res,
+  next
+) => {
+  return requireAdmin(req, res, next);
+};
+

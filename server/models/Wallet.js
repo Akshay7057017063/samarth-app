@@ -1,45 +1,93 @@
-import mongoose from 'mongoose';
 
-const walletSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    unique: true
+import mongoose from "mongoose";
+
+const walletSchema = new mongoose.Schema(
+  {
+    // =====================================================
+    // USER REFERENCE
+    // =====================================================
+
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+      index: true,
+    },
+
+    memberId: {
+      type: String,
+      required: true,
+      uppercase: true,
+      trim: true,
+      index: true,
+    },
+
+    // =====================================================
+    // WALLET BALANCE
+    // =====================================================
+
+    currentBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    totalEarnings: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // =====================================================
+    // EARNINGS
+    // =====================================================
+
+    captchaEarnings: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    referralCommissions: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // =====================================================
+    // WITHDRAWALS
+    // =====================================================
+
+    totalWithdrawn: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // =====================================================
+    // CAPTCHA DAILY TRACKING
+    // =====================================================
+
+    todayCaptchasSolved: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    lastCaptchaDate: {
+      type: String,
+      default: () => new Date().toISOString(),
+    },
   },
-  memberId: {
-    type: String,
-    required: true,
-    uppercase: true,
-    index: true
-  },
-  currentBalance: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  captchaEarnings: {
-    type: Number,
-    default: 0
-  },
-  referralCommissions: {
-    type: Number,
-    default: 0
-  },
-  totalWithdrawn: {
-    type: Number,
-    default: 0
-  },
-  todayCaptchasSolved: {
-    type: Number,
-    default: 0
-  },
-  lastCaptchaDate: {
-    type: String,
-    default: () => new Date().toISOString().split('T')[0]
+  {
+    timestamps: true,
   }
-}, {
-  timestamps: true
-});
+);
 
-export const Wallet = mongoose.model('Wallet', walletSchema);
+// =========================================================
+// MODEL
+// =========================================================
+
+export const Wallet = mongoose.model("Wallet", walletSchema);
+
