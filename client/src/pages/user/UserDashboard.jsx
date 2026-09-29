@@ -29,6 +29,10 @@ import {
   Activity,
 } from "lucide-react";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://api.bull-mark.com/api";
+
 export default function UserDashboard() {
   const {
     user: authUser,
@@ -156,7 +160,7 @@ export default function UserDashboard() {
 
       const meData =
         await fetchJson(
-          "/api/auth/me"
+          `${API_BASE_URL}/auth/me`
         );
 
       if (
@@ -188,23 +192,23 @@ export default function UserDashboard() {
       const results =
         await Promise.allSettled([
           fetchJson(
-            "/api/wallet/summary"
+            `${API_BASE_URL}/wallet/summary`
           ),
 
           fetchJson(
-            "/api/wallet/transactions"
+            `${API_BASE_URL}/wallet/transactions`
           ),
 
           fetchJson(
-            "/api/referral/tree"
+            `${API_BASE_URL}/referral/tree`
           ),
 
           fetchJson(
-            "/api/referral/directs"
+            `${API_BASE_URL}/referral/directs`
           ),
 
           fetchJson(
-            "/api/captcha/my-stats"
+            `${API_BASE_URL}/captcha/my-stats`
           ),
         ]);
 
@@ -1078,8 +1082,6 @@ export default function UserDashboard() {
 
         <div className="mx-auto flex max-w-7xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
-          {/* Brand + Welcome */}
-
           <div className="flex min-w-0 items-center gap-4">
 
             <Link
@@ -1136,8 +1138,6 @@ export default function UserDashboard() {
 
             </div>
           </div>
-
-          {/* Profile */}
 
           <div className="flex items-center gap-3 self-end rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-2 shadow-sm md:self-auto">
 
@@ -1300,8 +1300,6 @@ export default function UserDashboard() {
 
       <main className="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-8 lg:py-8">
 
-        {/* Page error */}
-
         {pageError && (
           <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
 
@@ -1324,18 +1322,12 @@ export default function UserDashboard() {
           </div>
         )}
 
-        {/* Live refresh status */}
-
         {refreshing && (
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-3 py-2 text-[11px] font-bold text-violet-700">
             <RefreshCw className="h-3.5 w-3.5 animate-spin" />
             Updating your latest customer data...
           </div>
         )}
-
-        {/* ==================================================
-            TITLE
-        ================================================== */}
 
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 
@@ -1379,13 +1371,7 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        {/* ==================================================
-            INCOME CARDS
-        ================================================== */}
-
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-
-          {/* Matching */}
 
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 via-pink-500 to-rose-500 p-[1px] shadow-lg shadow-orange-100 transition-transform duration-300 hover:-translate-y-1">
 
@@ -1415,8 +1401,6 @@ export default function UserDashboard() {
             </div>
           </div>
 
-          {/* Today's matching */}
-
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 p-[1px] shadow-lg shadow-violet-100 transition-transform duration-300 hover:-translate-y-1">
 
             <div className="relative h-full overflow-hidden rounded-[23px] bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 p-5 text-white">
@@ -1444,8 +1428,6 @@ export default function UserDashboard() {
               </div>
             </div>
           </div>
-
-          {/* Franchise referral */}
 
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-violet-600 to-indigo-600 p-[1px] shadow-lg shadow-blue-100 transition-transform duration-300 hover:-translate-y-1">
 
@@ -1475,8 +1457,6 @@ export default function UserDashboard() {
             </div>
           </div>
 
-          {/* Franchise matching */}
-
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 p-[1px] shadow-lg shadow-orange-100 transition-transform duration-300 hover:-translate-y-1">
 
             <div className="relative h-full overflow-hidden rounded-[23px] bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 p-5 text-white">
@@ -1504,8 +1484,6 @@ export default function UserDashboard() {
               </div>
             </div>
           </div>
-
-          {/* Total */}
 
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 p-[1px] shadow-lg shadow-emerald-100 transition-transform duration-300 hover:-translate-y-1">
 
@@ -1536,13 +1514,7 @@ export default function UserDashboard() {
           </div>
         </section>
 
-        {/* ==================================================
-            CUSTOMER LIVE SNAPSHOT
-        ================================================== */}
-
         <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-          {/* Wallet */}
 
           <div className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-5 shadow-sm">
 
@@ -1570,8 +1542,6 @@ export default function UserDashboard() {
 
           </div>
 
-          {/* Total earnings */}
-
           <div className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-pink-50 p-5 shadow-sm">
 
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm">
@@ -1589,8 +1559,6 @@ export default function UserDashboard() {
             </div>
 
           </div>
-
-          {/* CAPTCHA */}
 
           <div className="rounded-3xl border border-pink-100 bg-gradient-to-br from-pink-50 via-white to-orange-50 p-5 shadow-sm">
 
@@ -1617,8 +1585,6 @@ export default function UserDashboard() {
 
           </div>
 
-          {/* Referral */}
-
           <div className="rounded-3xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-yellow-50 p-5 shadow-sm">
 
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
@@ -1639,15 +1605,7 @@ export default function UserDashboard() {
 
         </section>
 
-        {/* ==================================================
-            MAIN GRID
-        ================================================== */}
-
         <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-
-          {/* ==================================================
-              ACCOUNT OVERVIEW
-          ================================================== */}
 
           <div className="xl:col-span-8">
 
@@ -1713,8 +1671,6 @@ export default function UserDashboard() {
                 }
               )}
 
-              {/* Rank */}
-
               <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-white to-violet-50/80 p-4 shadow-sm sm:col-span-2 lg:col-span-2">
 
                 <div className="flex items-center gap-3">
@@ -1736,8 +1692,6 @@ export default function UserDashboard() {
                   </div>
                 </div>
               </div>
-
-              {/* Wallet */}
 
               <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-cyan-50 p-4 shadow-sm">
 
@@ -1765,13 +1719,7 @@ export default function UserDashboard() {
             </div>
           </div>
 
-          {/* ==================================================
-              RIGHT SIDE
-          ================================================== */}
-
           <div className="space-y-5 xl:col-span-4">
-
-            {/* Grow */}
 
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500 p-[1px] shadow-xl shadow-violet-100">
 
@@ -1810,8 +1758,6 @@ export default function UserDashboard() {
                 </div>
               </div>
             </div>
-
-            {/* Team summary */}
 
             <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm backdrop-blur">
 
@@ -1886,8 +1832,6 @@ export default function UserDashboard() {
               </div>
             </div>
 
-            {/* CAPTCHA */}
-
             <div className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-6 shadow-sm">
 
               <div className="flex items-center justify-between gap-4">
@@ -1945,13 +1889,7 @@ export default function UserDashboard() {
           </div>
         </section>
 
-        {/* ==================================================
-            WALLET & CAPTCHA SUMMARY
-        ================================================== */}
-
         <section className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-          {/* Wallet */}
 
           <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
 
@@ -2037,8 +1975,6 @@ export default function UserDashboard() {
             </div>
 
           </div>
-
-          {/* CAPTCHA */}
 
           <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
 
@@ -2128,10 +2064,6 @@ export default function UserDashboard() {
           </div>
         </section>
 
-        {/* ==================================================
-            QUICK ACTIONS
-        ================================================== */}
-
         <section className="mt-6">
 
           <div className="mb-4">
@@ -2219,10 +2151,6 @@ export default function UserDashboard() {
           </div>
         </section>
 
-        {/* ==================================================
-            REFERRAL LINKS
-        ================================================== */}
-
         <section className="mt-6">
 
           <div className="mb-4">
@@ -2238,8 +2166,6 @@ export default function UserDashboard() {
           </div>
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-            {/* LEFT */}
 
             <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-white p-6 shadow-sm">
 
@@ -2306,8 +2232,6 @@ export default function UserDashboard() {
                 </div>
               </div>
             </div>
-
-            {/* RIGHT */}
 
             <div className="relative overflow-hidden rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
 
@@ -2377,10 +2301,6 @@ export default function UserDashboard() {
 
           </div>
         </section>
-
-        {/* ==================================================
-            RECENT CUSTOMER TRANSACTIONS
-        ================================================== */}
 
         <section className="mt-6 rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm backdrop-blur sm:p-7">
 
@@ -2573,10 +2493,6 @@ export default function UserDashboard() {
 
         </section>
 
-        {/* ==================================================
-            LATEST NEWS
-        ================================================== */}
-
         <section className="relative mt-6 overflow-hidden rounded-3xl border border-violet-100 bg-white/90 p-[1px] shadow-sm">
 
           <div className="relative overflow-hidden rounded-[23px] bg-gradient-to-br from-violet-50 via-white to-orange-50 p-6">
@@ -2613,10 +2529,6 @@ export default function UserDashboard() {
             </div>
           </div>
         </section>
-
-        {/* ==================================================
-            BOTTOM STATUS
-        ================================================== */}
 
         <section className="mt-6 overflow-hidden rounded-3xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 p-[1px] shadow-lg shadow-violet-100">
 

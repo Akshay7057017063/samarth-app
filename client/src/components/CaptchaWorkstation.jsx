@@ -19,6 +19,10 @@ import confetti from "canvas-confetti";
 
 const CAPTCHA_TIMEOUT_SECONDS = 10;
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://api.bull-mark.com/api";
+
 export default function CaptchaWorkstation() {
   const { token, updateWalletLocally } = useAuth();
 
@@ -40,17 +44,13 @@ export default function CaptchaWorkstation() {
 
   const [cooldown, setCooldown] = useState(0);
 
-  // ==========================================================
-  // NEW CAPTCHA COUNTDOWN
-  // ==========================================================
-
   const [timeLeft, setTimeLeft] = useState(
     CAPTCHA_TIMEOUT_SECONDS
   );
 
-  /* ------------------------------------------------------------
-     Load New CAPTCHA
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // LOAD NEW CAPTCHA
+  // ==========================================================
 
   const loadNewCaptcha = useCallback(async () => {
     if (!token) {
@@ -60,18 +60,20 @@ export default function CaptchaWorkstation() {
     try {
       setCaptchaLoading(true);
 
-      // Clear the previous CAPTCHA immediately.
       setCaptchaSvg("");
       setCaptchaToken("");
       setUserInput("");
       setTimeLeft(0);
 
-      const res = await fetch("/api/captcha/new", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/captcha/new`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       const data = await res.json();
 
@@ -84,11 +86,17 @@ export default function CaptchaWorkstation() {
       setCaptchaSvg(data.svg || "");
       setCaptchaToken(data.token || "");
 
-      // Start a fresh 10-second countdown only
-      // after the new CAPTCHA is successfully loaded.
-      setTimeLeft(CAPTCHA_TIMEOUT_SECONDS);
+      setTimeLeft(
+        Number(
+          data.expiresInSeconds ||
+            CAPTCHA_TIMEOUT_SECONDS
+        )
+      );
     } catch (error) {
-      console.error("LOAD CAPTCHA ERROR:", error);
+      console.error(
+        "LOAD CAPTCHA ERROR:",
+        error
+      );
 
       setCaptchaSvg("");
       setCaptchaToken("");
@@ -106,9 +114,9 @@ export default function CaptchaWorkstation() {
     }
   }, [token]);
 
-  /* ------------------------------------------------------------
-     Load Customer Wallet / CAPTCHA Progress
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // LOAD CUSTOMER WALLET / CAPTCHA PROGRESS
+  // ==========================================================
 
   const loadCaptchaProgress = useCallback(async () => {
     if (!token) {
@@ -116,12 +124,15 @@ export default function CaptchaWorkstation() {
     }
 
     try {
-      const res = await fetch("/api/wallet/summary", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/wallet/summary`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       const data = await res.json();
 
@@ -158,9 +169,9 @@ export default function CaptchaWorkstation() {
     }
   }, [token]);
 
-  /* ------------------------------------------------------------
-     Initial Load
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // INITIAL LOAD
+  // ==========================================================
 
   useEffect(() => {
     if (!token) {
@@ -175,9 +186,9 @@ export default function CaptchaWorkstation() {
     loadCaptchaProgress,
   ]);
 
-  /* ------------------------------------------------------------
-     Cooldown Timer
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // COOLDOWN TIMER
+  // ==========================================================
 
   useEffect(() => {
     if (cooldown <= 0) {
@@ -193,16 +204,9 @@ export default function CaptchaWorkstation() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  /* ------------------------------------------------------------
-     CAPTCHA 10-SECOND EXPIRY TIMER
-
-     The timer starts whenever a valid CAPTCHA token is loaded.
-
-     When time reaches 0:
-     1. Current CAPTCHA is cleared.
-     2. User input is cleared.
-     3. A new CAPTCHA is requested automatically.
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // CAPTCHA 10 SECOND EXPIRY TIMER
+  // ==========================================================
 
   useEffect(() => {
     if (!captchaToken) {
@@ -252,16 +256,15 @@ export default function CaptchaWorkstation() {
     loadNewCaptcha,
   ]);
 
-  /* ------------------------------------------------------------
-     Handle CAPTCHA Submit
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // HANDLE CAPTCHA SUBMIT
+  // ==========================================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const trimmedInput = userInput.trim();
 
-    /* Empty input */
     if (!trimmedInput) {
       setMessage({
         text:
@@ -272,7 +275,6 @@ export default function CaptchaWorkstation() {
       return;
     }
 
-    /* Missing CAPTCHA token */
     if (!captchaToken) {
       setMessage({
         text:
@@ -283,7 +285,6 @@ export default function CaptchaWorkstation() {
       return;
     }
 
-    /* CAPTCHA expired locally */
     if (timeLeft <= 0) {
       setMessage({
         text:
@@ -298,7 +299,6 @@ export default function CaptchaWorkstation() {
       return;
     }
 
-    /* Cooldown */
     if (cooldown > 0) {
       setMessage({
         text: `Please wait ${cooldown}s before submitting the next CAPTCHA.`,
@@ -308,7 +308,6 @@ export default function CaptchaWorkstation() {
       return;
     }
 
-    /* Daily limit */
     if (todaySolved >= dailyLimit) {
       setMessage({
         text:
@@ -327,25 +326,28 @@ export default function CaptchaWorkstation() {
     });
 
     try {
-      const res = await fetch("/api/captcha/solve", {
-        method: "POST",
+      const res = await fetch(
+        `${API_BASE_URL}/captcha/solve`,
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
 
-        body: JSON.stringify({
-          token: captchaToken,
-          answer: trimmedInput,
-        }),
-      });
+          body: JSON.stringify({
+            token: captchaToken,
+            answer: trimmedInput,
+          }),
+        }
+      );
 
       const data = await res.json();
 
-      /* --------------------------------------------------------
-         SUCCESS
-      -------------------------------------------------------- */
+      // ======================================================
+      // SUCCESS
+      // ======================================================
 
       if (data.success) {
         confetti({
@@ -403,17 +405,14 @@ export default function CaptchaWorkstation() {
 
         setCooldown(3);
 
-        /*
-          Load a fresh CAPTCHA after successful submission.
-        */
         await loadNewCaptcha();
 
         return;
       }
 
-      /* --------------------------------------------------------
-         DAILY LIMIT
-      -------------------------------------------------------- */
+      // ======================================================
+      // DAILY LIMIT
+      // ======================================================
 
       if (
         res.status === 429 ||
@@ -441,9 +440,9 @@ export default function CaptchaWorkstation() {
         return;
       }
 
-      /* --------------------------------------------------------
-         INVALID / EXPIRED / TAMPERED CAPTCHA
-      -------------------------------------------------------- */
+      // ======================================================
+      // INVALID / EXPIRED / TAMPERED CAPTCHA
+      // ======================================================
 
       if (data.counted === false) {
         setMessage({
@@ -462,9 +461,9 @@ export default function CaptchaWorkstation() {
         return;
       }
 
-      /* --------------------------------------------------------
-         GENUINE WRONG ANSWER
-      -------------------------------------------------------- */
+      // ======================================================
+      // WRONG ANSWER
+      // ======================================================
 
       if (
         data.result === "wrong" &&
@@ -485,9 +484,9 @@ export default function CaptchaWorkstation() {
         return;
       }
 
-      /* --------------------------------------------------------
-         GENERIC BACKEND ERROR
-      -------------------------------------------------------- */
+      // ======================================================
+      // GENERIC BACKEND ERROR
+      // ======================================================
 
       setMessage({
         text:
@@ -517,9 +516,9 @@ export default function CaptchaWorkstation() {
     }
   };
 
-  /* ------------------------------------------------------------
-     Manual Refresh
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // MANUAL REFRESH
+  // ==========================================================
 
   const handleRefresh = async () => {
     if (loading || captchaLoading) {
@@ -534,9 +533,9 @@ export default function CaptchaWorkstation() {
     await loadNewCaptcha();
   };
 
-  /* ------------------------------------------------------------
-     Progress
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // PROGRESS
+  // ==========================================================
 
   const safeDailyLimit =
     dailyLimit > 0 ? dailyLimit : 50;
@@ -565,16 +564,14 @@ export default function CaptchaWorkstation() {
     timeLeft <= 3 &&
     timeLeft > 0;
 
-  /* ------------------------------------------------------------
-     Render
-  ------------------------------------------------------------ */
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-8">
 
-      {/* ========================================================
-          AMBIENT BACKGROUND
-      ======================================================== */}
+      {/* AMBIENT BACKGROUND */}
 
       <div className="pointer-events-none absolute -left-20 -top-20 h-56 w-56 rounded-full bg-violet-400/10 blur-3xl" />
 
@@ -582,9 +579,7 @@ export default function CaptchaWorkstation() {
 
       <div className="pointer-events-none absolute bottom-0 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-orange-400/10 blur-3xl" />
 
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
+      {/* HEADER */}
 
       <div className="relative flex flex-col justify-between gap-5 border-b border-slate-200/80 pb-6 sm:flex-row sm:items-center">
 
@@ -610,8 +605,6 @@ export default function CaptchaWorkstation() {
           </p>
         </div>
 
-        {/* Reward Card */}
-
         <div className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-orange-50 px-4 py-3 shadow-sm">
 
           <div>
@@ -630,13 +623,9 @@ export default function CaptchaWorkstation() {
         </div>
       </div>
 
-      {/* ========================================================
-          STATS STRIP
-      ======================================================== */}
+      {/* STATS STRIP */}
 
       <div className="relative mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-
-        {/* Today Solved */}
 
         <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-violet-700">
@@ -652,8 +641,6 @@ export default function CaptchaWorkstation() {
           </div>
         </div>
 
-        {/* Daily Limit */}
-
         <div className="rounded-2xl border border-pink-100 bg-pink-50/70 p-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-pink-700">
             <ImageIcon className="h-4 w-4" />
@@ -667,8 +654,6 @@ export default function CaptchaWorkstation() {
             {safeDailyLimit}
           </div>
         </div>
-
-        {/* Progress */}
 
         <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-orange-700">
@@ -685,9 +670,7 @@ export default function CaptchaWorkstation() {
         </div>
       </div>
 
-      {/* ========================================================
-          DAILY PROGRESS
-      ======================================================== */}
+      {/* DAILY PROGRESS */}
 
       <div className="relative my-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
 
@@ -712,20 +695,14 @@ export default function CaptchaWorkstation() {
         </div>
       </div>
 
-      {/* ========================================================
-          CAPTCHA AREA
-      ======================================================== */}
+      {/* CAPTCHA AREA */}
 
       <form
         onSubmit={handleSubmit}
         className="relative space-y-6"
       >
 
-        {/* CAPTCHA Box */}
-
         <div className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50/70 via-white to-orange-50/70 p-5 sm:p-6">
-
-          {/* Title */}
 
           <div className="mb-4 flex items-center justify-center gap-2 text-center text-xs font-semibold text-slate-500">
 
@@ -736,11 +713,7 @@ export default function CaptchaWorkstation() {
             </span>
           </div>
 
-          {/* CAPTCHA + Refresh */}
-
           <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-
-            {/* CAPTCHA Image */}
 
             <div className="relative flex min-h-[82px] min-w-[230px] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
 
@@ -753,8 +726,6 @@ export default function CaptchaWorkstation() {
                 }}
               />
             </div>
-
-            {/* Refresh */}
 
             <button
               type="button"
@@ -776,9 +747,7 @@ export default function CaptchaWorkstation() {
             </button>
           </div>
 
-          {/* ====================================================
-              10 SECOND COUNTDOWN
-          ==================================================== */}
+          {/* 10 SECOND COUNTDOWN */}
 
           <div className="mx-auto mt-5 max-w-xl">
 
@@ -825,7 +794,11 @@ export default function CaptchaWorkstation() {
                     : "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500"
                 }`}
                 style={{
-                  width: `${captchaToken ? countdownPercent : 0}%`,
+                  width: `${
+                    captchaToken
+                      ? countdownPercent
+                      : 0
+                  }%`,
                 }}
               />
             </div>
@@ -834,8 +807,6 @@ export default function CaptchaWorkstation() {
               A new CAPTCHA will load automatically after 10 seconds.
             </p>
           </div>
-
-          {/* Case Sensitive */}
 
           <div className="mt-4 flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-500">
 
@@ -848,12 +819,9 @@ export default function CaptchaWorkstation() {
           </div>
         </div>
 
-        {/* ======================================================
-            INPUT
-        ====================================================== */}
+        {/* INPUT */}
 
         <div>
-
           <label className="mb-2 block text-sm font-bold text-slate-700">
             Enter Verification Code
           </label>
@@ -881,9 +849,7 @@ export default function CaptchaWorkstation() {
           />
         </div>
 
-        {/* ======================================================
-            FEEDBACK
-        ====================================================== */}
+        {/* FEEDBACK */}
 
         {message.text && (
           <div
@@ -905,9 +871,7 @@ export default function CaptchaWorkstation() {
           </div>
         )}
 
-        {/* ======================================================
-            SUBMIT BUTTON
-        ====================================================== */}
+        {/* SUBMIT */}
 
         <button
           type="submit"
@@ -975,9 +939,7 @@ export default function CaptchaWorkstation() {
         </button>
       </form>
 
-      {/* ========================================================
-          BOTTOM INFORMATION
-      ======================================================== */}
+      {/* BOTTOM INFORMATION */}
 
       <div className="relative mt-6 flex flex-col gap-3 border-t border-slate-200 pt-5 text-xs sm:flex-row sm:items-center sm:justify-between">
 
@@ -998,7 +960,6 @@ export default function CaptchaWorkstation() {
           </span>
         </div>
       </div>
-
     </div>
   );
 }

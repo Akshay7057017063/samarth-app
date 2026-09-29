@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -15,6 +14,10 @@ import {
   CreditCard,
 } from "lucide-react";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://api.bull-mark.com/api";
+
 export default function ProfileKycPage() {
   const { user, token, refreshUser } = useAuth();
 
@@ -22,12 +25,11 @@ export default function ProfileKycPage() {
     user?.panNumber || ""
   );
 
-  const [accountHolderName, setAccountHolderName] =
-    useState(
-      user?.bankDetails?.accountHolderName ||
-        user?.name ||
-        ""
-    );
+  const [accountHolderName, setAccountHolderName] = useState(
+    user?.bankDetails?.accountHolderName ||
+      user?.name ||
+      ""
+  );
 
   const [accountNumber, setAccountNumber] = useState(
     user?.bankDetails?.accountNumber || ""
@@ -67,23 +69,26 @@ export default function ProfileKycPage() {
     });
 
     try {
-      const res = await fetch("/api/auth/kyc", {
-        method: "PUT",
+      const res = await fetch(
+        `${API_BASE_URL}/auth/kyc`,
+        {
+          method: "PUT",
 
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
 
-        body: JSON.stringify({
-          panNumber: panNumber.trim(),
-          accountHolderName: accountHolderName.trim(),
-          accountNumber: accountNumber.trim(),
-          ifscCode: ifscCode.trim(),
-          bankName: bankName.trim(),
-          upiId: upiId.trim(),
-        }),
-      });
+          body: JSON.stringify({
+            panNumber: panNumber.trim(),
+            accountHolderName: accountHolderName.trim(),
+            accountNumber: accountNumber.trim(),
+            ifscCode: ifscCode.trim(),
+            bankName: bankName.trim(),
+            upiId: upiId.trim(),
+          }),
+        }
+      );
 
       const data = await res.json();
 
@@ -118,11 +123,10 @@ export default function ProfileKycPage() {
     }
   };
 
-  const isPanVerified =
-    Boolean(
-      user?.panVerified &&
-        user?.panNumber
-    );
+  const isPanVerified = Boolean(
+    user?.panVerified &&
+      user?.panNumber
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-violet-50 via-white to-orange-50">
@@ -193,11 +197,13 @@ export default function ProfileKycPage() {
                 <div className="flex items-center justify-between gap-3">
 
                   <div className="flex items-center gap-2.5">
+
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm">
                       <ShieldCheck className="h-5 w-5" />
                     </div>
 
                     <div>
+
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                         PAN Status
                       </div>
@@ -207,6 +213,7 @@ export default function ProfileKycPage() {
                           ? "Verified"
                           : "Pending Verification"}
                       </div>
+
                     </div>
                   </div>
 
@@ -220,6 +227,7 @@ export default function ProfileKycPage() {
                       Pending
                     </span>
                   )}
+
                 </div>
               </div>
 
@@ -228,11 +236,13 @@ export default function ProfileKycPage() {
               <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
 
                 <div className="flex items-center gap-2.5">
+
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
                     <Landmark className="h-5 w-5" />
                   </div>
 
                   <div>
+
                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                       Payout Details
                     </div>
@@ -240,6 +250,7 @@ export default function ProfileKycPage() {
                     <div className="mt-0.5 text-sm font-black text-slate-900">
                       Keep Information Updated
                     </div>
+
                   </div>
                 </div>
 
@@ -258,6 +269,7 @@ export default function ProfileKycPage() {
                     : "border-red-200 bg-red-50 text-red-700"
                 }`}
               >
+
                 {message.type === "success" ? (
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                 ) : (
@@ -265,6 +277,7 @@ export default function ProfileKycPage() {
                 )}
 
                 <span>{message.text}</span>
+
               </div>
             )}
 
@@ -292,6 +305,7 @@ export default function ProfileKycPage() {
                     </div>
 
                     <div>
+
                       <h3 className="text-sm font-black text-slate-900 sm:text-base">
                         Permanent Account Number
                       </h3>
@@ -299,8 +313,8 @@ export default function ProfileKycPage() {
                       <p className="text-[11px] text-slate-500">
                         PAN Card Information
                       </p>
-                    </div>
 
+                    </div>
                   </div>
 
                   {isPanVerified ? (
@@ -314,6 +328,7 @@ export default function ProfileKycPage() {
                       Pending Verification
                     </span>
                   )}
+
                 </div>
 
                 <div>
@@ -323,6 +338,7 @@ export default function ProfileKycPage() {
                   </label>
 
                   <div className="relative">
+
                     <CreditCard className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-500" />
 
                     <input
@@ -337,15 +353,18 @@ export default function ProfileKycPage() {
                       placeholder="ABCDE1234F"
                       className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-11 pr-4 font-mono text-sm font-bold tracking-[0.15em] text-slate-800 shadow-sm transition-all placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-500/10"
                     />
+
                   </div>
 
                   <div className="mt-2 flex items-start gap-2 text-[11px] leading-5 text-slate-500">
+
                     <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-500" />
 
                     <span>
                       Enter your 10-character PAN number
                       exactly as shown on your PAN card.
                     </span>
+
                   </div>
                 </div>
               </section>
@@ -363,6 +382,7 @@ export default function ProfileKycPage() {
                   </div>
 
                   <div>
+
                     <h3 className="text-sm font-black text-slate-900 sm:text-base">
                       Bank Account & UPI Details
                     </h3>
@@ -370,6 +390,7 @@ export default function ProfileKycPage() {
                     <p className="text-[11px] text-slate-500">
                       Add your preferred payout information
                     </p>
+
                   </div>
                 </div>
 
@@ -378,11 +399,13 @@ export default function ProfileKycPage() {
                   {/* Account Holder */}
 
                   <div>
+
                     <label className="mb-2 block text-sm font-bold text-slate-700">
                       Account Holder Name
                     </label>
 
                     <div className="relative">
+
                       <User className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-500" />
 
                       <input
@@ -396,17 +419,20 @@ export default function ProfileKycPage() {
                         placeholder="Full Name as in Bank"
                         className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-800 shadow-sm transition-all placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-500/10"
                       />
+
                     </div>
                   </div>
 
                   {/* Bank Name */}
 
                   <div>
+
                     <label className="mb-2 block text-sm font-bold text-slate-700">
                       Bank Name
                     </label>
 
                     <div className="relative">
+
                       <Building className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-pink-500" />
 
                       <input
@@ -418,17 +444,20 @@ export default function ProfileKycPage() {
                         placeholder="e.g. State Bank of India, HDFC"
                         className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-800 shadow-sm transition-all placeholder:text-slate-400 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-500/10"
                       />
+
                     </div>
                   </div>
 
                   {/* Account Number */}
 
                   <div>
+
                     <label className="mb-2 block text-sm font-bold text-slate-700">
                       Bank Account Number
                     </label>
 
                     <div className="relative">
+
                       <Landmark className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-orange-500" />
 
                       <input
@@ -442,17 +471,20 @@ export default function ProfileKycPage() {
                         placeholder="Account Number"
                         className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 font-mono text-sm text-slate-800 shadow-sm transition-all placeholder:font-sans placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-4 focus:ring-orange-500/10"
                       />
+
                     </div>
                   </div>
 
                   {/* IFSC */}
 
                   <div>
+
                     <label className="mb-2 block text-sm font-bold text-slate-700">
                       Bank IFSC Code
                     </label>
 
                     <div className="relative">
+
                       <ShieldCheck className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
 
                       <input
@@ -466,6 +498,7 @@ export default function ProfileKycPage() {
                         placeholder="e.g. SBIN0001234"
                         className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 font-mono text-sm uppercase text-slate-800 shadow-sm transition-all placeholder:font-sans placeholder:normal-case placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
                       />
+
                     </div>
                   </div>
                 </div>
@@ -473,15 +506,19 @@ export default function ProfileKycPage() {
                 {/* UPI */}
 
                 <div className="mt-5">
+
                   <label className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-700">
+
                     <Send className="h-4 w-4 text-cyan-500" />
 
                     <span>
                       Primary UPI ID
                     </span>
+
                   </label>
 
                   <div className="relative">
+
                     <Send className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cyan-500" />
 
                     <input
@@ -495,6 +532,7 @@ export default function ProfileKycPage() {
                       placeholder="e.g. username@okhdfcbank"
                       className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 font-mono text-sm text-slate-800 shadow-sm transition-all placeholder:font-sans placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
                     />
+
                   </div>
 
                   <p className="mt-2 text-[11px] text-slate-500">
@@ -502,6 +540,7 @@ export default function ProfileKycPage() {
                     PhonePe, Paytm, or another supported UPI
                     provider.
                   </p>
+
                 </div>
               </section>
 
@@ -516,6 +555,7 @@ export default function ProfileKycPage() {
                   disabled={loading}
                   className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 py-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-pink-500/20 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
                 >
+
                   {loading ? (
                     <>
                       <Save className="h-4 w-4 animate-pulse" />
@@ -533,15 +573,18 @@ export default function ProfileKycPage() {
                       </span>
                     </>
                   )}
+
                 </button>
 
                 <div className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-400">
+
                   <ShieldCheck className="h-3.5 w-3.5 text-violet-500" />
 
                   <span>
                     Keep your account and payout information
                     accurate and up to date.
                   </span>
+
                 </div>
               </div>
             </form>
@@ -553,11 +596,13 @@ export default function ProfileKycPage() {
             <div className="mt-7 rounded-2xl border border-violet-100 bg-gradient-to-r from-violet-50 via-pink-50 to-orange-50 p-4">
 
               <div className="flex items-start gap-3">
+
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm">
                   <Sparkles className="h-4 w-4" />
                 </div>
 
                 <div>
+
                   <h4 className="text-xs font-black text-slate-800">
                     Profile Information
                   </h4>
@@ -567,6 +612,7 @@ export default function ProfileKycPage() {
                     customer profile and payout-related
                     processing.
                   </p>
+
                 </div>
               </div>
 
@@ -577,4 +623,3 @@ export default function ProfileKycPage() {
     </div>
   );
 }
-

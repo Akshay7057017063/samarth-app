@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -17,6 +16,10 @@ import {
   CircleDollarSign,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://api.bull-mark.com/api";
 
 export default function WithdrawalPage() {
   const {
@@ -56,7 +59,7 @@ export default function WithdrawalPage() {
 
     try {
       const summaryResponse = await fetch(
-        "/api/wallet/summary",
+        `${API_BASE_URL}/wallet/summary`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -97,7 +100,7 @@ export default function WithdrawalPage() {
       }
 
       const transactionResponse = await fetch(
-        "/api/wallet/transactions",
+        `${API_BASE_URL}/wallet/transactions`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -220,7 +223,7 @@ export default function WithdrawalPage() {
 
     try {
       const res = await fetch(
-        "/api/wallet/withdraw",
+        `${API_BASE_URL}/wallet/withdraw`,
         {
           method: "POST",
 
@@ -1036,4 +1039,3 @@ export default function WithdrawalPage() {
     </div>
   );
 }
-

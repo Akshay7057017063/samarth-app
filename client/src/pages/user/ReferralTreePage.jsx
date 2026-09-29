@@ -16,6 +16,10 @@ import {
   GitBranch,
 } from "lucide-react";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://api.bull-mark.com/api";
+
 export default function ReferralTreePage() {
   const { user, token } = useAuth();
 
@@ -35,11 +39,14 @@ export default function ReferralTreePage() {
 
     const fetchTree = async () => {
       try {
-        const res = await fetch("/api/referral/tree", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/referral/tree`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         const data = await res.json();
 
@@ -63,17 +70,21 @@ export default function ReferralTreePage() {
 
     const fetchDirects = async () => {
       try {
-        const res = await fetch("/api/referral/directs", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/referral/directs`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         const data = await res.json();
 
         if (!res.ok) {
           throw new Error(
-            data?.message || "Unable to load direct referrals."
+            data?.message ||
+              "Unable to load direct referrals."
           );
         }
 
@@ -85,7 +96,10 @@ export default function ReferralTreePage() {
           );
         }
       } catch (error) {
-        console.error("DIRECT REFERRALS ERROR:", error);
+        console.error(
+          "DIRECT REFERRALS ERROR:",
+          error
+        );
 
         if (isMounted) {
           setDirects([]);
@@ -115,8 +129,8 @@ export default function ReferralTreePage() {
 
   const totalDownline = Number(
     user?.teamCount ??
-    user?.totalTeam ??
-    0
+      user?.totalTeam ??
+      0
   );
 
   const memberId =
@@ -126,8 +140,8 @@ export default function ReferralTreePage() {
 
   const activeDirects = directs.filter(
     (member) =>
-      String(member?.status || "")
-        .toLowerCase() === "active"
+      String(member?.status || "").toLowerCase() ===
+      "active"
   ).length;
 
   return (
@@ -180,13 +194,12 @@ export default function ReferralTreePage() {
             <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
 
               <div>
-                {/* Badge */}
+
                 <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white/90 px-4 py-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-violet-700 shadow-sm">
                   <Network className="h-4 w-4" />
                   My Network
                 </div>
 
-                {/* Heading */}
                 <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
                   Referral
                   <span className="ml-2 bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-transparent">
@@ -198,9 +211,11 @@ export default function ReferralTreePage() {
                   Explore your direct referrals and complete downline
                   network through your interactive customer genealogy tree.
                 </p>
+
               </div>
 
               {/* Header Stats */}
+
               <div className="grid grid-cols-2 gap-3">
 
                 <div className="min-w-[145px] rounded-2xl border border-violet-100 bg-white/90 px-4 py-3 shadow-sm">
@@ -237,8 +252,11 @@ export default function ReferralTreePage() {
         <section className="mb-7 grid grid-cols-1 gap-4 md:grid-cols-4">
 
           {/* Direct Team */}
+
           <div className="group rounded-3xl border border-violet-100 bg-white/90 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-violet-100/50">
+
             <div className="flex items-center gap-3">
+
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-600 transition-transform group-hover:scale-105">
                 <UserCheck className="h-5 w-5" />
               </div>
@@ -252,12 +270,16 @@ export default function ReferralTreePage() {
                   {directs.length}
                 </div>
               </div>
+
             </div>
           </div>
 
           {/* Network Size */}
+
           <div className="group rounded-3xl border border-pink-100 bg-white/90 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-pink-100/50">
+
             <div className="flex items-center gap-3">
+
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-pink-100 text-pink-600 transition-transform group-hover:scale-105">
                 <Network className="h-5 w-5" />
               </div>
@@ -271,12 +293,16 @@ export default function ReferralTreePage() {
                   {totalDownline}
                 </div>
               </div>
+
             </div>
           </div>
 
           {/* Active Directs */}
+
           <div className="group rounded-3xl border border-emerald-100 bg-white/90 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-100/50">
+
             <div className="flex items-center gap-3">
+
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-transform group-hover:scale-105">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
@@ -290,17 +316,22 @@ export default function ReferralTreePage() {
                   {activeDirects}
                 </div>
               </div>
+
             </div>
           </div>
 
           {/* Member ID */}
+
           <div className="group rounded-3xl border border-orange-100 bg-white/90 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-orange-100/50">
+
             <div className="flex items-center gap-3">
+
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-100 text-orange-600 transition-transform group-hover:scale-105">
                 <Crown className="h-5 w-5" />
               </div>
 
               <div className="min-w-0">
+
                 <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                   Member ID
                 </div>
@@ -308,6 +339,7 @@ export default function ReferralTreePage() {
                 <div className="mt-1 truncate text-sm font-black text-slate-900">
                   {memberId}
                 </div>
+
               </div>
             </div>
           </div>
@@ -328,14 +360,17 @@ export default function ReferralTreePage() {
             <div className="relative">
 
               {/* Header */}
+
               <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
                 <div className="flex items-center gap-3">
+
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500 text-white shadow-lg shadow-violet-200">
                     <GitBranch className="h-5 w-5" />
                   </div>
 
                   <div>
+
                     <h2 className="text-lg font-black text-slate-900">
                       Interactive Network Tree
                     </h2>
@@ -343,6 +378,7 @@ export default function ReferralTreePage() {
                     <p className="mt-1 text-xs text-slate-500">
                       Expand members and explore your referral hierarchy.
                     </p>
+
                   </div>
                 </div>
 
@@ -350,9 +386,11 @@ export default function ReferralTreePage() {
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Network Active
                 </div>
+
               </div>
 
               {/* Loading */}
+
               {loading ? (
                 <div className="flex min-h-[380px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-violet-50/50">
 
@@ -422,6 +460,7 @@ export default function ReferralTreePage() {
             <div className="relative">
 
               {/* Header */}
+
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
                 <div className="flex items-center gap-3">
@@ -431,6 +470,7 @@ export default function ReferralTreePage() {
                   </div>
 
                   <div>
+
                     <h2 className="text-lg font-black text-slate-900">
                       Direct Referral Members
                     </h2>
@@ -438,6 +478,7 @@ export default function ReferralTreePage() {
                     <p className="mt-1 text-xs text-slate-500">
                       Members directly connected to your customer account.
                     </p>
+
                   </div>
 
                 </div>
@@ -451,6 +492,7 @@ export default function ReferralTreePage() {
               </div>
 
               {/* Empty State */}
+
               {directs.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 via-white to-violet-50/50 py-14 text-center">
 
@@ -546,6 +588,7 @@ export default function ReferralTreePage() {
                           >
 
                             {/* Member ID */}
+
                             <td className="px-4 py-4">
                               <span className="inline-flex rounded-lg bg-violet-50 px-2.5 py-1 font-mono font-extrabold text-violet-700">
                                 {member?.memberId || "—"}
@@ -553,6 +596,7 @@ export default function ReferralTreePage() {
                             </td>
 
                             {/* Name */}
+
                             <td className="px-4 py-4">
                               <div className="font-bold text-slate-800">
                                 {member?.name || "—"}
@@ -560,11 +604,13 @@ export default function ReferralTreePage() {
                             </td>
 
                             {/* Phone */}
+
                             <td className="px-4 py-4 text-slate-500">
                               {member?.phone || "—"}
                             </td>
 
                             {/* Directs */}
+
                             <td className="px-4 py-4">
                               <span className="font-black text-pink-600">
                                 {Number(
@@ -574,6 +620,7 @@ export default function ReferralTreePage() {
                             </td>
 
                             {/* Team */}
+
                             <td className="px-4 py-4">
                               <span className="font-black text-orange-600">
                                 {Number(
@@ -583,7 +630,9 @@ export default function ReferralTreePage() {
                             </td>
 
                             {/* Status */}
+
                             <td className="px-4 py-4">
+
                               <span
                                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ${
                                   isActive
@@ -591,15 +640,19 @@ export default function ReferralTreePage() {
                                     : "border-slate-200 bg-slate-50 text-slate-600"
                                 }`}
                               >
+
                                 {isActive && (
                                   <CheckCircle2 className="h-3 w-3" />
                                 )}
 
                                 {status}
+
                               </span>
+
                             </td>
 
                             {/* Joined */}
+
                             <td className="px-4 py-4 text-slate-500">
                               {joinedDate}
                             </td>
@@ -637,6 +690,7 @@ export default function ReferralTreePage() {
                 </div>
 
                 <div>
+
                   <h3 className="text-sm font-black">
                     Grow Your Referral Network
                   </h3>
@@ -645,6 +699,7 @@ export default function ReferralTreePage() {
                     Use your referral tools from the customer dashboard to
                     share your network links and monitor your team activity.
                   </p>
+
                 </div>
 
               </div>

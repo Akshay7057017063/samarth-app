@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useContext,
@@ -10,15 +11,34 @@ const AuthContext = createContext(null);
 const TOKEN_KEY = "samarth_token";
 
 // ============================================================
+// API BASE URL
+// ============================================================
+// Local development:
+//   http://localhost:5000/api
+//
+// Production:
+//   https://api.bull-mark.com/api
+//
+// Vercel will use VITE_API_BASE_URL from its environment
+// variables during the production build.
+// ============================================================
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://api.bull-mark.com/api";
+
+// ============================================================
 // AUTH PROVIDER
 // ============================================================
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [wallet, setWallet] = useState(null);
+
   const [token, setToken] = useState(
     () => localStorage.getItem(TOKEN_KEY) || null
   );
+
   const [cmsContent, setCmsContent] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +48,9 @@ export const AuthProvider = ({ children }) => {
 
   const fetchCmsContent = async () => {
     try {
-      const res = await fetch("/api/cms/content");
+      const res = await fetch(
+        `${API_BASE_URL}/cms/content`
+      );
 
       const data = await res.json();
 
@@ -68,17 +90,19 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      const res = await fetch("/api/auth/me", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/auth/me`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
 
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        // Token is invalid / expired.
         localStorage.removeItem(TOKEN_KEY);
 
         setToken(null);
@@ -96,7 +120,6 @@ export const AuthProvider = ({ children }) => {
         error
       );
 
-      // Do not keep a broken token.
       localStorage.removeItem(TOKEN_KEY);
 
       setToken(null);
@@ -131,12 +154,15 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const res = await fetch("/api/auth/me", {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/auth/me`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         const data = await res.json();
 
@@ -191,16 +217,19 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (loginId, password) => {
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          loginId,
-          password,
-        }),
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            loginId,
+            password,
+          }),
+        }
+      );
 
       const data = await res.json();
 
@@ -260,13 +289,16 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (formData) => {
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/auth/register`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        }
+      );
 
       const data = await res.json();
 
@@ -351,9 +383,6 @@ export const AuthProvider = ({ children }) => {
       return {
         ...previous,
 
-        // IMPORTANT:
-        // Keep existing balance when caller doesn't
-        // provide a new balance.
         currentBalance:
           newBalance !== undefined &&
           newBalance !== null
