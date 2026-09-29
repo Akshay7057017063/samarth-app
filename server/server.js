@@ -1,3 +1,4 @@
+
 // =====================================================
 // LOAD ENVIRONMENT VARIABLES FIRST
 // =====================================================
@@ -58,18 +59,12 @@ const PORT = Number(process.env.PORT) || 5000;
 // =====================================================
 
 if (!process.env.MONGO_URI) {
-  console.error(
-    "❌ MONGO_URI is not defined in the .env file."
-  );
-
+  console.error("❌ MONGO_URI is not defined in the .env file.");
   process.exit(1);
 }
 
 if (!process.env.JWT_SECRET) {
-  console.error(
-    "❌ JWT_SECRET is not defined in the .env file."
-  );
-
+  console.error("❌ JWT_SECRET is not defined in the .env file.");
   process.exit(1);
 }
 
@@ -77,62 +72,95 @@ if (!process.env.JWT_SECRET) {
 // CORS CONFIGURATION
 // =====================================================
 //
-// Production domains:
-// - Customer: digital-lyf.bull-mark.com
-// - Admin:    digital-lyf-admin.bull-mark.com
-// - Old admin: admin.bull-mark.com
-// - Old customer: app.bull-mark.com
+// IMPORTANT FIX:
+// Your frontend is running on:
+// http://localhost:3000
 //
-// Vercel domains:
-// - samarth-app-three.vercel.app
-// - samarth-bo1ka04k7-akshay-godages-projects.vercel.app
-//
-// Local development:
-// - localhost:5173
-// - localhost:5174
+// This origin MUST be included here.
 // =====================================================
 
 const allowedOrigins = [
-  // Customer production domain
+  // ===================================================
+  // LOCAL DEVELOPMENT
+  // ===================================================
+
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
+
+  // ===================================================
+  // PRODUCTION CUSTOMER
+  // ===================================================
+
   "https://digital-lyf.bull-mark.com",
 
-  // Current admin production domain
+  // ===================================================
+  // PRODUCTION ADMIN
+  // ===================================================
+
   "https://digital-lyf-admin.bull-mark.com",
 
-  // Old admin domain - temporary compatibility
+  // ===================================================
+  // OLD ADMIN - TEMPORARY COMPATIBILITY
+  // ===================================================
+
   "https://admin.bull-mark.com",
 
-  // Old customer domain - temporary compatibility
+  // ===================================================
+  // OLD CUSTOMER - TEMPORARY COMPATIBILITY
+  // ===================================================
+
   "https://app.bull-mark.com",
 
-  // Vercel customer domains - temporary compatibility
-  "https://samarth-app-three.vercel.app",
-  "https://samarth-bo1ka04k7-akshay-godages-projects.vercel.app",
+  // ===================================================
+  // VERCEL DOMAINS - TEMPORARY COMPATIBILITY
+  // ===================================================
 
-  // Local Vite development
-  "http://localhost:5173",
-  "http://localhost:5174",
+  "https://samarth-app-three.vercel.app",
+
+  "https://samarth-bo1ka04k7-akshay-godages-projects.vercel.app",
 ];
+
+// =====================================================
+// CORS OPTIONS
+// =====================================================
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Requests without an Origin header can happen from:
-    // health checks, server-to-server requests, curl, etc.
+    // -------------------------------------------------
+    // Requests without Origin
+    //
+    // Examples:
+    // - curl
+    // - Postman
+    // - health checks
+    // - server-to-server requests
+    // -------------------------------------------------
+
     if (!origin) {
       return callback(null, true);
     }
+
+    // -------------------------------------------------
+    // Allowed origin
+    // -------------------------------------------------
 
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    console.warn(
-      `⚠️ CORS blocked origin: ${origin}`
-    );
+    // -------------------------------------------------
+    // Blocked origin
+    // -------------------------------------------------
 
-    return callback(
-      new Error("Not allowed by CORS")
-    );
+    console.warn(`⚠️ CORS blocked origin: ${origin}`);
+
+    return callback(new Error("Not allowed by CORS"));
   },
 
   methods: [
@@ -149,14 +177,26 @@ const corsOptions = {
     "Authorization",
   ],
 
-  // Bearer token authentication is used.
-  // Browser cookies are not used.
+  // -------------------------------------------------
+  // Authentication is using Bearer/JWT token.
+  // Cookies are not used.
+  // -------------------------------------------------
+
   credentials: false,
 
   optionsSuccessStatus: 204,
 };
 
-// Apply CORS globally.
+// =====================================================
+// APPLY CORS
+// =====================================================
+//
+// IMPORTANT:
+// This MUST stay BEFORE API routes.
+// The cors package handles browser OPTIONS
+// preflight requests automatically.
+// =====================================================
+
 app.use(cors(corsOptions));
 
 // =====================================================
@@ -205,7 +245,9 @@ app.get("/api/health", (req, res) => {
 
   res.status(200).json({
     success: true,
+
     status: "online",
+
     timestamp: new Date().toISOString(),
 
     database: mongoConnected
@@ -214,9 +256,12 @@ app.get("/api/health", (req, res) => {
 
     mongodb: {
       connected: mongoConnected,
+
       state: mongoose.connection.readyState,
+
       databaseName:
         mongoose.connection.name || null,
+
       host:
         mongoose.connection.host || null,
     },
@@ -227,13 +272,14 @@ app.get("/api/health", (req, res) => {
 
     legacyDatastore: {
       active: true,
+
       purpose:
         "Temporary migration compatibility only.",
-      activeUsersCount: Array.isArray(
-        store?.data?.users
-      )
-        ? store.data.users.length
-        : 0,
+
+      activeUsersCount:
+        Array.isArray(store?.data?.users)
+          ? store.data.users.length
+          : 0,
     },
 
     // -------------------------------------------------
@@ -243,6 +289,7 @@ app.get("/api/health", (req, res) => {
     server: {
       environment:
         process.env.NODE_ENV || "development",
+
       port: PORT,
     },
   });
@@ -277,6 +324,7 @@ app.use("/api/admin", adminRoutes);
 app.use((req, res) => {
   res.status(404).json({
     success: false,
+
     message:
       `Route not found: ${req.method} ${req.originalUrl}`,
   });
@@ -295,7 +343,9 @@ app.use((err, req, res, next) => {
   console.error(
     "================================================="
   );
+
   console.error(err);
+
   console.error(
     "================================================="
   );
@@ -306,6 +356,7 @@ app.use((err, req, res, next) => {
 
   res.status(statusCode).json({
     success: false,
+
     message:
       err.message || "Internal server error.",
   });
@@ -340,6 +391,7 @@ mongoose.connection.on("disconnected", () => {
 
 const shutdownServer = async (signal) => {
   console.log("");
+
   console.log(
     `🛑 ${signal} received. Shutting down server...`
   );
@@ -381,15 +433,19 @@ process.on("SIGTERM", () => {
 const startServer = async () => {
   try {
     console.log("");
+
     console.log(
       "================================================="
     );
+
     console.log(
       "🚀 STARTING DIGITAL LYF PVT. LTD. PLATFORM"
     );
+
     console.log(
       "================================================="
     );
+
     console.log("");
 
     // -------------------------------------------------
@@ -414,12 +470,15 @@ const startServer = async () => {
       PORT,
       () => {
         console.log("");
+
         console.log(
           "================================================="
         );
+
         console.log(
           "🚀 DIGITAL LYF PVT. LTD. PLATFORM BACKEND ONLINE"
         );
+
         console.log(
           "================================================="
         );
@@ -438,8 +497,7 @@ const startServer = async () => {
 
         console.log(
           `🌍 Environment: ${
-            process.env.NODE_ENV ||
-            "development"
+            process.env.NODE_ENV || "development"
           }`
         );
 
@@ -547,30 +605,42 @@ const startServer = async () => {
 
     server.on("error", (error) => {
       console.error("");
+
       console.error(
         "❌ HTTP SERVER ERROR"
       );
+
       console.error(error);
+
       console.error("");
 
       process.exit(1);
     });
   } catch (error) {
     console.error("");
+
     console.error(
       "================================================="
     );
+
     console.error(
       "❌ SERVER STARTUP FAILED"
     );
+
     console.error(
       "================================================="
     );
-    console.error(error.message);
+
+    console.error(
+      error.message
+    );
+
     console.error(
       "================================================="
     );
+
     console.error("");
+
     process.exit(1);
   }
 };
@@ -580,3 +650,4 @@ const startServer = async () => {
 // =====================================================
 
 startServer();
+
