@@ -31,6 +31,18 @@ const App = () => {
           PUBLIC ROUTES
       ======================================== */}
 
+      {/* Admin root ALWAYS opens login */}
+      <Route
+        path="/"
+        element={
+          <Navigate
+            to="/login"
+            replace
+          />
+        }
+      />
+
+      {/* Login */}
       <Route
         path="/login"
         element={<Login />}
@@ -54,10 +66,11 @@ const App = () => {
             path="/customers"
             element={<Customer />}
           />
+
           <Route
-  path="/customers/:id"
-  element={<CustomerDetails />}
-/>
+            path="/customers/:id"
+            element={<CustomerDetails />}
+          />
 
           {/* Future Modules */}
 
@@ -93,24 +106,15 @@ const App = () => {
       </Route>
 
       {/* ========================================
-          DEFAULT ROUTES
+          UNKNOWN ROUTES
       ======================================== */}
 
-      <Route
-        path="/"
-        element={
-          <Navigate
-            to="/dashboard"
-            replace
-          />
-        }
-      />
-
+      {/* Any unknown admin URL goes to login */}
       <Route
         path="*"
         element={
           <Navigate
-            to="/dashboard"
+            to="/login"
             replace
           />
         }
