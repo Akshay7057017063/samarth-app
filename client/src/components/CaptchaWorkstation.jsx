@@ -2,8 +2,11 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
+
 import { useAuth } from "../context/AuthContext";
+
 import {
   RefreshCw,
   CheckCircle2,
@@ -15,159 +18,347 @@ import {
   TrendingUp,
   ImageIcon,
 } from "lucide-react";
+
 import confetti from "canvas-confetti";
+
+// ============================================================
+// CONFIG
+// ============================================================
 
 const CAPTCHA_TIMEOUT_SECONDS = 10;
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://api.bull-mark.com/api";
+  import.meta.env.VITE_API_BASE_URL || "/api";
+
+console.log(
+  "🌐 Captcha API Base URL:",
+  API_BASE_URL
+);
+
+// ============================================================
+// COMPONENT
+// ============================================================
 
 export default function CaptchaWorkstation() {
-  const { token, updateWalletLocally } = useAuth();
+  const {
+    token,
+    updateWalletLocally,
+  } = useAuth();
 
-  const [captchaSvg, setCaptchaSvg] = useState("");
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [userInput, setUserInput] = useState("");
+  // ==========================================================
+  // REFS
+  // ==========================================================
 
-  const [loading, setLoading] = useState(false);
-  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const taskAreaRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // ==========================================================
+  // STATES
+  // ==========================================================
+
+  const [captchaSvg, setCaptchaSvg] =
+    useState("");
+
+  const [captchaToken, setCaptchaToken] =
+    useState("");
+
+  const [userInput, setUserInput] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [captchaLoading, setCaptchaLoading] =
+    useState(false);
 
   const [message, setMessage] = useState({
     text: "",
     type: "",
   });
 
-  const [todaySolved, setTodaySolved] = useState(0);
-  const [dailyLimit, setDailyLimit] = useState(50);
-  const [rewardRate, setRewardRate] = useState(0.5);
+  const [todaySolved, setTodaySolved] =
+    useState(0);
 
-  const [cooldown, setCooldown] = useState(0);
+  const [dailyLimit, setDailyLimit] =
+    useState(50);
 
-  const [timeLeft, setTimeLeft] = useState(
-    CAPTCHA_TIMEOUT_SECONDS
+  const [rewardRate, setRewardRate] =
+    useState(0.5);
+
+  const [cooldown, setCooldown] =
+    useState(0);
+
+  const [timeLeft, setTimeLeft] =
+    useState(
+      CAPTCHA_TIMEOUT_SECONDS
+    );
+
+  const [inputFocused, setInputFocused] =
+    useState(false);
+
+  // ==========================================================
+  // MOBILE TASK POSITIONING
+  // ==========================================================
+
+  const scrollTaskIntoView = useCallback(
+    (behavior = "auto") => {
+      const task =
+        taskAreaRef.current;
+
+      if (!task) {
+        return;
+      }
+
+      const rect =
+        task.getBoundingClientRect();
+
+      const currentScroll =
+        window.scrollY ||
+        document.documentElement.scrollTop ||
+        0;
+
+      const targetTop = Math.max(
+        0,
+        currentScroll +
+          rect.top -
+          8
+      );
+
+      window.scrollTo({
+        top: targetTop,
+        behavior,
+      });
+    },
+    []
   );
+
+  const handleInputFocus = () => {
+    setInputFocused(true);
+
+    // First scroll before keyboard resize.
+    window.setTimeout(() => {
+      scrollTaskIntoView("smooth");
+    }, 80);
+
+    // Second correction after keyboard opens.
+    window.setTimeout(() => {
+      scrollTaskIntoView("auto");
+    }, 350);
+
+    window.setTimeout(() => {
+      scrollTaskIntoView("auto");
+    }, 650);
+  };
+
+  const handleInputBlur = () => {
+    setInputFocused(false);
+  };
+
+  // ==========================================================
+  // HANDLE MOBILE KEYBOARD RESIZE
+  // ==========================================================
+
+  useEffect(() => {
+    if (!inputFocused) {
+      return;
+    }
+
+    const viewport =
+      window.visualViewport;
+
+    if (!viewport) {
+      return;
+    }
+
+    const handleViewportResize = () => {
+      window.requestAnimationFrame(() => {
+        scrollTaskIntoView("auto");
+      });
+    };
+
+    viewport.addEventListener(
+      "resize",
+      handleViewportResize
+    );
+
+    viewport.addEventListener(
+      "scroll",
+      handleViewportResize
+    );
+
+    return () => {
+      viewport.removeEventListener(
+        "resize",
+        handleViewportResize
+      );
+
+      viewport.removeEventListener(
+        "scroll",
+        handleViewportResize
+      );
+    };
+  }, [
+    inputFocused,
+    scrollTaskIntoView,
+  ]);
 
   // ==========================================================
   // LOAD NEW CAPTCHA
   // ==========================================================
 
-  const loadNewCaptcha = useCallback(async () => {
-    if (!token) {
-      return;
-    }
-
-    try {
-      setCaptchaLoading(true);
-
-      setCaptchaSvg("");
-      setCaptchaToken("");
-      setUserInput("");
-      setTimeLeft(0);
-
-      const res = await fetch(
-        `${API_BASE_URL}/captcha/new`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(
-          data.message || "Failed to load CAPTCHA."
-        );
-      }
-
-      setCaptchaSvg(data.svg || "");
-      setCaptchaToken(data.token || "");
-
-      setTimeLeft(
-        Number(
-          data.expiresInSeconds ||
-            CAPTCHA_TIMEOUT_SECONDS
-        )
-      );
-    } catch (error) {
-      console.error(
-        "LOAD CAPTCHA ERROR:",
-        error
-      );
-
-      setCaptchaSvg("");
-      setCaptchaToken("");
-      setUserInput("");
-      setTimeLeft(0);
-
-      setMessage({
-        text:
-          error.message ||
-          "Failed to load CAPTCHA. Check server connection.",
-        type: "error",
-      });
-    } finally {
-      setCaptchaLoading(false);
-    }
-  }, [token]);
-
-  // ==========================================================
-  // LOAD CUSTOMER WALLET / CAPTCHA PROGRESS
-  // ==========================================================
-
-  const loadCaptchaProgress = useCallback(async () => {
-    if (!token) {
-      return;
-    }
-
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/wallet/summary`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
+  const loadNewCaptcha =
+    useCallback(async () => {
+      if (!token) {
         return;
       }
 
-      if (data.wallet) {
-        setTodaySolved(
+      try {
+        setCaptchaLoading(true);
+
+        setCaptchaSvg("");
+        setCaptchaToken("");
+        setUserInput("");
+        setTimeLeft(0);
+
+        const res = await fetch(
+          `${API_BASE_URL}/captcha/new`,
+          {
+            method: "GET",
+
+            headers: {
+              Accept:
+                "application/json",
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
+
+        const data =
+          await res.json();
+
+        if (
+          !res.ok ||
+          !data.success
+        ) {
+          throw new Error(
+            data.message ||
+              "Failed to load CAPTCHA."
+          );
+        }
+
+        setCaptchaSvg(
+          data.svg || ""
+        );
+
+        setCaptchaToken(
+          data.token || ""
+        );
+
+        setTimeLeft(
           Number(
-            data.wallet.todayCaptchasSolved || 0
+            data.expiresInSeconds ||
+              CAPTCHA_TIMEOUT_SECONDS
           )
         );
+
+        setMessage({
+          text: "",
+          type: "",
+        });
+      } catch (error) {
+        console.error(
+          "LOAD CAPTCHA ERROR:",
+          error
+        );
+
+        setCaptchaSvg("");
+        setCaptchaToken("");
+        setUserInput("");
+        setTimeLeft(0);
+
+        setMessage({
+          text:
+            error.message ||
+            "Failed to load CAPTCHA. Check server connection.",
+          type: "error",
+        });
+      } finally {
+        setCaptchaLoading(false);
+      }
+    }, [token]);
+
+  // ==========================================================
+  // LOAD WALLET / PROGRESS
+  // ==========================================================
+
+  const loadCaptchaProgress =
+    useCallback(async () => {
+      if (!token) {
+        return;
       }
 
-      if (data.settings) {
-        setRewardRate(
-          Number(
-            data.settings.captchaReward ?? 0.5
-          )
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/wallet/summary`,
+          {
+            method: "GET",
+
+            headers: {
+              Accept:
+                "application/json",
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
         );
 
-        setDailyLimit(
-          Number(
-            data.settings.dailyCaptchaLimit ?? 50
-          )
+        const data =
+          await res.json();
+
+        if (
+          !res.ok ||
+          !data.success
+        ) {
+          return;
+        }
+
+        if (data.wallet) {
+          setTodaySolved(
+            Number(
+              data.wallet
+                .todayCaptchasSolved ||
+                0
+            )
+          );
+        }
+
+        if (data.settings) {
+          setRewardRate(
+            Number(
+              data.settings
+                .captchaReward ??
+                0.5
+            )
+          );
+
+          setDailyLimit(
+            Number(
+              data.settings
+                .dailyCaptchaLimit ??
+                50
+            )
+          );
+        }
+      } catch (error) {
+        console.error(
+          "LOAD CAPTCHA PROGRESS ERROR:",
+          error
         );
       }
-    } catch (error) {
-      console.error(
-        "LOAD CAPTCHA PROGRESS ERROR:",
-        error
-      );
-    }
-  }, [token]);
+    }, [token]);
 
   // ==========================================================
   // INITIAL LOAD
@@ -195,17 +386,23 @@ export default function CaptchaWorkstation() {
       return;
     }
 
-    const timer = setTimeout(() => {
-      setCooldown((previous) =>
-        Math.max(0, previous - 1)
-      );
-    }, 1000);
+    const timer =
+      setTimeout(() => {
+        setCooldown(
+          (previous) =>
+            Math.max(
+              0,
+              previous - 1
+            )
+        );
+      }, 1000);
 
-    return () => clearTimeout(timer);
+    return () =>
+      clearTimeout(timer);
   }, [cooldown]);
 
   // ==========================================================
-  // CAPTCHA 10 SECOND EXPIRY TIMER
+  // CAPTCHA TIMER
   // ==========================================================
 
   useEffect(() => {
@@ -221,7 +418,10 @@ export default function CaptchaWorkstation() {
       return;
     }
 
-    if (todaySolved >= dailyLimit) {
+    if (
+      todaySolved >=
+      dailyLimit
+    ) {
       return;
     }
 
@@ -239,13 +439,19 @@ export default function CaptchaWorkstation() {
       return;
     }
 
-    const timer = setTimeout(() => {
-      setTimeLeft((previous) =>
-        Math.max(0, previous - 1)
-      );
-    }, 1000);
+    const timer =
+      setTimeout(() => {
+        setTimeLeft(
+          (previous) =>
+            Math.max(
+              0,
+              previous - 1
+            )
+        );
+      }, 1000);
 
-    return () => clearTimeout(timer);
+    return () =>
+      clearTimeout(timer);
   }, [
     captchaToken,
     timeLeft,
@@ -257,13 +463,14 @@ export default function CaptchaWorkstation() {
   ]);
 
   // ==========================================================
-  // HANDLE CAPTCHA SUBMIT
+  // SUBMIT CAPTCHA
   // ==========================================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const trimmedInput = userInput.trim();
+    const trimmedInput =
+      userInput.trim();
 
     if (!trimmedInput) {
       setMessage({
@@ -271,6 +478,8 @@ export default function CaptchaWorkstation() {
           "Please enter the characters shown in the image.",
         type: "error",
       });
+
+      inputRef.current?.focus();
 
       return;
     }
@@ -288,7 +497,7 @@ export default function CaptchaWorkstation() {
     if (timeLeft <= 0) {
       setMessage({
         text:
-          "This CAPTCHA has expired. Please wait for the new CAPTCHA.",
+          "This CAPTCHA has expired. Loading a new CAPTCHA...",
         type: "error",
       });
 
@@ -301,14 +510,18 @@ export default function CaptchaWorkstation() {
 
     if (cooldown > 0) {
       setMessage({
-        text: `Please wait ${cooldown}s before submitting the next CAPTCHA.`,
+        text:
+          `Please wait ${cooldown}s before submitting the next CAPTCHA.`,
         type: "error",
       });
 
       return;
     }
 
-    if (todaySolved >= dailyLimit) {
+    if (
+      todaySolved >=
+      dailyLimit
+    ) {
       setMessage({
         text:
           "Your daily CAPTCHA limit has been reached.",
@@ -332,8 +545,14 @@ export default function CaptchaWorkstation() {
           method: "POST",
 
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "Content-Type":
+              "application/json",
+
+            Accept:
+              "application/json",
+
+            Authorization:
+              `Bearer ${token}`,
           },
 
           body: JSON.stringify({
@@ -343,7 +562,8 @@ export default function CaptchaWorkstation() {
         }
       );
 
-      const data = await res.json();
+      const data =
+        await res.json();
 
       // ======================================================
       // SUCCESS
@@ -358,30 +578,41 @@ export default function CaptchaWorkstation() {
           },
         });
 
-        const solved = Number(
-          data.todayCaptchasSolved ??
-            todaySolved + 1
-        );
+        const solved =
+          Number(
+            data.todayCaptchasSolved ??
+              todaySolved + 1
+          );
 
-        const reward = Number(
-          data.reward ?? rewardRate
-        );
+        const reward =
+          Number(
+            data.reward ??
+              rewardRate
+          );
 
-        setTodaySolved(solved);
+        setTodaySolved(
+          solved
+        );
 
         if (
-          data.dailyCaptchaLimit !== undefined
+          data.dailyCaptchaLimit !==
+          undefined
         ) {
           setDailyLimit(
-            Number(data.dailyCaptchaLimit)
+            Number(
+              data.dailyCaptchaLimit
+            )
           );
         }
 
         if (
-          data.currentBalance !== undefined
+          data.currentBalance !==
+          undefined
         ) {
           updateWalletLocally(
-            Number(data.currentBalance),
+            Number(
+              data.currentBalance
+            ),
             solved
           );
         } else {
@@ -402,7 +633,6 @@ export default function CaptchaWorkstation() {
 
         setUserInput("");
         setTimeLeft(0);
-
         setCooldown(3);
 
         await loadNewCaptcha();
@@ -441,10 +671,12 @@ export default function CaptchaWorkstation() {
       }
 
       // ======================================================
-      // INVALID / EXPIRED / TAMPERED CAPTCHA
+      // INVALID / EXPIRED / TAMPERED
       // ======================================================
 
-      if (data.counted === false) {
+      if (
+        data.counted === false
+      ) {
         setMessage({
           text:
             data.message ||
@@ -485,7 +717,7 @@ export default function CaptchaWorkstation() {
       }
 
       // ======================================================
-      // GENERIC BACKEND ERROR
+      // GENERIC ERROR
       // ======================================================
 
       setMessage({
@@ -517,48 +749,59 @@ export default function CaptchaWorkstation() {
   };
 
   // ==========================================================
-  // MANUAL REFRESH
+  // REFRESH
   // ==========================================================
 
-  const handleRefresh = async () => {
-    if (loading || captchaLoading) {
-      return;
-    }
+  const handleRefresh =
+    async () => {
+      if (
+        loading ||
+        captchaLoading
+      ) {
+        return;
+      }
 
-    setMessage({
-      text: "",
-      type: "",
-    });
+      setMessage({
+        text: "",
+        type: "",
+      });
 
-    await loadNewCaptcha();
-  };
+      await loadNewCaptcha();
+    };
 
   // ==========================================================
   // PROGRESS
   // ==========================================================
 
   const safeDailyLimit =
-    dailyLimit > 0 ? dailyLimit : 50;
+    dailyLimit > 0
+      ? dailyLimit
+      : 50;
 
-  const progressPercent = Math.min(
-    100,
-    Math.round(
-      (todaySolved / safeDailyLimit) * 100
-    )
-  );
-
-  const limitReached =
-    todaySolved >= safeDailyLimit;
-
-  const countdownPercent = Math.max(
-    0,
+  const progressPercent =
     Math.min(
       100,
-      (timeLeft /
-        CAPTCHA_TIMEOUT_SECONDS) *
-        100
-    )
-  );
+      Math.round(
+        (todaySolved /
+          safeDailyLimit) *
+          100
+      )
+    );
+
+  const limitReached =
+    todaySolved >=
+    safeDailyLimit;
+
+  const countdownPercent =
+    Math.max(
+      0,
+      Math.min(
+        100,
+        (timeLeft /
+          CAPTCHA_TIMEOUT_SECONDS) *
+          100
+      )
+    );
 
   const isExpiringSoon =
     timeLeft <= 3 &&
@@ -569,9 +812,29 @@ export default function CaptchaWorkstation() {
   // ==========================================================
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-8">
+    <div
+      className={`
+        relative
+        isolate
+        flex
+        w-full
+        max-w-full
+        flex-col
+        overflow-hidden
+        rounded-3xl
+        border
+        border-slate-200/80
+        bg-white/90
+        p-3
+        shadow-[0_20px_60px_rgba(15,23,42,0.08)]
+        backdrop-blur-xl
+        sm:p-8
+      `}
+    >
 
-      {/* AMBIENT BACKGROUND */}
+      {/* ====================================================
+          AMBIENT BACKGROUND
+      ==================================================== */}
 
       <div className="pointer-events-none absolute -left-20 -top-20 h-56 w-56 rounded-full bg-violet-400/10 blur-3xl" />
 
@@ -579,287 +842,410 @@ export default function CaptchaWorkstation() {
 
       <div className="pointer-events-none absolute bottom-0 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-orange-400/10 blur-3xl" />
 
-      {/* HEADER */}
+      {/* ====================================================
+          HEADER
+          MOBILE: BELOW TASK
+          DESKTOP: ABOVE TASK
+      ==================================================== */}
 
-      <div className="relative flex flex-col justify-between gap-5 border-b border-slate-200/80 pb-6 sm:flex-row sm:items-center">
+      <div
+        className="
+          relative
+          order-2
+          mt-5
+          border-t
+          border-slate-200/80
+          pt-5
 
-        <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-gradient-to-r from-violet-50 via-pink-50 to-orange-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-violet-700">
-            <Sparkles className="h-3.5 w-3.5 text-pink-500" />
+          sm:order-1
+          sm:mt-0
+          sm:border-t-0
+          sm:border-b
+          sm:pt-0
+          sm:pb-6
+        "
+      >
+        <div className="sm:flex sm:items-center sm:justify-between sm:gap-5">
 
-            <span>
-              Digital Micro-Task Workstation
-            </span>
-          </div>
+          <div className="min-w-0">
 
-          <h2 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
-            Solve & Earn{" "}
-            <span className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-transparent">
-              Instant Rewards
-            </span>
-          </h2>
+            <div className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-violet-200 bg-gradient-to-r from-violet-50 via-pink-50 to-orange-50 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-violet-700 sm:text-[11px]">
 
-          <p className="mt-1.5 text-sm text-slate-500">
-            Complete valid CAPTCHA tasks and receive
-            wallet rewards instantly.
-          </p>
-        </div>
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-pink-500" />
 
-        <div className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-orange-50 px-4 py-3 shadow-sm">
-
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Reward Per Task
+              <span className="truncate">
+                Digital Micro-Task Workstation
+              </span>
             </div>
 
-            <div className="mt-0.5 bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-lg font-black text-transparent">
-              ₹{rewardRate.toFixed(2)}
+            <h2 className="text-lg font-black leading-tight tracking-tight text-slate-900 sm:text-2xl">
+              Solve & Earn{" "}
+
+              <span className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-transparent">
+                Instant Rewards
+              </span>
+            </h2>
+
+            <p className="mt-1.5 text-xs leading-5 text-slate-500 sm:text-sm">
+              Complete valid CAPTCHA tasks and receive
+              wallet rewards instantly.
+            </p>
+          </div>
+
+          <div className="mt-3 flex w-full items-center justify-between rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-orange-50 px-4 py-2.5 shadow-sm sm:mt-0 sm:w-auto sm:shrink-0 sm:px-4 sm:py-3">
+
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[10px]">
+                Reward Per Task
+              </div>
+
+              <div className="mt-0.5 bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-base font-black text-transparent sm:text-lg">
+                ₹{rewardRate.toFixed(2)}
+              </div>
+            </div>
+
+            <div className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500 text-white shadow-lg shadow-violet-500/20 sm:h-10 sm:w-10">
+              <Coins className="h-4 w-4" />
             </div>
           </div>
-
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500 text-white shadow-lg shadow-violet-500/20">
-            <Coins className="h-4 w-4" />
-          </div>
         </div>
       </div>
 
-      {/* STATS STRIP */}
-
-      <div className="relative mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-
-        <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-violet-700">
-            <TrendingUp className="h-4 w-4" />
-
-            <span>
-              Today Solved
-            </span>
-          </div>
-
-          <div className="mt-1 text-2xl font-black text-slate-900">
-            {todaySolved}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-pink-100 bg-pink-50/70 p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-pink-700">
-            <ImageIcon className="h-4 w-4" />
-
-            <span>
-              Daily Limit
-            </span>
-          </div>
-
-          <div className="mt-1 text-2xl font-black text-slate-900">
-            {safeDailyLimit}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-orange-700">
-            <Clock3 className="h-4 w-4" />
-
-            <span>
-              Daily Progress
-            </span>
-          </div>
-
-          <div className="mt-1 text-2xl font-black text-slate-900">
-            {progressPercent}%
-          </div>
-        </div>
-      </div>
-
-      {/* DAILY PROGRESS */}
-
-      <div className="relative my-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-
-        <div className="mb-2 flex items-center justify-between gap-3 text-xs font-semibold">
-
-          <span className="text-slate-600">
-            Daily Task Completion
-          </span>
-
-          <span className="font-bold text-violet-600">
-            {todaySolved} / {safeDailyLimit} Solved
-          </span>
-        </div>
-
-        <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 transition-all duration-500"
-            style={{
-              width: `${progressPercent}%`,
-            }}
-          />
-        </div>
-      </div>
-
-      {/* CAPTCHA AREA */}
+      {/* ====================================================
+          MAIN TASK AREA
+          MOBILE FIRST
+          
+          TIMER
+             ↓
+          CAPTCHA
+             ↓
+          INPUT
+             ↓
+          FEEDBACK
+             ↓
+          SUBMIT
+      ==================================================== */}
 
       <form
+        ref={taskAreaRef}
         onSubmit={handleSubmit}
-        className="relative space-y-6"
+        className={`
+          relative
+          order-1
+          z-10
+          w-full
+          scroll-mt-2
+          ${inputFocused
+            ? "sm:relative"
+            : ""}
+        `}
       >
 
-        <div className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50/70 via-white to-orange-50/70 p-5 sm:p-6">
+        {/* ==================================================
+            TIMER
+        ================================================== */}
 
-          <div className="mb-4 flex items-center justify-center gap-2 text-center text-xs font-semibold text-slate-500">
+        <div className="rounded-2xl border border-violet-100 bg-violet-50/80 px-3 py-2.5 sm:mt-6 sm:px-4 sm:py-3">
+
+          <div className="flex items-center justify-between gap-3">
+
+            <div
+              className={`
+                flex
+                min-w-0
+                items-center
+                gap-2
+                text-[11px]
+                font-bold
+                sm:text-xs
+                ${
+                  isExpiringSoon
+                    ? "text-red-600"
+                    : "text-violet-700"
+                }
+              `}
+            >
+              <Clock3
+                className={`
+                  h-4
+                  w-4
+                  shrink-0
+                  ${
+                    isExpiringSoon
+                      ? "animate-pulse"
+                      : ""
+                  }
+                `}
+              />
+
+              <span>
+                CAPTCHA expires in
+              </span>
+            </div>
+
+            <span
+              className={`
+                shrink-0
+                text-base
+                font-black
+                sm:text-lg
+                ${
+                  isExpiringSoon
+                    ? "text-red-600"
+                    : "text-violet-700"
+                }
+              `}
+            >
+              {captchaToken
+                ? `${timeLeft}s`
+                : "--"}
+            </span>
+          </div>
+
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/80">
+            <div
+              className={`
+                h-full
+                rounded-full
+                transition-all
+                duration-1000
+                ${
+                  isExpiringSoon
+                    ? "bg-gradient-to-r from-red-500 to-orange-500"
+                    : "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500"
+                }
+              `}
+              style={{
+                width: `${
+                  captchaToken
+                    ? countdownPercent
+                    : 0
+                }%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* ==================================================
+            CAPTCHA
+        ================================================== */}
+
+        <div className="relative mt-2 rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50/70 via-white to-orange-50/70 p-2.5 sm:mt-4 sm:p-6">
+
+          {/* CAPTCHA LABEL */}
+
+          <div className="mb-2 flex items-center justify-center gap-2 text-center text-[10px] font-semibold text-slate-500 sm:mb-4 sm:text-xs">
 
             <ShieldCheck className="h-4 w-4 shrink-0 text-violet-600" />
 
             <span>
-              Type the characters exactly as shown
+              Type the characters shown
             </span>
           </div>
 
-          <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+          {/* CAPTCHA IMAGE */}
 
-            <div className="relative flex min-h-[82px] min-w-[230px] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+          <div className="relative mx-auto flex min-h-[72px] w-full max-w-[290px] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm sm:min-h-[90px] sm:max-w-[360px] sm:p-2">
 
-              <div
-                className="flex items-center justify-center"
-                dangerouslySetInnerHTML={{
-                  __html:
-                    captchaSvg ||
-                    '<div class="flex h-[75px] w-[220px] items-center justify-center text-xs text-slate-400">Loading CAPTCHA...</div>',
-                }}
-              />
-            </div>
+            <div
+              className="
+                flex
+                min-w-0
+                max-w-full
+                items-center
+                justify-center
+
+                [&>svg]:block
+                [&>svg]:h-auto
+                [&>svg]:max-h-[68px]
+                [&>svg]:max-w-full
+                [&>svg]:w-auto
+
+                sm:[&>svg]:max-h-[82px]
+              "
+              dangerouslySetInnerHTML={{
+                __html:
+                  captchaSvg ||
+                  '<div class="flex min-h-[60px] w-full items-center justify-center text-center text-xs text-slate-400">Loading CAPTCHA...</div>',
+              }}
+            />
+
+            {/* REFRESH BUTTON */}
 
             <button
               type="button"
-              onClick={handleRefresh}
+              onClick={
+                handleRefresh
+              }
               disabled={
                 loading ||
                 captchaLoading
               }
               title="Refresh CAPTCHA"
-              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-200 bg-white text-violet-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Refresh CAPTCHA"
+              className="
+                absolute
+                right-1.5
+                top-1.5
+                flex
+                h-8
+                w-8
+                items-center
+                justify-center
+                rounded-xl
+                border
+                border-violet-200
+                bg-white/95
+                text-violet-600
+                shadow-md
+                backdrop-blur
+                transition-all
+                hover:bg-violet-50
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+
+                sm:right-2
+                sm:top-2
+                sm:h-10
+                sm:w-10
+              "
             >
               <RefreshCw
-                className={`h-5 w-5 ${
-                  captchaLoading
-                    ? "animate-spin"
-                    : ""
-                }`}
+                className={`
+                  h-4
+                  w-4
+                  sm:h-5
+                  sm:w-5
+                  ${
+                    captchaLoading
+                      ? "animate-spin"
+                      : ""
+                  }
+                `}
               />
             </button>
           </div>
-
-          {/* 10 SECOND COUNTDOWN */}
-
-          <div className="mx-auto mt-5 max-w-xl">
-
-            <div className="mb-2 flex items-center justify-between gap-3">
-
-              <div
-                className={`flex items-center gap-2 text-[11px] font-bold ${
-                  isExpiringSoon
-                    ? "text-red-600"
-                    : "text-slate-500"
-                }`}
-              >
-                <Clock3
-                  className={`h-4 w-4 ${
-                    isExpiringSoon
-                      ? "animate-pulse"
-                      : ""
-                  }`}
-                />
-
-                <span>
-                  CAPTCHA expires in
-                </span>
-              </div>
-
-              <span
-                className={`text-sm font-black ${
-                  isExpiringSoon
-                    ? "text-red-600"
-                    : "text-violet-600"
-                }`}
-              >
-                {captchaToken
-                  ? `${timeLeft}s`
-                  : "--"}
-              </span>
-            </div>
-
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ${
-                  isExpiringSoon
-                    ? "bg-gradient-to-r from-red-500 to-orange-500"
-                    : "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500"
-                }`}
-                style={{
-                  width: `${
-                    captchaToken
-                      ? countdownPercent
-                      : 0
-                  }%`,
-                }}
-              />
-            </div>
-
-            <p className="mt-2 text-center text-[10px] text-slate-400">
-              A new CAPTCHA will load automatically after 10 seconds.
-            </p>
-          </div>
-
-          <div className="mt-4 flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-500">
-
-            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-
-            <span>
-              CAPTCHA is case-sensitive. Enter uppercase
-              and lowercase characters exactly as shown.
-            </span>
-          </div>
         </div>
 
-        {/* INPUT */}
+        {/* ==================================================
+            INPUT
+            IMMEDIATELY BELOW CAPTCHA
+        ================================================== */}
 
-        <div>
-          <label className="mb-2 block text-sm font-bold text-slate-700">
+        <div
+          className="
+            mt-2
+            scroll-mt-2
+            scroll-mb-[240px]
+            sm:mt-4
+          "
+        >
+
+          <label
+            htmlFor="captcha-answer"
+            className="mb-1.5 block text-sm font-bold text-slate-700"
+          >
             Enter Verification Code
           </label>
 
           <input
+            ref={inputRef}
+            id="captcha-answer"
             type="text"
             value={userInput}
             onChange={(e) =>
-              setUserInput(e.target.value)
+              setUserInput(
+                e.target.value
+              )
             }
-            placeholder="Type characters exactly as shown..."
+            onFocus={
+              handleInputFocus
+            }
+            onBlur={
+              handleInputBlur
+            }
+            placeholder="Enter CAPTCHA"
             maxLength={10}
-            autoFocus
+            inputMode="text"
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
+            enterKeyHint="done"
             disabled={
               loading ||
               captchaLoading ||
               limitReached ||
               !captchaToken
             }
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-center font-mono text-lg tracking-[0.3em] text-slate-800 shadow-sm transition-all placeholder:font-sans placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-500/10 disabled:cursor-not-allowed disabled:bg-slate-50"
+            className="
+              block
+              min-h-[54px]
+              w-full
+              rounded-2xl
+              border
+              border-slate-200
+              bg-white
+              px-4
+              py-3.5
+              text-center
+              font-mono
+              text-base
+              font-bold
+              tracking-[0.22em]
+              text-slate-800
+              shadow-sm
+              outline-none
+              transition-all
+
+              placeholder:font-sans
+              placeholder:text-sm
+              placeholder:font-normal
+              placeholder:tracking-normal
+              placeholder:text-slate-400
+
+              focus:border-violet-400
+              focus:ring-4
+              focus:ring-violet-500/10
+
+              disabled:cursor-not-allowed
+              disabled:bg-slate-50
+
+              sm:text-lg
+              sm:tracking-[0.3em]
+            "
           />
         </div>
 
-        {/* FEEDBACK */}
+        {/* ==================================================
+            FEEDBACK
+        ================================================== */}
 
         {message.text && (
           <div
-            className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${
-              message.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-red-200 bg-red-50 text-red-700"
-            }`}
+            className={`
+              mt-2
+              flex
+              items-start
+              gap-3
+              rounded-2xl
+              border
+              p-3
+              text-xs
+              leading-5
+              sm:mt-4
+              sm:p-4
+              sm:text-sm
+              ${
+                message.type ===
+                "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }
+            `}
           >
-            {message.type === "success" ? (
+            {message.type ===
+            "success" ? (
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
             ) : (
               <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
@@ -871,7 +1257,9 @@ export default function CaptchaWorkstation() {
           </div>
         )}
 
-        {/* SUBMIT */}
+        {/* ==================================================
+            SUBMIT
+        ================================================== */}
 
         <button
           type="submit"
@@ -883,13 +1271,37 @@ export default function CaptchaWorkstation() {
             !captchaToken ||
             timeLeft <= 0
           }
-          className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 py-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-pink-500/20 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+          className="
+            mt-2
+            flex
+            min-h-[54px]
+            w-full
+            items-center
+            justify-center
+            gap-2
+            rounded-2xl
+            bg-gradient-to-r
+            from-violet-600
+            via-pink-500
+            to-orange-500
+            px-4
+            py-4
+            text-sm
+            font-black
+            text-white
+            shadow-lg
+            shadow-violet-500/20
+            transition-all
+            duration-300
+            active:scale-[0.99]
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+            sm:mt-4
+          "
         >
-
           {loading ? (
             <>
               <RefreshCw className="h-4 w-4 animate-spin" />
-
               <span>
                 Verifying Solution...
               </span>
@@ -897,7 +1309,6 @@ export default function CaptchaWorkstation() {
           ) : captchaLoading ? (
             <>
               <RefreshCw className="h-4 w-4 animate-spin" />
-
               <span>
                 Loading CAPTCHA...
               </span>
@@ -905,7 +1316,6 @@ export default function CaptchaWorkstation() {
           ) : cooldown > 0 ? (
             <>
               <Clock3 className="h-4 w-4" />
-
               <span>
                 Please wait {cooldown}s...
               </span>
@@ -913,23 +1323,20 @@ export default function CaptchaWorkstation() {
           ) : limitReached ? (
             <>
               <CheckCircle2 className="h-4 w-4" />
-
               <span>
-                Daily Limit Reached — Come Back Tomorrow
+                Daily Limit Reached
               </span>
             </>
           ) : timeLeft <= 0 ? (
             <>
               <RefreshCw className="h-4 w-4 animate-spin" />
-
               <span>
                 Loading New CAPTCHA...
               </span>
             </>
           ) : (
             <>
-              <Coins className="h-4 w-4 transition-transform duration-300 group-hover:rotate-12" />
-
+              <Coins className="h-4 w-4" />
               <span>
                 Verify & Claim ₹
                 {rewardRate.toFixed(2)}
@@ -937,22 +1344,116 @@ export default function CaptchaWorkstation() {
             </>
           )}
         </button>
+
+        {/* MOBILE HELPER */}
+
+        <p className="mt-1.5 text-center text-[9px] leading-4 text-slate-400 sm:hidden">
+          Enter the CAPTCHA and tap Done on your keyboard
+          or press Verify & Claim.
+        </p>
       </form>
 
-      {/* BOTTOM INFORMATION */}
+      {/* ====================================================
+          DAILY STATS
+      ==================================================== */}
 
-      <div className="relative mt-6 flex flex-col gap-3 border-t border-slate-200 pt-5 text-xs sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative order-3 mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
+
+        <div className="min-w-0 rounded-2xl border border-violet-100 bg-violet-50/70 p-3 sm:p-4">
+
+          <div className="flex items-center gap-1.5 text-[9px] font-semibold text-violet-700 sm:gap-2 sm:text-xs">
+
+            <TrendingUp className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+
+            <span className="truncate">
+              Today
+            </span>
+          </div>
+
+          <div className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
+            {todaySolved}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-2xl border border-pink-100 bg-pink-50/70 p-3 sm:p-4">
+
+          <div className="flex items-center gap-1.5 text-[9px] font-semibold text-pink-700 sm:gap-2 sm:text-xs">
+
+            <ImageIcon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+
+            <span className="truncate">
+              Limit
+            </span>
+          </div>
+
+          <div className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
+            {safeDailyLimit}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-2xl border border-orange-100 bg-orange-50/70 p-3 sm:p-4">
+
+          <div className="flex items-center gap-1.5 text-[9px] font-semibold text-orange-700 sm:gap-2 sm:text-xs">
+
+            <Clock3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+
+            <span className="truncate">
+              Progress
+            </span>
+          </div>
+
+          <div className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
+            {progressPercent}%
+          </div>
+        </div>
+      </div>
+
+      {/* ====================================================
+          DAILY PROGRESS
+      ==================================================== */}
+
+      <div className="relative order-4 mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 sm:mt-4 sm:p-4">
+
+        <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-semibold sm:text-xs">
+
+          <span className="text-slate-600">
+            Daily Task Completion
+          </span>
+
+          <span className="shrink-0 font-bold text-violet-600">
+            {todaySolved} / {safeDailyLimit}
+          </span>
+        </div>
+
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 sm:h-3">
+
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 transition-all duration-500"
+            style={{
+              width: `${progressPercent}%`,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ====================================================
+          INFO
+      ==================================================== */}
+
+      <div className="relative order-5 mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-[10px] sm:mt-6 sm:flex-row sm:items-center sm:justify-between sm:pt-5 sm:text-xs">
 
         <div className="flex items-start gap-2 text-slate-500">
+
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-pink-500" />
 
-          <span>
+          <span className="leading-5">
             Submit the CAPTCHA within the 10-second timer.
             Expired tasks are automatically replaced.
           </span>
         </div>
 
-        <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 font-bold text-emerald-700">
+        <div className="flex w-fit items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 font-bold text-emerald-700">
+
           <CheckCircle2 className="h-3.5 w-3.5" />
 
           <span>
