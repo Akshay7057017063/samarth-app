@@ -1,4 +1,3 @@
-
 // =====================================================
 // LOAD ENVIRONMENT VARIABLES FIRST
 // =====================================================
@@ -80,8 +79,9 @@ if (!process.env.JWT_SECRET) {
 //
 // Production domains:
 // - Customer: digital-lyf.bull-mark.com
-// - Admin:    admin.bull-mark.com
-// - Legacy:   app.bull-mark.com
+// - Admin:    digital-lyf-admin.bull-mark.com
+// - Old admin: admin.bull-mark.com
+// - Old customer: app.bull-mark.com
 //
 // Vercel domains:
 // - samarth-app-three.vercel.app
@@ -96,7 +96,10 @@ const allowedOrigins = [
   // Customer production domain
   "https://digital-lyf.bull-mark.com",
 
-  // Admin production domain
+  // Current admin production domain
+  "https://digital-lyf-admin.bull-mark.com",
+
+  // Old admin domain - temporary compatibility
   "https://admin.bull-mark.com",
 
   // Old customer domain - temporary compatibility
@@ -577,4 +580,3 @@ const startServer = async () => {
 // =====================================================
 
 startServer();
-
