@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
 import {
   Phone,
   Mail,
@@ -19,42 +21,139 @@ import logo from "../assets/logo.png";
 export default function Navbar() {
   const { user, wallet, logout, cmsContent } = useAuth();
   const location = useLocation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const phone = cmsContent?.supportPhone || "+91 98765 43210";
+  const [mobileMenuOpen, setMobileMenuOpen] =
+    useState(false);
+
+  // ==========================================================
+  // CMS DATA
+  // ==========================================================
+
+  const phone =
+    cmsContent?.supportPhone ||
+    "+91 98765 43210";
 
   const email =
-    cmsContent?.supportEmail || "contact@samarthindia.com";
+    cmsContent?.supportEmail ||
+    "contact@samarthindia.com";
 
   const hours =
-    cmsContent?.workingHours || "Mon - Sat: 9:00 AM - 6:00 PM";
+    cmsContent?.workingHours ||
+    "Mon - Sat: 9:00 AM - 6:00 PM";
 
   const topText =
     cmsContent?.topBarText ||
     "Welcome to DIGITAL LYF PVT. LTD. Wellness & Rewards Network";
 
-  const isActive = (path) => location.pathname === path;
+  // ==========================================================
+  // ROUTE HELPERS
+  // ==========================================================
 
-  // Common desktop nav button style
+  const isActive = (path) =>
+    location.pathname === path;
+
+  /*
+   * IMPORTANT:
+   * CAPTCHA page वर mobile मध्ये पूर्ण Navbar hide करायचा.
+   *
+   * Desktop / tablet वर Navbar दिसेल.
+   */
+  const isCaptchaPage =
+    location.pathname.replace(/\/+$/, "") ===
+    "/dashboard/captcha";
+
+  // ==========================================================
+  // NAV STYLES
+  // ==========================================================
+
   const navButton =
-    "group relative px-4 py-2 rounded-full text-slate-600 font-medium transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md border border-transparent";
+    "group relative rounded-full border border-transparent px-4 py-2 font-medium text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md";
 
-  // Mobile menu item style
   const mobileButton =
-    "block w-full px-4 py-2.5 rounded-xl text-slate-700 font-medium transition-all duration-300 hover:-translate-y-0.5 hover:shadow-sm";
+    "block w-full rounded-xl px-4 py-2.5 font-medium text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-sm";
+
+  // ==========================================================
+  // CLOSE MOBILE MENU ON ROUTE CHANGE
+  // ==========================================================
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // ==========================================================
+  // BODY SCROLL SAFETY
+  // Prevent accidental body scroll lock from mobile menu
+  // ==========================================================
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.classList.add(
+        "navbar-mobile-menu-open"
+      );
+    } else {
+      document.body.classList.remove(
+        "navbar-mobile-menu-open"
+      );
+    }
+
+    return () => {
+      document.body.classList.remove(
+        "navbar-mobile-menu-open"
+      );
+    };
+  }, [mobileMenuOpen]);
+
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
-    <header className="sticky top-0 z-50 w-full">
-      {/* =========================================================
+    <header
+      className={`
+        sticky top-0 z-50 w-full
+        ${
+          isCaptchaPage
+            ? "hidden md:block"
+            : "block"
+        }
+      `}
+    >
+      {/* ========================================================
           TOP CONTACT STRIP
-      ========================================================= */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 via-fuchsia-500 via-pink-500 to-orange-400 px-4 py-2 text-xs shadow-sm sm:px-8">
+      ======================================================== */}
+
+      <div
+        className="
+          relative overflow-hidden
+          bg-gradient-to-r
+          from-violet-600
+          via-fuchsia-500
+          via-pink-500
+          to-orange-400
+          px-4 py-2
+          text-xs shadow-sm
+          sm:px-8
+        "
+      >
         <div className="pointer-events-none absolute inset-0 bg-white/10" />
 
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 sm:flex-row">
+        <div
+          className="
+            relative mx-auto flex max-w-7xl
+            flex-col items-center justify-between
+            gap-2 sm:flex-row
+          "
+        >
           {/* Welcome Text */}
+
           <div className="flex items-center gap-2 text-white">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white shadow-sm" />
+            <span
+              className="
+                inline-block h-2 w-2
+                animate-pulse rounded-full
+                bg-white shadow-sm
+              "
+            />
 
             <span className="font-semibold">
               {topText}
@@ -62,23 +161,46 @@ export default function Navbar() {
           </div>
 
           {/* Contact Information */}
-          <div className="flex flex-wrap items-center gap-4 text-[11px] text-white/95">
+
+          <div
+            className="
+              flex flex-wrap items-center
+              gap-4 text-[11px]
+              text-white/95
+            "
+          >
             <a
               href={`tel:${phone}`}
-              className="flex items-center gap-1.5 transition-all duration-200 hover:-translate-y-0.5 hover:text-yellow-100"
+              className="
+                flex items-center gap-1.5
+                transition-all duration-200
+                hover:-translate-y-0.5
+                hover:text-yellow-100
+              "
             >
               <Phone className="h-3.5 w-3.5" />
               <span>{phone}</span>
             </a>
 
-            <div className="hidden items-center gap-1.5 md:flex">
+            <div
+              className="
+                hidden items-center gap-1.5
+                md:flex
+              "
+            >
               <Clock className="h-3.5 w-3.5" />
               <span>{hours}</span>
             </div>
 
             <a
               href={`mailto:${email}`}
-              className="hidden items-center gap-1.5 transition-all duration-200 hover:-translate-y-0.5 hover:text-yellow-100 lg:flex"
+              className="
+                hidden items-center gap-1.5
+                transition-all duration-200
+                hover:-translate-y-0.5
+                hover:text-yellow-100
+                lg:flex
+              "
             >
               <Mail className="h-3.5 w-3.5" />
               <span>{email}</span>
@@ -87,169 +209,396 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* =========================================================
+      {/* ========================================================
           MAIN NAVBAR
-      ========================================================= */}
-      <nav className="relative border-b border-white/60 bg-white/90 px-4 py-3.5 shadow-md backdrop-blur-xl transition-all sm:px-8">
+      ======================================================== */}
+
+      <nav
+        className="
+          relative border-b border-white/60
+          bg-white/90 px-4 py-3.5
+          shadow-md backdrop-blur-xl
+          transition-all sm:px-8
+        "
+      >
         {/* Soft Rainbow Background Glow */}
+
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -left-10 -top-16 h-40 w-40 rounded-full bg-violet-400/10 blur-3xl" />
+          <div
+            className="
+              absolute -left-10 -top-16
+              h-40 w-40 rounded-full
+              bg-violet-400/10 blur-3xl
+            "
+          />
 
-          <div className="absolute left-[30%] -top-16 h-40 w-40 rounded-full bg-pink-400/10 blur-3xl" />
+          <div
+            className="
+              absolute left-[30%] -top-16
+              h-40 w-40 rounded-full
+              bg-pink-400/10 blur-3xl
+            "
+          />
 
-          <div className="absolute left-[55%] -top-16 h-40 w-40 rounded-full bg-blue-400/10 blur-3xl" />
+          <div
+            className="
+              absolute left-[55%] -top-16
+              h-40 w-40 rounded-full
+              bg-blue-400/10 blur-3xl
+            "
+          />
 
-          <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-orange-400/10 blur-3xl" />
+          <div
+            className="
+              absolute -right-10 -top-16
+              h-40 w-40 rounded-full
+              bg-orange-400/10 blur-3xl
+            "
+          />
 
-          <div className="absolute bottom-[-50px] left-1/2 h-32 w-32 -translate-x-1/2 rounded-full bg-emerald-400/10 blur-3xl" />
+          <div
+            className="
+              absolute bottom-[-50px]
+              left-1/2 h-32 w-32
+              -translate-x-1/2 rounded-full
+              bg-emerald-400/10 blur-3xl
+            "
+          />
         </div>
 
         <div className="relative mx-auto max-w-7xl">
-          {/* =====================================================
+          {/* ====================================================
               DESKTOP / MAIN ROW
-          ===================================================== */}
+          ==================================================== */}
+
           <div className="flex items-center justify-between">
-            {/* ===================================================
+            {/* ==================================================
                 BRAND LOGO + COMPANY NAME
-            =================================================== */}
+            ================================================== */}
+
             <Link
               to="/"
               className="group flex items-center gap-3"
             >
               {/* Logo */}
-              <div className="relative h-11 w-11 shrink-0 sm:h-12 sm:w-12">
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-violet-500 via-pink-500 via-orange-400 to-emerald-400 p-[2px] shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:shadow-pink-500/20">
-                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[10px] bg-white">
+
+              <div
+                className="
+                  relative h-11 w-11
+                  shrink-0 sm:h-12 sm:w-12
+                "
+              >
+                <div
+                  className="
+                    absolute inset-0
+                    rounded-xl
+                    bg-gradient-to-tr
+                    from-violet-500
+                    via-pink-500
+                    via-orange-400
+                    to-emerald-400
+                    p-[2px] shadow-lg
+                    transition-all duration-300
+                    group-hover:scale-105
+                    group-hover:shadow-pink-500/20
+                  "
+                >
+                  <div
+                    className="
+                      flex h-full w-full
+                      items-center justify-center
+                      overflow-hidden rounded-[10px]
+                      bg-white
+                    "
+                  >
                     <img
                       src={logo}
                       alt="DIGITAL LYF PVT. LTD. Logo"
-                      className="h-full w-full object-contain p-1"
+                      className="
+                        h-full w-full
+                        object-contain p-1
+                      "
                     />
                   </div>
                 </div>
               </div>
 
               {/* Company Name */}
+
               <div className="hidden sm:block">
-                <div className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-xl font-bold tracking-tight text-transparent">
+                <div
+                  className="
+                    bg-gradient-to-r
+                    from-violet-600
+                    via-pink-500
+                    to-orange-500
+                    bg-clip-text
+                    text-xl font-bold
+                    tracking-tight
+                    text-transparent
+                  "
+                >
                   DIGITAL LYF PVT. LTD.
                 </div>
 
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                <div
+                  className="
+                    text-[10px]
+                    font-semibold uppercase
+                    tracking-wider
+                    text-slate-500
+                  "
+                >
                   Wellness & Chain Network
                 </div>
               </div>
             </Link>
 
-            {/* ===================================================
+            {/* ==================================================
                 DESKTOP NAV LINKS
-            =================================================== */}
-            <div className="hidden items-center gap-1 rounded-full border border-slate-200 bg-white/75 p-1 shadow-sm backdrop-blur-md md:flex">
+            ================================================== */}
+
+            <div
+              className="
+                hidden items-center gap-1
+                rounded-full
+                border border-slate-200
+                bg-white/75 p-1
+                shadow-sm backdrop-blur-md
+                md:flex
+              "
+            >
               {/* Home */}
+
               <Link
                 to="/"
                 className={`${navButton} ${
                   isActive("/")
-                    ? "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 text-white shadow-md"
-                    : "hover:border-violet-200 hover:bg-gradient-to-r hover:from-violet-50 hover:to-pink-50 hover:text-violet-700"
+                    ? `
+                      bg-gradient-to-r
+                      from-violet-600
+                      via-pink-500
+                      to-orange-400
+                      text-white shadow-md
+                    `
+                    : `
+                      hover:border-violet-200
+                      hover:bg-gradient-to-r
+                      hover:from-violet-50
+                      hover:to-pink-50
+                      hover:text-violet-700
+                    `
                 }`}
               >
                 Home
               </Link>
 
               {/* Products */}
+
               <a
                 href="#products"
-                className={`${navButton} hover:border-pink-200 hover:bg-gradient-to-r hover:from-pink-50 hover:to-orange-50 hover:text-pink-700`}
+                className={`
+                  ${navButton}
+                  hover:border-pink-200
+                  hover:bg-gradient-to-r
+                  hover:from-pink-50
+                  hover:to-orange-50
+                  hover:text-pink-700
+                `}
               >
                 Products
               </a>
 
               {/* Process */}
+
               <a
                 href="#working-process"
-                className={`${navButton} hover:border-blue-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-violet-50 hover:text-blue-700`}
+                className={`
+                  ${navButton}
+                  hover:border-blue-200
+                  hover:bg-gradient-to-r
+                  hover:from-blue-50
+                  hover:to-violet-50
+                  hover:text-blue-700
+                `}
               >
                 Process
               </a>
 
               {/* About */}
+
               <a
                 href="#about"
-                className={`${navButton} hover:border-emerald-200 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-blue-50 hover:text-emerald-700`}
+                className={`
+                  ${navButton}
+                  hover:border-emerald-200
+                  hover:bg-gradient-to-r
+                  hover:from-emerald-50
+                  hover:to-blue-50
+                  hover:text-emerald-700
+                `}
               >
                 About Us
               </a>
 
               {/* Rewards */}
+
               <a
                 href="#rewards"
-                className={`${navButton} hover:border-orange-200 hover:bg-gradient-to-r hover:from-orange-50 hover:to-pink-50 hover:text-orange-600`}
+                className={`
+                  ${navButton}
+                  hover:border-orange-200
+                  hover:bg-gradient-to-r
+                  hover:from-orange-50
+                  hover:to-pink-50
+                  hover:text-orange-600
+                `}
               >
                 Rewards
               </a>
             </div>
 
-            {/* ===================================================
-                RIGHT ACTION / AUTH BUTTONS
-            =================================================== */}
-            <div className="hidden items-center gap-3 md:flex">
+            {/* ==================================================
+                DESKTOP RIGHT ACTION / AUTH BUTTONS
+            ================================================== */}
+
+            <div
+              className="
+                hidden items-center gap-3
+                md:flex
+              "
+            >
               {user ? (
                 <div className="flex items-center gap-3">
                   {/* Wallet */}
+
                   <Link
                     to="/dashboard/wallet"
-                    className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md"
+                    className="
+                      flex items-center gap-2
+                      rounded-lg
+                      border border-emerald-200
+                      bg-gradient-to-r
+                      from-emerald-50
+                      to-teal-50
+                      px-3 py-2
+                      text-xs font-semibold
+                      text-emerald-700
+                      shadow-sm
+                      transition-all duration-300
+                      hover:-translate-y-0.5
+                      hover:border-emerald-400
+                      hover:shadow-md
+                    "
                   >
                     <Wallet className="h-4 w-4 text-emerald-600" />
 
                     <span>
                       ₹
-                      {wallet?.currentBalance?.toFixed(2) ||
-                        "0.00"}
+                      {wallet?.currentBalance?.toFixed(
+                        2
+                      ) || "0.00"}
                     </span>
                   </Link>
 
                   {/* Admin */}
+
                   {user.role === "admin" ||
                   user.role === "superadmin" ? (
                     <Link
                       to="/admin"
-                      className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 via-pink-500 to-violet-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg"
+                      className="
+                        flex items-center gap-1.5
+                        rounded-lg
+                        bg-gradient-to-r
+                        from-orange-500
+                        via-pink-500
+                        to-violet-600
+                        px-4 py-2
+                        text-xs font-bold
+                        text-white shadow-md
+                        transition-all duration-300
+                        hover:-translate-y-0.5
+                        hover:brightness-110
+                        hover:shadow-lg
+                      "
                     >
                       <LayoutDashboard className="h-4 w-4" />
 
-                      {user.role === "superadmin"
+                      {user.role ===
+                      "superadmin"
                         ? "👑 Super Admin"
                         : "Admin Panel"}
                     </Link>
                   ) : (
                     <div className="flex items-center gap-2">
                       {/* Captcha */}
+
                       <Link
                         to="/dashboard/captcha"
-                        className="flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-gradient-to-r from-cyan-50 to-blue-50 px-3 py-2 text-xs font-bold text-cyan-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-md"
+                        className="
+                          flex items-center gap-1.5
+                          rounded-lg
+                          border border-cyan-200
+                          bg-gradient-to-r
+                          from-cyan-50
+                          to-blue-50
+                          px-3 py-2
+                          text-xs font-bold
+                          text-cyan-700
+                          shadow-sm
+                          transition-all duration-300
+                          hover:-translate-y-0.5
+                          hover:border-cyan-400
+                          hover:shadow-md
+                        "
                       >
                         <KeyRound className="h-3.5 w-3.5 text-cyan-600" />
+
                         Solve Captcha
                       </Link>
 
                       {/* Dashboard */}
+
                       <Link
                         to="/dashboard"
-                        className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 px-3.5 py-2 text-xs font-bold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg"
+                        className="
+                          flex items-center gap-1.5
+                          rounded-lg
+                          bg-gradient-to-r
+                          from-violet-600
+                          via-pink-500
+                          to-orange-400
+                          px-3.5 py-2
+                          text-xs font-bold
+                          text-white shadow-md
+                          transition-all duration-300
+                          hover:-translate-y-0.5
+                          hover:brightness-110
+                          hover:shadow-lg
+                        "
                       >
                         <LayoutDashboard className="h-3.5 w-3.5" />
+
                         Dashboard
                       </Link>
                     </div>
                   )}
 
                   {/* Logout */}
+
                   <button
                     onClick={logout}
                     title="Sign out"
-                    className="rounded-lg p-2 text-slate-500 transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-50 hover:text-red-500 hover:shadow-sm"
+                    className="
+                      rounded-lg p-2
+                      text-slate-500
+                      transition-all duration-300
+                      hover:-translate-y-0.5
+                      hover:bg-red-50
+                      hover:text-red-500
+                      hover:shadow-sm
+                    "
                   >
                     <LogOut className="h-4 w-4" />
                   </button>
@@ -257,48 +606,104 @@ export default function Navbar() {
               ) : (
                 <div className="flex items-center gap-2">
                   {/* Login */}
+
                   <Link
                     to="/login"
-                    className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 transition-all duration-300 hover:-translate-y-0.5 hover:bg-violet-50 hover:text-violet-600 hover:shadow-sm"
+                    className="
+                      rounded-lg px-4 py-2
+                      text-xs font-semibold
+                      text-slate-600
+                      transition-all duration-300
+                      hover:-translate-y-0.5
+                      hover:bg-violet-50
+                      hover:text-violet-600
+                      hover:shadow-sm
+                    "
                   >
                     Log In
                   </Link>
 
                   {/* Join Network */}
+
                   <Link
                     to="/register"
-                    className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:brightness-110 hover:shadow-xl"
+                    className="
+                      flex items-center gap-1.5
+                      rounded-lg
+                      bg-gradient-to-r
+                      from-violet-600
+                      via-pink-500
+                      to-orange-400
+                      px-4 py-2
+                      text-xs font-bold
+                      text-white shadow-lg
+                      transition-all duration-300
+                      hover:-translate-y-0.5
+                      hover:scale-[1.02]
+                      hover:brightness-110
+                      hover:shadow-xl
+                    "
                   >
                     <UserIcon className="h-3.5 w-3.5" />
+
                     Join Network
                   </Link>
                 </div>
               )}
             </div>
 
-            {/* ===================================================
+            {/* ==================================================
                 MOBILE ACTIONS
-            =================================================== */}
+            ================================================== */}
+
             <div className="flex items-center gap-2 md:hidden">
               {user && (
                 <Link
                   to="/dashboard"
-                  className="rounded-lg bg-gradient-to-r from-violet-600 to-pink-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                  className="
+                    rounded-lg
+                    bg-gradient-to-r
+                    from-violet-600
+                    to-pink-500
+                    px-3 py-1.5
+                    text-xs font-bold
+                    text-white shadow-sm
+                    transition-all duration-300
+                    hover:-translate-y-0.5
+                    hover:shadow-md
+                  "
                 >
-                  ₹{wallet?.currentBalance?.toFixed(0) || "0"}
+                  ₹
+                  {wallet?.currentBalance?.toFixed(
+                    0
+                  ) || "0"}
                 </Link>
               )}
 
               <button
+                type="button"
                 onClick={() =>
-                  setMobileMenuOpen(!mobileMenuOpen)
+                  setMobileMenuOpen(
+                    (previous) => !previous
+                  )
                 }
                 aria-label={
                   mobileMenuOpen
                     ? "Close menu"
                     : "Open menu"
                 }
-                className="rounded-xl p-2 text-slate-600 transition-all duration-300 hover:-translate-y-0.5 hover:bg-violet-50 hover:text-violet-600 hover:shadow-sm"
+                aria-expanded={
+                  mobileMenuOpen
+                }
+                className="
+                  rounded-xl p-2
+                  text-slate-600
+                  transition-all duration-300
+                  hover:-translate-y-0.5
+                  hover:bg-violet-50
+                  hover:text-violet-600
+                  hover:shadow-sm
+                "
               >
                 {mobileMenuOpen ? (
                   <X className="h-6 w-6" />
@@ -309,69 +714,144 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* =====================================================
+          {/* ====================================================
               MOBILE COMPANY NAME
-          ===================================================== */}
+          ==================================================== */}
+
           <div className="mt-2 sm:hidden">
-            <div className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-base font-bold tracking-tight text-transparent">
+            <div
+              className="
+                bg-gradient-to-r
+                from-violet-600
+                via-pink-500
+                to-orange-500
+                bg-clip-text
+                text-base font-bold
+                tracking-tight
+                text-transparent
+              "
+            >
               DIGITAL LYF PVT. LTD.
             </div>
 
-            <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+            <div
+              className="
+                text-[9px]
+                font-semibold uppercase
+                tracking-wider
+                text-slate-500
+              "
+            >
               Wellness & Chain Network
             </div>
           </div>
 
-          {/* =====================================================
+          {/* ====================================================
               MOBILE DROPDOWN
-          ===================================================== */}
+          ==================================================== */}
+
           {mobileMenuOpen && (
-            <div className="relative mt-4 space-y-2 border-t border-slate-200 pt-4 md:hidden">
+            <div
+              className="
+                relative mt-4 space-y-2
+                border-t border-slate-200
+                pt-4 md:hidden
+              "
+            >
               {/* Home */}
+
               <Link
                 to="/"
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={() =>
+                  setMobileMenuOpen(false)
+                }
                 className={`${mobileButton} ${
                   isActive("/")
-                    ? "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 font-bold text-white shadow-md"
-                    : "hover:bg-violet-50 hover:text-violet-700"
+                    ? `
+                      bg-gradient-to-r
+                      from-violet-600
+                      via-pink-500
+                      to-orange-400
+                      font-bold
+                      text-white shadow-md
+                    `
+                    : `
+                      hover:bg-violet-50
+                      hover:text-violet-700
+                    `
                 }`}
               >
                 Home
               </Link>
 
               {/* Products */}
+
               <a
                 href="#products"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`${mobileButton} hover:bg-gradient-to-r hover:from-pink-50 hover:to-orange-50 hover:text-pink-700`}
+                onClick={() =>
+                  setMobileMenuOpen(false)
+                }
+                className={`
+                  ${mobileButton}
+                  hover:bg-gradient-to-r
+                  hover:from-pink-50
+                  hover:to-orange-50
+                  hover:text-pink-700
+                `}
               >
                 Products
               </a>
 
               {/* Process */}
+
               <a
                 href="#working-process"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`${mobileButton} hover:bg-gradient-to-r hover:from-blue-50 hover:to-violet-50 hover:text-blue-700`}
+                onClick={() =>
+                  setMobileMenuOpen(false)
+                }
+                className={`
+                  ${mobileButton}
+                  hover:bg-gradient-to-r
+                  hover:from-blue-50
+                  hover:to-violet-50
+                  hover:text-blue-700
+                `}
               >
                 Working Process
               </a>
 
               {/* About */}
+
               <a
                 href="#about"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`${mobileButton} hover:bg-gradient-to-r hover:from-emerald-50 hover:to-blue-50 hover:text-emerald-700`}
+                onClick={() =>
+                  setMobileMenuOpen(false)
+                }
+                className={`
+                  ${mobileButton}
+                  hover:bg-gradient-to-r
+                  hover:from-emerald-50
+                  hover:to-blue-50
+                  hover:text-emerald-700
+                `}
               >
                 About Us
               </a>
 
               {/* Rewards */}
+
               <a
                 href="#rewards"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`${mobileButton} hover:bg-gradient-to-r hover:from-orange-50 hover:to-pink-50 hover:text-orange-600`}
+                onClick={() =>
+                  setMobileMenuOpen(false)
+                }
+                className={`
+                  ${mobileButton}
+                  hover:bg-gradient-to-r
+                  hover:from-orange-50
+                  hover:to-pink-50
+                  hover:text-orange-600
+                `}
               >
                 Rewards
               </a>
@@ -379,76 +859,141 @@ export default function Navbar() {
               {/* =================================================
                   AUTHENTICATED MOBILE MENU
               ================================================= */}
+
               {user ? (
                 <>
                   {/* Dashboard */}
+
                   <Link
                     to="/dashboard"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`${mobileButton} bg-gradient-to-r from-violet-50 to-pink-50 text-violet-700 hover:from-violet-100 hover:to-pink-100`}
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className={`
+                      ${mobileButton}
+                      bg-gradient-to-r
+                      from-violet-50
+                      to-pink-50
+                      text-violet-700
+                      hover:from-violet-100
+                      hover:to-pink-100
+                    `}
                   >
                     Member Dashboard
                   </Link>
 
                   {/* Captcha */}
+
                   <Link
                     to="/dashboard/captcha"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`${mobileButton} hover:bg-cyan-50 hover:text-cyan-700`}
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className={`
+                      ${mobileButton}
+                      hover:bg-cyan-50
+                      hover:text-cyan-700
+                    `}
                   >
                     Earn from Captchas
                   </Link>
 
                   {/* Tree */}
+
                   <Link
                     to="/dashboard/tree"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`${mobileButton} hover:bg-emerald-50 hover:text-emerald-700`}
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className={`
+                      ${mobileButton}
+                      hover:bg-emerald-50
+                      hover:text-emerald-700
+                    `}
                   >
                     My Referral Tree
                   </Link>
 
                   {/* Wallet */}
+
                   <Link
                     to="/dashboard/wallet"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`${mobileButton} hover:bg-violet-50 hover:text-violet-700`}
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className={`
+                      ${mobileButton}
+                      hover:bg-violet-50
+                      hover:text-violet-700
+                    `}
                   >
                     Wallet & Earnings
                   </Link>
 
                   {/* Profile */}
+
                   <Link
                     to="/dashboard/profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`${mobileButton} hover:bg-pink-50 hover:text-pink-700`}
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className={`
+                      ${mobileButton}
+                      hover:bg-pink-50
+                      hover:text-pink-700
+                    `}
                   >
                     My Profile
                   </Link>
 
                   {/* Admin */}
+
                   {(user.role === "admin" ||
-                    user.role === "superadmin") && (
+                    user.role ===
+                      "superadmin") && (
                     <Link
                       to="/admin"
                       onClick={() =>
-                        setMobileMenuOpen(false)
+                        setMobileMenuOpen(
+                          false
+                        )
                       }
-                      className={`${mobileButton} bg-gradient-to-r from-orange-50 to-pink-50 font-bold text-orange-700 hover:from-orange-100 hover:to-pink-100`}
+                      className={`
+                        ${mobileButton}
+                        bg-gradient-to-r
+                        from-orange-50
+                        to-pink-50
+                        font-bold
+                        text-orange-700
+                        hover:from-orange-100
+                        hover:to-pink-100
+                      `}
                     >
-                      {user.role === "superadmin"
+                      {user.role ===
+                      "superadmin"
                         ? "👑 Super Admin"
                         : "Admin Panel"}
                     </Link>
                   )}
 
                   {/* Logout */}
+
                   <button
+                    type="button"
                     onClick={() => {
                       logout();
                       setMobileMenuOpen(false);
                     }}
-                    className="block w-full rounded-xl px-4 py-2.5 text-left font-medium text-red-500 transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-50 hover:shadow-sm"
+                    className="
+                      block w-full rounded-xl
+                      px-4 py-2.5
+                      text-left font-medium
+                      text-red-500
+                      transition-all duration-300
+                      hover:-translate-y-0.5
+                      hover:bg-red-50
+                      hover:shadow-sm
+                    "
                   >
                     Sign Out
                   </button>
@@ -457,19 +1002,49 @@ export default function Navbar() {
                 /* =================================================
                    GUEST MOBILE MENU
                 ================================================= */
+
                 <div className="flex flex-col gap-2 pt-2">
                   <Link
                     to="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-center font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 hover:shadow-md"
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className="
+                      w-full rounded-xl
+                      border border-slate-200
+                      bg-white py-2.5
+                      text-center font-semibold
+                      text-slate-700 shadow-sm
+                      transition-all duration-300
+                      hover:-translate-y-0.5
+                      hover:border-violet-200
+                      hover:bg-violet-50
+                      hover:text-violet-700
+                      hover:shadow-md
+                    "
                   >
                     Log In
                   </Link>
 
                   <Link
                     to="/register"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full rounded-xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 py-2.5 text-center font-bold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg"
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className="
+                      w-full rounded-xl
+                      bg-gradient-to-r
+                      from-violet-600
+                      via-pink-500
+                      to-orange-400
+                      py-2.5
+                      text-center font-bold
+                      text-white shadow-md
+                      transition-all duration-300
+                      hover:-translate-y-0.5
+                      hover:brightness-110
+                      hover:shadow-lg
+                    "
                   >
                     Join Now
                   </Link>

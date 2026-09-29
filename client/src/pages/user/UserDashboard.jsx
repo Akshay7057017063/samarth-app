@@ -1099,9 +1099,9 @@ export default function UserDashboard() {
               <div className="hidden sm:block">
 
                 <div className="text-base font-black tracking-tight text-slate-900">
-                  Samarth
+                  Digital
                   <span className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-transparent">
-                    India
+                    Lyf
                   </span>
                 </div>
 
