@@ -75,36 +75,101 @@ if (!process.env.JWT_SECRET) {
 }
 
 // =====================================================
-// MIDDLEWARE
+// CORS CONFIGURATION
+// =====================================================
+//
+// Production domains:
+// - Customer: digital-lyf.bull-mark.com
+// - Admin:    admin.bull-mark.com
+// - Legacy:   app.bull-mark.com
+//
+// Vercel domains:
+// - samarth-app-three.vercel.app
+// - samarth-bo1ka04k7-akshay-godages-projects.vercel.app
+//
+// Local development:
+// - localhost:5173
+// - localhost:5174
 // =====================================================
 
-// CORS
-app.use(
-  cors({
-    origin: "*",
-    methods: [
-      "GET",
-      "POST",
-      "PUT",
-      "PATCH",
-      "DELETE",
-      "OPTIONS",
-    ],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-    ],
-  })
-);
+const allowedOrigins = [
+  // Customer production domain
+  "https://digital-lyf.bull-mark.com",
 
-// JSON body parser
+  // Admin production domain
+  "https://admin.bull-mark.com",
+
+  // Old customer domain - temporary compatibility
+  "https://app.bull-mark.com",
+
+  // Vercel customer domains - temporary compatibility
+  "https://samarth-app-three.vercel.app",
+  "https://samarth-bo1ka04k7-akshay-godages-projects.vercel.app",
+
+  // Local Vite development
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Requests without an Origin header can happen from:
+    // health checks, server-to-server requests, curl, etc.
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn(
+      `⚠️ CORS blocked origin: ${origin}`
+    );
+
+    return callback(
+      new Error("Not allowed by CORS")
+    );
+  },
+
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+  ],
+
+  // Bearer token authentication is used.
+  // Browser cookies are not used.
+  credentials: false,
+
+  optionsSuccessStatus: 204,
+};
+
+// Apply CORS globally.
+app.use(cors(corsOptions));
+
+// =====================================================
+// JSON BODY PARSER
+// =====================================================
+
 app.use(
   express.json({
     limit: "10mb",
   })
 );
 
-// URL encoded body parser
+// =====================================================
+// URL ENCODED BODY PARSER
+// =====================================================
+
 app.use(
   express.urlencoded({
     extended: true,
@@ -503,7 +568,6 @@ const startServer = async () => {
       "================================================="
     );
     console.error("");
-
     process.exit(1);
   }
 };
