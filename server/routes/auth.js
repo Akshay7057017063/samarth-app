@@ -10,6 +10,7 @@ import { Wallet } from "../models/Wallet.js";
 import { LoginCode } from "../models/LoginCode.js";
 import { authenticateToken } from "../middleware/auth.js";
 import { sendPasswordResetCodeEmail } from "../utils/mailer.js";
+import { autoPlaceUser, syncBinaryTeamCounts } from "../utils/binaryTree.js";
 
 const router = express.Router();
 
@@ -783,9 +784,27 @@ router.post(
 // =====================================================
 // POST /api/auth/register
 // =====================================================
+//
+// CUSTOMER REGISTRATION FLOW
+//
+// 1. Customer enters Referral / Upline ID
+// 2. Backend finds active USER sponsor
+// 3. New customer account is created
+// 4. Customer is automatically placed in Binary Tree
+// 5. Sponsor referral/team counters are updated
+// 6. ₹50 welcome wallet is created
+// 7. JWT token returned
+//
+// Superadmin/Admin is NOT required for normal registration.
+//
+// =====================================================
 
 router.post("/register", async (req, res) => {
   try {
+    // -------------------------------------------------
+    // CHECK MONGODB
+    // -------------------------------------------------
+
     if (!isMongoActive()) {
       return res.status(503).json({
         success: false,
@@ -800,11 +819,10 @@ router.post("/register", async (req, res) => {
       phone,
       password,
       sponsorCode,
-      position,
     } = req.body;
 
     // -------------------------------------------------
-    // VALIDATION
+    // REQUIRED FIELD VALIDATION
     // -------------------------------------------------
 
     if (
@@ -816,34 +834,86 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          "All required fields must be filled.",
+          "Name, email, phone, password and Referral/Upline ID are required.",
       });
     }
 
-    const cleanName =
-      String(name).trim();
+    // -------------------------------------------------
+    // CLEAN INPUT
+    // -------------------------------------------------
 
-    const cleanEmail =
-      String(email)
-        .trim()
-        .toLowerCase();
+    const cleanName = String(name).trim();
 
-    const cleanPhone =
-      String(phone).trim();
+    const cleanEmail = String(email)
+      .trim()
+      .toLowerCase();
 
-    const cleanPassword =
-      String(password);
+    const cleanPhone = String(phone).trim();
 
-    if (
-      cleanName.length < 2 ||
-      cleanEmail.length < 5 ||
-      cleanPhone.length < 5 ||
-      cleanPassword.length < 6
-    ) {
+    const cleanPassword = String(password);
+
+    const cleanSponsorCode = String(
+      sponsorCode || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    // -------------------------------------------------
+    // BASIC VALIDATION
+    // -------------------------------------------------
+
+    if (cleanName.length < 2) {
       return res.status(400).json({
         success: false,
         message:
-          "Please provide valid registration details. Password must contain at least 6 characters.",
+          "Name must contain at least 2 characters.",
+      });
+    }
+
+    if (cleanEmail.length < 5) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please provide a valid email address.",
+      });
+    }
+
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please provide a valid email address.",
+      });
+    }
+
+    if (cleanPhone.length < 5) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please provide a valid phone number.",
+      });
+    }
+
+    if (cleanPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must contain at least 6 characters.",
+      });
+    }
+
+    // -------------------------------------------------
+    // REFERRAL / UPLINE IS REQUIRED
+    // -------------------------------------------------
+
+    if (!cleanSponsorCode) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Referral / Upline ID is required for registration.",
       });
     }
 
@@ -851,10 +921,9 @@ router.post("/register", async (req, res) => {
     // DUPLICATE EMAIL
     // -------------------------------------------------
 
-    const existingEmail =
-      await User.findOne({
-        email: cleanEmail,
-      });
+    const existingEmail = await User.findOne({
+      email: cleanEmail,
+    });
 
     if (existingEmail) {
       return res.status(400).json({
@@ -868,10 +937,9 @@ router.post("/register", async (req, res) => {
     // DUPLICATE PHONE
     // -------------------------------------------------
 
-    const existingPhone =
-      await User.findOne({
-        phone: cleanPhone,
-      });
+    const existingPhone = await User.findOne({
+      phone: cleanPhone,
+    });
 
     if (existingPhone) {
       return res.status(400).json({
@@ -882,51 +950,84 @@ router.post("/register", async (req, res) => {
     }
 
     // -------------------------------------------------
+    // FIND SPONSOR / UPLINE
+    // -------------------------------------------------
+    //
+    // Referral ID can be:
+    // - Member ID
+    // - User Code
+    //
+    // Only ACTIVE USER accounts can become sponsors.
+    // Admin/Superadmin cannot be used as normal
+    // customer upline.
+    //
+    // -------------------------------------------------
+
+    const sponsor = await User.findOne({
+      role: "user",
+      status: "active",
+      $or: [
+        {
+          memberId: cleanSponsorCode,
+        },
+        {
+          userCode: cleanSponsorCode,
+        },
+      ],
+    });
+
+    if (!sponsor) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid Referral / Upline ID. Please enter a valid active member ID.",
+      });
+    }
+
+    // -------------------------------------------------
     // PASSWORD HASH
     // -------------------------------------------------
 
-    const passwordHash =
-      await bcrypt.hash(
-        cleanPassword,
-        10
-      );
+    const passwordHash = await bcrypt.hash(
+      cleanPassword,
+      10
+    );
 
     // -------------------------------------------------
-    // GENERATE MEMBER ID
+    // GENERATE UNIQUE MEMBER ID
     // -------------------------------------------------
 
     let memberCode = "";
     let attempts = 0;
 
-    while (!memberCode && attempts < 20) {
+    while (
+      !memberCode &&
+      attempts < 20
+    ) {
       attempts++;
 
       const randomNumber =
         Math.floor(
           100000 +
-          Math.random() * 900000
+            Math.random() * 900000
         );
 
-      const candidate =
-        `SI${randomNumber}`;
+      const candidate = `SI${randomNumber}`;
 
       const existing =
         await User.findOne({
           $or: [
             {
-              memberId:
-                candidate,
+              memberId: candidate,
             },
             {
-              userCode:
-                candidate,
+              userCode: candidate,
             },
           ],
         });
 
       if (!existing) {
-        memberCode =
-          candidate;
+        memberCode = candidate;
       }
     }
 
@@ -939,290 +1040,338 @@ router.post("/register", async (req, res) => {
     }
 
     // -------------------------------------------------
-    // SPONSOR
-    // -------------------------------------------------
-
-    const cleanSponsorCode =
-      sponsorCode
-        ? String(sponsorCode)
-            .trim()
-            .toUpperCase()
-        : "";
-
-    let sponsor = null;
-
-    if (cleanSponsorCode) {
-      sponsor =
-        await User.findOne({
-          $or: [
-            {
-              userCode:
-                cleanSponsorCode,
-            },
-            {
-              memberId:
-                cleanSponsorCode,
-            },
-          ],
-        });
-
-      if (!sponsor) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid sponsor code.",
-        });
-      }
-    }
-
-    // -------------------------------------------------
-    // POSITION
-    // -------------------------------------------------
-
-    const cleanPosition =
-      position === "right"
-        ? "right"
-        : "left";
-
-    // -------------------------------------------------
     // CREATE USER
     // -------------------------------------------------
+    //
+    // Referral tree information is stored immediately.
+    //
+    // Binary placement is done automatically AFTER
+    // saving the user.
+    //
+    // -------------------------------------------------
 
-    const newUser =
-      new User({
-        memberId:
-          memberCode,
+    const newUser = new User({
+      memberId: memberCode,
 
-        userCode:
-          memberCode,
+      userCode: memberCode,
 
-        name:
-          cleanName,
+      name: cleanName,
 
-        email:
-          cleanEmail,
+      email: cleanEmail,
 
-        phone:
-          cleanPhone,
+      phone: cleanPhone,
 
-        password:
-          passwordHash,
+      password: passwordHash,
 
-        role:
-          "user",
+      role: "user",
 
-        status:
-          "active",
+      status: "active",
 
-        sponsorId:
-          sponsor
-            ? sponsor._id
-            : null,
+      // -------------------------------
+      // REFERRAL / SPONSOR
+      // -------------------------------
 
-        sponsorCode:
-          sponsor
-            ? sponsor.userCode ||
-              sponsor.memberId
-            : "",
+      sponsorId: sponsor._id,
 
-        sponsorMemberId:
-          sponsor
-            ? sponsor.memberId
-            : "",
+      sponsorCode:
+        sponsor.userCode ||
+        sponsor.memberId ||
+        "",
 
-        treePath:
-          sponsor
-            ? `${sponsor.treePath || "/"}/${memberCode}/`
-            : `/${memberCode}/`,
+      sponsorMemberId:
+        sponsor.memberId || "",
 
-        level:
-          sponsor
-            ? Number(sponsor.level || 1) + 1
-            : 1,
+      treePath:
+        `${sponsor.treePath || "/"}/${memberCode}/`,
 
-        position:
-          cleanPosition,
+      level:
+        Number(sponsor.level || 1) + 1,
 
-        userType:
-          "UNPAID",
+      position: "left",
 
-        activationDate:
-          null,
+      // -------------------------------
+      // BINARY DEFAULTS
+      // -------------------------------
 
-        joiningPackage:
-          "",
+      binaryParentId: null,
 
-        rank:
-          "Distributor",
+      binaryPosition: null,
 
-        directReferralsCount:
-          0,
+      binaryLeftId: null,
 
-        teamCount:
-          0,
+      binaryRightId: null,
 
-        leftCount:
-          0,
+      binaryLevel: 1,
 
-        rightCount:
-          0,
+      binaryPath: "/",
 
-        leftBusiness:
-          0,
+      // -------------------------------
+      // USER TYPE / PACKAGE
+      // -------------------------------
 
-        rightBusiness:
-          0,
+      userType: "UNPAID",
 
-        totalReferral:
-          0,
+      activationDate: null,
 
-        activeReferral:
-          0,
+      joiningPackage: "",
 
-        leftPv:
-          0,
+      rank: "Distributor",
 
-        rightPv:
-          0,
+      // -------------------------------
+      // REFERRAL COUNTS
+      // -------------------------------
 
-        leftCarryForwardPv:
-          0,
+      directReferralsCount: 0,
 
-        rightCarryForwardPv:
-          0,
+      teamCount: 0,
 
-        totalTeam:
-          0,
+      totalReferral: 0,
 
-        activeTeam:
-          0,
+      activeReferral: 0,
 
-        teamPercent:
-          0,
+      // -------------------------------
+      // TEAM COUNTS
+      // -------------------------------
 
-        matchingIncome:
-          0,
+      leftCount: 0,
 
-        todayMatchingIncome:
-          0,
+      rightCount: 0,
 
-        franchiseReferralIncome:
-          0,
+      leftBusiness: 0,
 
-        franchiseMatchingIncome:
-          0,
+      rightBusiness: 0,
 
-        totalIncome:
-          0,
+      totalTeam: 0,
 
-        panNumber:
-          "",
+      activeTeam: 0,
 
-        panVerified:
-          false,
+      teamPercent: 0,
 
-        bankDetails: {
-          accountHolderName:
-            cleanName,
+      // -------------------------------
+      // PV
+      // -------------------------------
 
-          accountNumber:
-            "",
+      leftPv: 0,
 
-          ifscCode:
-            "",
+      rightPv: 0,
 
-          bankName:
-            "",
+      leftCarryForwardPv: 0,
 
-          upiId:
-            "",
-        },
+      rightCarryForwardPv: 0,
 
-        dateOfEntry:
-          new Date(),
-      });
+      // -------------------------------
+      // INCOME
+      // -------------------------------
+
+      matchingIncome: 0,
+
+      todayMatchingIncome: 0,
+
+      franchiseReferralIncome: 0,
+
+      franchiseMatchingIncome: 0,
+
+      totalIncome: 0,
+
+      // -------------------------------
+      // KYC
+      // -------------------------------
+
+      panNumber: "",
+
+      panVerified: false,
+
+      bankDetails: {
+        accountHolderName: cleanName,
+        accountNumber: "",
+        ifscCode: "",
+        bankName: "",
+        upiId: "",
+      },
+
+      dateOfEntry: new Date(),
+    });
 
     // -------------------------------------------------
-    // SAVE USER
+    // SAVE USER FIRST
     // -------------------------------------------------
 
     await newUser.save();
 
     // -------------------------------------------------
-    // UPDATE SPONSOR DIRECT REFERRAL COUNT
+    // AUTOMATIC BINARY PLACEMENT
+    // -------------------------------------------------
+    //
+    // Sponsor is used as the starting placement point.
+    //
+    // The backend automatically finds:
+    //
+    // Sponsor Left
+    //       ↓
+    // Sponsor Right
+    //       ↓
+    // Next available slot
+    //
+    // So frontend does NOT need to manually decide
+    // where the customer goes.
+    //
     // -------------------------------------------------
 
-    if (sponsor) {
-      sponsor.directReferralsCount =
-        Number(
-          sponsor.directReferralsCount || 0
-        ) + 1;
+    try {
+      await autoPlaceUser(
+        newUser._id,
+        sponsor._id
+      );
+    } catch (binaryError) {
+      console.error(
+        "❌ Binary placement error:",
+        binaryError
+      );
 
-      sponsor.totalReferral =
-        Number(
-          sponsor.totalReferral || 0
-        ) + 1;
+      // User was created but could not be placed.
+      // Remove incomplete registration.
+      await User.deleteOne({
+        _id: newUser._id,
+      });
 
-      sponsor.teamCount =
-        Number(
-          sponsor.teamCount || 0
-        ) + 1;
-
-      sponsor.totalTeam =
-        Number(
-          sponsor.totalTeam || 0
-        ) + 1;
-
-      await sponsor.save();
+      return res.status(500).json({
+        success: false,
+        message:
+          "Account could not be placed in the Binary Tree. Registration was cancelled.",
+      });
     }
 
     // -------------------------------------------------
-    // CREATE WALLET
+    // GET UPDATED USER AFTER BINARY PLACEMENT
+    // -------------------------------------------------
+
+    const placedUser =
+      await User.findById(
+        newUser._id
+      );
+
+    if (!placedUser) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "Registered user could not be loaded after binary placement.",
+      });
+    }
+
+    // -------------------------------------------------
+    // VERIFY BINARY PLACEMENT
+    // -------------------------------------------------
+
+    if (
+      !placedUser.binaryParentId ||
+      !placedUser.binaryPosition
+    ) {
+      console.error(
+        "❌ Binary placement missing after registration:",
+        placedUser._id
+      );
+
+      await User.deleteOne({
+        _id: placedUser._id,
+      });
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Binary placement failed. Registration was cancelled.",
+      });
+    }
+
+    // -------------------------------------------------
+    // UPDATE SPONSOR REFERRAL COUNTS
+    // -------------------------------------------------
+
+    sponsor.directReferralsCount =
+      Number(
+        sponsor.directReferralsCount || 0
+      ) + 1;
+
+    sponsor.totalReferral =
+      Number(
+        sponsor.totalReferral || 0
+      ) + 1;
+
+    sponsor.activeReferral =
+      Number(
+        sponsor.activeReferral || 0
+      ) + 1;
+
+    // Existing application behavior
+    sponsor.teamCount =
+      Number(
+        sponsor.teamCount || 0
+      ) + 1;
+
+    sponsor.activeTeam =
+      Number(
+        sponsor.activeTeam || 0
+      ) + 1;
+
+    await sponsor.save();
+
+    // -------------------------------------------------
+    // SYNC BINARY COUNTS
     // -------------------------------------------------
     //
-    // Existing application behavior gives a ₹50
-    // welcome balance.
+    // This updates sponsor:
+    //
+    // leftCount
+    // rightCount
+    // totalTeam
+    //
+    // based on actual Binary Tree data.
+    //
     // -------------------------------------------------
 
-    const newWallet =
-      new Wallet({
-        userId:
-          newUser._id,
+    try {
+      await syncBinaryTeamCounts(
+        sponsor._id
+      );
+    } catch (countError) {
+      console.error(
+        "⚠️ Binary count sync warning:",
+        countError
+      );
+    }
 
-        memberId:
-          newUser.memberId,
+    // -------------------------------------------------
+    // CREATE ₹50 WELCOME WALLET
+    // -------------------------------------------------
 
-        currentBalance:
-          50,
+    const newWallet = new Wallet({
+      userId: placedUser._id,
 
-        totalEarnings:
-          50,
+      memberId: placedUser.memberId,
 
-        captchaEarnings:
-          0,
+      currentBalance: 50,
 
-        referralCommissions:
-          0,
+      totalEarnings: 50,
 
-        totalWithdrawn:
-          0,
+      captchaEarnings: 0,
 
-        todayCaptchasSolved:
-          0,
+      referralCommissions: 0,
 
-        lastCaptchaDate:
-          new Date()
-            .toISOString(),
-      });
+      totalWithdrawn: 0,
+
+      todayCaptchasSolved: 0,
+
+      lastCaptchaDate:
+        new Date().toISOString(),
+    });
 
     await newWallet.save();
 
     // -------------------------------------------------
-    // CREATE TOKEN
+    // CREATE JWT
     // -------------------------------------------------
 
     const token =
-      createToken(newUser);
+      createToken(placedUser);
 
     // -------------------------------------------------
     // RESPONSE
@@ -1232,27 +1381,50 @@ router.post("/register", async (req, res) => {
       success: true,
 
       message:
-        "Account registered successfully! Welcome bonus ₹50 credited.",
+        "Account registered successfully! ₹50 welcome bonus credited.",
 
       token,
 
       user:
         formatUserResponse(
-          newUser
+          placedUser
         ),
 
       wallet: {
-        currentBalance:
-          50,
+        currentBalance: 50,
+        totalEarnings: 50,
+        captchaEarnings: 0,
+        referralCommissions: 0,
+      },
 
-        totalEarnings:
-          50,
+      // ------------------------------------------------
+      // BINARY PLACEMENT INFORMATION
+      // ------------------------------------------------
 
-        captchaEarnings:
-          0,
+      binaryPlacement: {
+        parentId:
+          placedUser.binaryParentId,
 
-        referralCommissions:
-          0,
+        position:
+          placedUser.binaryPosition,
+
+        level:
+          placedUser.binaryLevel,
+
+        path:
+          placedUser.binaryPath,
+      },
+
+      sponsor: {
+        memberId:
+          sponsor.memberId,
+
+        userCode:
+          sponsor.userCode ||
+          sponsor.memberId,
+
+        name:
+          sponsor.name,
       },
     });
   } catch (error) {
@@ -1269,7 +1441,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          "A user with the same email, member ID or user code already exists.",
+          "A user with the same email, phone, member ID or user code already exists.",
       });
     }
 
@@ -1280,7 +1452,6 @@ router.post("/register", async (req, res) => {
     });
   }
 });
-
 // =====================================================
 // GET /api/auth/me
 // =====================================================

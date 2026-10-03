@@ -96,13 +96,17 @@ export const AuthProvider = ({
   const [wallet, setWallet] =
     useState(null);
 
+  // IMPORTANT:
+  // Token is intentionally stored ONLY in React state.
+  //
+  // We do NOT use localStorage or sessionStorage.
+  //
+  // Therefore:
+  // - Refresh = logout
+  // - Browser reopen = logout
+  // - New app load = login required
   const [token, setToken] =
-    useState(
-      () =>
-        localStorage.getItem(
-          TOKEN_KEY
-        ) || null
-    );
+    useState(null);
 
   const [cmsContent, setCmsContent] =
     useState(null);
@@ -161,9 +165,23 @@ export const AuthProvider = ({
   // ==========================================================
 
   const logout = useCallback(() => {
+    // --------------------------------------------------------
+    // IMPORTANT:
+    // Clear any old tokens that may have been created by the
+    // previous version of the application.
+    // --------------------------------------------------------
+
     localStorage.removeItem(
       TOKEN_KEY
     );
+
+    sessionStorage.removeItem(
+      TOKEN_KEY
+    );
+
+    // --------------------------------------------------------
+    // Clear current React authentication state.
+    // --------------------------------------------------------
 
     setToken(null);
     setUser(null);
@@ -173,6 +191,15 @@ export const AuthProvider = ({
   // ==========================================================
   // FETCH CURRENT CUSTOMER SESSION
   // ==========================================================
+  //
+  // This function is NOT called automatically when the app
+  // starts.
+  //
+  // It is called only:
+  // 1. After a successful manual login
+  // 2. When refreshUser() is explicitly requested
+  //
+  // ==========================================================
 
   const fetchMe = useCallback(
     async (authToken) => {
@@ -181,7 +208,7 @@ export const AuthProvider = ({
         setWallet(null);
         setLoading(false);
 
-        return;
+        return false;
       }
 
       try {
@@ -211,11 +238,20 @@ export const AuthProvider = ({
         const data =
           await parseResponse(res);
 
+        // ----------------------------------------------------
+        // INVALID SESSION
+        // ----------------------------------------------------
+
         if (
           !res.ok ||
           !data.success
         ) {
+          // Remove any legacy stored tokens.
           localStorage.removeItem(
+            TOKEN_KEY
+          );
+
+          sessionStorage.removeItem(
             TOKEN_KEY
           );
 
@@ -225,6 +261,10 @@ export const AuthProvider = ({
 
           return false;
         }
+
+        // ----------------------------------------------------
+        // VALID SESSION
+        // ----------------------------------------------------
 
         setUser(
           data.user || null
@@ -241,7 +281,12 @@ export const AuthProvider = ({
           error
         );
 
+        // Remove any legacy stored tokens.
         localStorage.removeItem(
+          TOKEN_KEY
+        );
+
+        sessionStorage.removeItem(
           TOKEN_KEY
         );
 
@@ -258,54 +303,85 @@ export const AuthProvider = ({
   );
 
   // ==========================================================
-  // INITIAL APP LOAD / TOKEN CHANGE
+  // INITIAL APP LOAD
+  // ==========================================================
+  //
+  // IMPORTANT:
+  //
+  // We intentionally DO NOT restore an authentication session.
+  //
+  // Previous version:
+  //
+  // localStorage -> token -> fetchMe() -> automatic login
+  //
+  // New version:
+  //
+  // app starts -> clear old token -> user = null
+  // -> user must manually login
+  //
+  // This means even after browser refresh, the user must login
+  // again.
   // ==========================================================
 
   useEffect(() => {
     let cancelled = false;
 
-    const initializeSession =
+    const initializeApp =
       async () => {
         setLoading(true);
 
-        // Public content can load for everyone.
+        // ----------------------------------------------------
+        // REMOVE LEGACY AUTH TOKENS
+        // ----------------------------------------------------
+        //
+        // This is important because the previous version used
+        // localStorage. Existing users may still have an old
+        // samarth_token stored in their browser.
+        // ----------------------------------------------------
+
+        localStorage.removeItem(
+          TOKEN_KEY
+        );
+
+        sessionStorage.removeItem(
+          TOKEN_KEY
+        );
+
+        // ----------------------------------------------------
+        // RESET AUTH STATE
+        // ----------------------------------------------------
+
+        if (!cancelled) {
+          setToken(null);
+          setUser(null);
+          setWallet(null);
+        }
+
+        // ----------------------------------------------------
+        // PUBLIC CMS CONTENT
+        // ----------------------------------------------------
+        //
+        // CMS content is public and should load regardless of
+        // authentication.
+        // ----------------------------------------------------
+
         await fetchCmsContent();
 
-        if (cancelled) {
-          return;
+        // ----------------------------------------------------
+        // FINISH INITIAL LOADING
+        // ----------------------------------------------------
+
+        if (!cancelled) {
+          setLoading(false);
         }
-
-        // ----------------------------------------------------
-        // No token
-        // ----------------------------------------------------
-
-        if (!token) {
-          if (!cancelled) {
-            setUser(null);
-            setWallet(null);
-            setLoading(false);
-          }
-
-          return;
-        }
-
-        // ----------------------------------------------------
-        // Restore session
-        // ----------------------------------------------------
-
-        await fetchMe(token);
       };
 
-    initializeSession();
+    initializeApp();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    token,
-    fetchCmsContent,
-    fetchMe,
-  ]);
+  }, [fetchCmsContent]);
 
   // ==========================================================
   // LOGIN
@@ -353,7 +429,7 @@ export const AuthProvider = ({
       );
 
       // -------------------------------------------------------
-      // Backend error
+      // BACKEND ERROR
       // -------------------------------------------------------
 
       if (
@@ -370,7 +446,7 @@ export const AuthProvider = ({
       }
 
       // -------------------------------------------------------
-      // Token validation
+      // TOKEN VALIDATION
       // -------------------------------------------------------
 
       if (!data.token) {
@@ -383,35 +459,53 @@ export const AuthProvider = ({
       }
 
       // -------------------------------------------------------
-      // Save token
-      // -------------------------------------------------------
-
-      localStorage.setItem(
-        TOKEN_KEY,
-        data.token
-      );
-
-      // -------------------------------------------------------
-      // Update state
+      // IMPORTANT:
+      // DO NOT SAVE TOKEN TO localStorage.
+      // DO NOT SAVE TOKEN TO sessionStorage.
+      //
+      // Token exists only in React memory.
+      //
+      // Therefore:
+      // Refresh browser -> token disappears.
+      // Close/reopen app -> token disappears.
+      // User must login manually again.
       // -------------------------------------------------------
 
       setToken(data.token);
 
+      // -------------------------------------------------------
+      // UPDATE USER STATE
+      // -------------------------------------------------------
+
       setUser(
         data.user || null
       );
+
+      // -------------------------------------------------------
+      // UPDATE WALLET STATE
+      // -------------------------------------------------------
 
       setWallet(
         data.wallet || null
       );
 
       // -------------------------------------------------------
-      // Refresh complete customer session
+      // FETCH COMPLETE CUSTOMER SESSION
       // -------------------------------------------------------
 
-      await fetchMe(
-        data.token
-      );
+      const sessionLoaded =
+        await fetchMe(
+          data.token
+        );
+
+      if (!sessionLoaded) {
+        return {
+          success: false,
+
+          message:
+            "Login succeeded but customer session could not be loaded.",
+        };
+      }
 
       return {
         success: true,
@@ -443,6 +537,21 @@ export const AuthProvider = ({
 
   // ==========================================================
   // REGISTER
+  // ==========================================================
+  //
+  // IMPORTANT:
+  //
+  // Registration does NOT automatically login the customer.
+  //
+  // After registration:
+  // Registration successful
+  //       ↓
+  // Login page
+  //       ↓
+  // User manually enters credentials
+  //       ↓
+  // Dashboard
+  //
   // ==========================================================
 
   const register = async (
@@ -485,7 +594,7 @@ export const AuthProvider = ({
       );
 
       // -------------------------------------------------------
-      // Backend error
+      // BACKEND ERROR
       // -------------------------------------------------------
 
       if (
@@ -502,48 +611,28 @@ export const AuthProvider = ({
       }
 
       // -------------------------------------------------------
-      // Token validation
+      // REGISTRATION SUCCESS
+      // -------------------------------------------------------
+      //
+      // Backend may return a token after registration, but we
+      // intentionally ignore it on the frontend.
+      //
+      // Customer must login manually.
       // -------------------------------------------------------
 
-      if (!data.token) {
-        return {
-          success: false,
-
-          message:
-            "Registration succeeded but authentication token was not received.",
-        };
-      }
-
-      // -------------------------------------------------------
-      // Save token
-      // -------------------------------------------------------
-
-      localStorage.setItem(
-        TOKEN_KEY,
-        data.token
+      // Clear any old/legacy authentication data.
+      localStorage.removeItem(
+        TOKEN_KEY
       );
 
-      // -------------------------------------------------------
-      // Update state
-      // -------------------------------------------------------
-
-      setToken(data.token);
-
-      setUser(
-        data.user || null
+      sessionStorage.removeItem(
+        TOKEN_KEY
       );
 
-      setWallet(
-        data.wallet || null
-      );
-
-      // -------------------------------------------------------
-      // Refresh complete session
-      // -------------------------------------------------------
-
-      await fetchMe(
-        data.token
-      );
+      // Make sure customer is NOT authenticated.
+      setToken(null);
+      setUser(null);
+      setWallet(null);
 
       return {
         success: true,
@@ -555,8 +644,7 @@ export const AuthProvider = ({
           data.wallet || null,
 
         message:
-          data.message ||
-          "Registration successful.",
+          "Registration successful. Please login manually.",
       };
     } catch (error) {
       console.error(
@@ -576,15 +664,25 @@ export const AuthProvider = ({
   // ==========================================================
   // REFRESH CURRENT CUSTOMER
   // ==========================================================
+  //
+  // This function is intentionally available only for an
+  // already authenticated React session.
+  //
+  // Browser refresh will NOT call this automatically.
+  //
+  // ==========================================================
 
   const refreshUser = async () => {
     if (!token) {
-      return;
+      setUser(null);
+      setWallet(null);
+
+      return false;
     }
 
     setLoading(true);
 
-    await fetchMe(token);
+    return fetchMe(token);
   };
 
   // ==========================================================

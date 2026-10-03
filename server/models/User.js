@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
@@ -70,6 +69,7 @@ const userSchema = new mongoose.Schema(
     // REFERRAL / MLM INFORMATION
     // =====================================================
 
+    // Sponsor / Referral tree
     sponsorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -105,6 +105,7 @@ const userSchema = new mongoose.Schema(
       min: 1,
     },
 
+    // Existing referral position
     position: {
       type: String,
       enum: ["left", "right"],
@@ -121,6 +122,60 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: 0,
+    },
+
+    // =====================================================
+    // BINARY PLACEMENT TREE
+    // =====================================================
+    //
+    // IMPORTANT:
+    // sponsorId = Referral/Sponsor relationship
+    //
+    // binaryParentId = Binary placement parent
+    // binaryPosition = left/right position under parent
+    // binaryLeftId = left child
+    // binaryRightId = right child
+    //
+    // Referral tree and Binary tree are kept separate.
+    // =====================================================
+
+    binaryParentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+
+    binaryPosition: {
+      type: String,
+      enum: ["left", "right"],
+      default: null,
+    },
+
+    binaryLeftId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+
+    binaryRightId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+
+    binaryLevel: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    binaryPath: {
+      type: String,
+      default: "/",
+      index: true,
     },
 
     // =====================================================
@@ -349,9 +404,20 @@ userSchema.index({
   status: 1,
   role: 1,
 });
+
+// Binary tree lookup optimization
+userSchema.index({
+  binaryParentId: 1,
+  binaryPosition: 1,
+});
+
+// Binary tree level lookup
+userSchema.index({
+  binaryLevel: 1,
+});
+
 // =========================================================
 // MODEL
 // =========================================================
 
 export const User = mongoose.model("User", userSchema);
-

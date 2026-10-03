@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -66,8 +65,9 @@ export default function Navbar() {
   // NAV STYLES
   // ==========================================================
 
+  // CHANGED: smaller padding/text between lg and xl so links fit on 1024px laptops
   const navButton =
-    "group relative rounded-full border border-transparent px-4 py-2 font-medium text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md";
+    "group relative rounded-full border border-transparent px-2.5 py-2 text-sm font-medium text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md xl:px-4 xl:text-base";
 
   const mobileButton =
     "block w-full rounded-xl px-4 py-2.5 font-medium text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-sm";
@@ -137,34 +137,37 @@ export default function Navbar() {
       >
         <div className="pointer-events-none absolute inset-0 bg-white/10" />
 
+        {/* CHANGED: flex-col -> always flex-row, added gap-3 (no more 2-line stack on mobile) */}
         <div
           className="
             relative mx-auto flex max-w-7xl
-            flex-col items-center justify-between
-            gap-2 sm:flex-row
+            flex-row items-center justify-between
+            gap-3
           "
         >
           {/* Welcome Text */}
-
-          <div className="flex items-center gap-2 text-white">
+          {/* CHANGED: added min-w-0 so the text can shrink and truncate */}
+          <div className="flex min-w-0 items-center gap-2 text-white">
+            {/* CHANGED: added shrink-0 so the dot never squishes */}
             <span
               className="
-                inline-block h-2 w-2
+                inline-block h-2 w-2 shrink-0
                 animate-pulse rounded-full
                 bg-white shadow-sm
               "
             />
 
-            <span className="font-semibold">
+            {/* CHANGED: added truncate */}
+            <span className="truncate font-semibold">
               {topText}
             </span>
           </div>
 
           {/* Contact Information */}
-
+          {/* CHANGED: flex-wrap -> shrink-0 (stays on one line, never wraps) */}
           <div
             className="
-              flex flex-wrap items-center
+              flex shrink-0 items-center
               gap-4 text-[11px]
               text-white/95
             "
@@ -271,14 +274,16 @@ export default function Navbar() {
               DESKTOP / MAIN ROW
           ==================================================== */}
 
-          <div className="flex items-center justify-between">
+          {/* CHANGED: added gap-3 so groups never touch each other */}
+          <div className="flex items-center justify-between gap-3">
             {/* ==================================================
                 BRAND LOGO + COMPANY NAME
             ================================================== */}
 
+            {/* CHANGED: added min-w-0 so the company name can truncate */}
             <Link
               to="/"
-              className="group flex items-center gap-3"
+              className="group flex min-w-0 items-center gap-3"
             >
               {/* Logo */}
 
@@ -324,18 +329,26 @@ export default function Navbar() {
               </div>
 
               {/* Company Name */}
-
-              <div className="hidden sm:block">
+              {/* CHANGED: always visible on ALL screens. Font size is smaller
+                  between lg and xl (text-base) so the desktop row still fits,
+                  and full size (text-xl) from xl up. truncate + min-w-0 shorten
+                  the name with "…" instead of breaking the layout. */}
+              <div className="min-w-0">
                 <div
                   className="
+                    truncate
                     bg-gradient-to-r
                     from-violet-600
                     via-pink-500
                     to-orange-500
                     bg-clip-text
-                    text-xl font-bold
-                    tracking-tight
+                    text-[13px] font-bold
+                    leading-tight tracking-tight
                     text-transparent
+                    min-[400px]:text-base
+                    sm:text-xl
+                    lg:text-base
+                    xl:text-xl
                   "
                 >
                   DIGITAL LYF PVT. LTD.
@@ -343,10 +356,12 @@ export default function Navbar() {
 
                 <div
                   className="
-                    text-[10px]
+                    truncate
+                    text-[9px]
                     font-semibold uppercase
                     tracking-wider
                     text-slate-500
+                    sm:text-[10px]
                   "
                 >
                   Wellness & Chain Network
@@ -358,6 +373,7 @@ export default function Navbar() {
                 DESKTOP NAV LINKS
             ================================================== */}
 
+            {/* CHANGED: md:flex -> lg:flex (768px was too narrow for links + buttons) */}
             <div
               className="
                 hidden items-center gap-1
@@ -365,7 +381,7 @@ export default function Navbar() {
                 border border-slate-200
                 bg-white/75 p-1
                 shadow-sm backdrop-blur-md
-                md:flex
+                lg:flex
               "
             >
               {/* Home */}
@@ -462,10 +478,11 @@ export default function Navbar() {
                 DESKTOP RIGHT ACTION / AUTH BUTTONS
             ================================================== */}
 
+            {/* CHANGED: md:flex -> lg:flex, added shrink-0 */}
             <div
               className="
-                hidden items-center gap-3
-                md:flex
+                hidden shrink-0 items-center gap-3
+                lg:flex
               "
             >
               {user ? (
@@ -534,8 +551,10 @@ export default function Navbar() {
                     <div className="flex items-center gap-2">
                       {/* Captcha */}
 
+                      {/* CHANGED: added title + label hidden between lg and xl (icon stays) */}
                       <Link
                         to="/dashboard/captcha"
+                        title="Solve Captcha"
                         className="
                           flex items-center gap-1.5
                           rounded-lg
@@ -555,7 +574,9 @@ export default function Navbar() {
                       >
                         <KeyRound className="h-3.5 w-3.5 text-cyan-600" />
 
-                        Solve Captcha
+                        <span className="hidden xl:inline">
+                          Solve Captcha
+                        </span>
                       </Link>
 
                       {/* Dashboard */}
@@ -656,7 +677,8 @@ export default function Navbar() {
                 MOBILE ACTIONS
             ================================================== */}
 
-            <div className="flex items-center gap-2 md:hidden">
+            {/* CHANGED: md:hidden -> lg:hidden, added shrink-0 */}
+            <div className="flex shrink-0 items-center gap-2 lg:hidden">
               {user && (
                 <Link
                   to="/dashboard"
@@ -714,48 +736,25 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* ====================================================
-              MOBILE COMPANY NAME
-          ==================================================== */}
-
-          <div className="mt-2 sm:hidden">
-            <div
-              className="
-                bg-gradient-to-r
-                from-violet-600
-                via-pink-500
-                to-orange-500
-                bg-clip-text
-                text-base font-bold
-                tracking-tight
-                text-transparent
-              "
-            >
-              DIGITAL LYF PVT. LTD.
-            </div>
-
-            <div
-              className="
-                text-[9px]
-                font-semibold uppercase
-                tracking-wider
-                text-slate-500
-              "
-            >
-              Wellness & Chain Network
-            </div>
-          </div>
+          {/* CHANGED: the separate "MOBILE COMPANY NAME" row was removed.
+              The name now sits beside the logo (see Brand section above),
+              so the mobile bar is one clean row instead of two. */}
 
           {/* ====================================================
               MOBILE DROPDOWN
           ==================================================== */}
 
+          {/* CHANGED: md:hidden -> lg:hidden, and added max-h + overflow-y-auto
+              so a long menu can be scrolled on small phones (the header is
+              sticky, so without this the bottom items were unreachable). */}
           {mobileMenuOpen && (
             <div
               className="
                 relative mt-4 space-y-2
+                max-h-[calc(100dvh-8rem)]
+                overflow-y-auto overscroll-contain
                 border-t border-slate-200
-                pt-4 md:hidden
+                pt-4 lg:hidden
               "
             >
               {/* Home */}

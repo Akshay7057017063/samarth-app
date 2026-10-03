@@ -26,6 +26,8 @@ import {
   Eye,
   EyeOff,
   X,
+  GitBranch,
+  Network,
 } from "lucide-react";
 
 import api from "../../services/api";
@@ -212,7 +214,8 @@ const CustomerDetails = () => {
     setResetPasswordSuccess("");
 
     const cleanPassword = String(newPassword);
-    const cleanConfirmPassword = String(confirmPassword);
+    const cleanConfirmPassword =
+      String(confirmPassword);
 
     if (!cleanPassword) {
       setResetPasswordError(
@@ -235,7 +238,10 @@ const CustomerDetails = () => {
       return;
     }
 
-    if (cleanPassword !== cleanConfirmPassword) {
+    if (
+      cleanPassword !==
+      cleanConfirmPassword
+    ) {
       setResetPasswordError(
         "Passwords do not match."
       );
@@ -374,25 +380,18 @@ const CustomerDetails = () => {
     "active";
 
   const isActive =
-    String(status).toLowerCase() === "active";
+    String(status).toLowerCase() ===
+    "active";
 
   const userType =
     customer.userType ||
     customer.type ||
     "UNPAID";
 
-  /*
-   * Account ID must show the generated login ID.
-   *
-   * The backend generates:
-   * user_downline_1
-   * user_downline_2
-   * user_downline_3
-   * ...
-   *
-   * Prefer accountId/_id/id depending on the actual
-   * customer object.
-   */
+  // =====================================================
+  // ACCOUNT ID
+  // =====================================================
+
   const accountId =
     customer.accountId ||
     customer._id ||
@@ -433,6 +432,153 @@ const CustomerDetails = () => {
         customer?.wallet?.pendingWithdrawals ??
         0
     );
+
+  const referralCommissions =
+    Number(
+      stats?.referralCommissions ??
+        customer?.wallet?.referralCommissions ??
+        0
+    );
+
+  // =====================================================
+  // INCOME VALUES
+  // =====================================================
+
+  const binaryIncome =
+    Number(
+      stats?.binaryIncome ??
+        stats?.totalBinaryIncome ??
+        customer?.binaryIncome ??
+        customer?.matchingIncome ??
+        0
+    );
+
+  const matchingIncome =
+    Number(
+      stats?.matchingIncome ??
+        customer?.matchingIncome ??
+        binaryIncome ??
+        0
+    );
+
+  const todayMatchingIncome =
+    Number(
+      stats?.todayMatchingIncome ??
+        customer?.todayMatchingIncome ??
+        0
+    );
+
+  const franchiseReferralIncome =
+    Number(
+      stats?.franchiseReferralIncome ??
+        customer?.franchiseReferralIncome ??
+        0
+    );
+
+  const franchiseMatchingIncome =
+    Number(
+      stats?.franchiseMatchingIncome ??
+        customer?.franchiseMatchingIncome ??
+        0
+    );
+
+  const totalIncome =
+    Number(
+      stats?.totalIncome ??
+        customer?.totalIncome ??
+        0
+    );
+
+  const binaryPairCount =
+    Number(
+      stats?.binaryPairCount ??
+        stats?.completedBinaryPairs ??
+        stats?.completedPairs ??
+        0
+    );
+
+  // =====================================================
+  // BINARY TEAM VALUES
+  // =====================================================
+
+  const binaryLeftCount =
+    Number(
+      stats?.leftCount ??
+        stats?.binaryLeftCount ??
+        customer?.leftCount ??
+        0
+    );
+
+  const binaryRightCount =
+    Number(
+      stats?.rightCount ??
+        stats?.binaryRightCount ??
+        customer?.rightCount ??
+        0
+    );
+
+  const binaryTotalTeam =
+    Number(
+      stats?.totalTeam ??
+        stats?.binaryTotalTeam ??
+        stats?.teamCount ??
+        customer?.totalTeam ??
+        customer?.teamCount ??
+        binaryLeftCount +
+          binaryRightCount
+    );
+
+  const leftBusiness =
+    Number(
+      stats?.leftBusiness ??
+        customer?.leftBusiness ??
+        0
+    );
+
+  const rightBusiness =
+    Number(
+      stats?.rightBusiness ??
+        customer?.rightBusiness ??
+        0
+    );
+
+  const leftPv =
+    Number(
+      stats?.leftPv ??
+        customer?.leftPv ??
+        0
+    );
+
+  const rightPv =
+    Number(
+      stats?.rightPv ??
+        customer?.rightPv ??
+        0
+    );
+
+  const leftCarryForwardPv =
+    Number(
+      stats?.leftCarryForwardPv ??
+        customer?.leftCarryForwardPv ??
+        0
+    );
+
+  const rightCarryForwardPv =
+    Number(
+      stats?.rightCarryForwardPv ??
+        customer?.rightCarryForwardPv ??
+        0
+    );
+
+  const binaryParentId =
+    stats?.binaryParentId ??
+    customer?.binaryParentId ??
+    null;
+
+  const binaryPosition =
+    stats?.binaryPosition ??
+    customer?.binaryPosition ??
+    null;
 
   // =====================================================
   // WORK VALUES
@@ -491,7 +637,8 @@ const CustomerDetails = () => {
 
   const captchaAccuracy =
     Number(
-      captchaStats?.accuracy ?? 0
+      captchaStats?.accuracy ??
+        0
     );
 
   const todayCaptchaAttempts =
@@ -512,13 +659,6 @@ const CustomerDetails = () => {
         0
     );
 
-  /*
-   * Today's solved CAPTCHA count should be based
-   * on today's correct CAPTCHA count.
-   *
-   * This keeps admin statistics aligned with the
-   * backend definition of a successful CAPTCHA solve.
-   */
   const todayCaptchasSolved =
     Number(
       captchaStats?.todayCaptchasSolved ??
@@ -532,16 +672,14 @@ const CustomerDetails = () => {
         0
     );
 
-  /*
-   * Backend may return the recent attempts using
-   * either "recentAttempts" or "attempts".
-   */
   const recentCaptchaAttempts =
     Array.isArray(
       captchaStats?.recentAttempts
     )
       ? captchaStats.recentAttempts
-      : Array.isArray(captchaStats?.attempts)
+      : Array.isArray(
+          captchaStats?.attempts
+        )
       ? captchaStats.attempts
       : [];
 
@@ -562,6 +700,27 @@ const CustomerDetails = () => {
   };
 
   // =====================================================
+  // FORMAT NUMBER
+  // =====================================================
+
+  const formatNumber = (value) => {
+    const number =
+      Number(value || 0);
+
+    if (
+      !Number.isFinite(
+        number
+      )
+    ) {
+      return "0";
+    }
+
+    return number.toLocaleString(
+      "en-IN"
+    );
+  };
+
+  // =====================================================
   // FORMAT DATE
   // =====================================================
 
@@ -571,9 +730,14 @@ const CustomerDetails = () => {
     }
 
     try {
-      const date = new Date(value);
+      const date =
+        new Date(value);
 
-      if (Number.isNaN(date.getTime())) {
+      if (
+        Number.isNaN(
+          date.getTime()
+        )
+      ) {
         return "-";
       }
 
@@ -600,9 +764,14 @@ const CustomerDetails = () => {
     }
 
     try {
-      const date = new Date(value);
+      const date =
+        new Date(value);
 
-      if (Number.isNaN(date.getTime())) {
+      if (
+        Number.isNaN(
+          date.getTime()
+        )
+      ) {
         return "-";
       }
 
@@ -627,11 +796,13 @@ const CustomerDetails = () => {
 
   return (
     <div className="w-full min-w-0 space-y-5 sm:space-y-6">
+
       {/* =================================================
           TOP HEADER
       ================================================= */}
 
       <div className="flex flex-col gap-4">
+
         <Link
           to="/customers"
           className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-600"
@@ -641,9 +812,13 @@ const CustomerDetails = () => {
         </Link>
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
           <div className="p-5 sm:p-6 lg:p-8">
+
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+
               <div className="flex min-w-0 items-center gap-4">
+
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-xl font-black text-blue-600 sm:h-20 sm:w-20 sm:text-2xl">
                   {name
                     .charAt(0)
@@ -651,7 +826,9 @@ const CustomerDetails = () => {
                 </div>
 
                 <div className="min-w-0">
+
                   <div className="flex flex-wrap items-center gap-2">
+
                     <h1 className="truncate text-xl font-bold text-slate-900 sm:text-2xl lg:text-3xl">
                       {name}
                     </h1>
@@ -675,6 +852,7 @@ const CustomerDetails = () => {
                         ? "Active"
                         : "Inactive"}
                     </span>
+
                   </div>
 
                   <p className="mt-1 text-sm font-medium text-slate-500">
@@ -685,6 +863,7 @@ const CustomerDetails = () => {
                   </p>
 
                   <div className="mt-3 flex flex-col gap-1.5 text-xs text-slate-500 sm:flex-row sm:flex-wrap sm:gap-x-5">
+
                     <span className="inline-flex items-center gap-1.5">
                       <Mail className="h-3.5 w-3.5" />
                       {email}
@@ -694,14 +873,19 @@ const CustomerDetails = () => {
                       <Phone className="h-3.5 w-3.5" />
                       {phone}
                     </span>
+
                   </div>
+
                 </div>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:flex-col xl:flex-row">
+
                 <button
                   type="button"
-                  onClick={openResetPasswordModal}
+                  onClick={
+                    openResetPasswordModal
+                  }
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800"
                 >
                   <KeyRound className="h-4 w-4" />
@@ -719,7 +903,9 @@ const CustomerDetails = () => {
                   {String(userType).toUpperCase()}{" "}
                   CUSTOMER
                 </span>
+
               </div>
+
             </div>
           </div>
         </div>
@@ -730,29 +916,39 @@ const CustomerDetails = () => {
       ================================================= */}
 
       <div>
+
         <div className="flex items-center gap-2">
+
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50">
+
             <Activity className="h-4 w-4 text-blue-600" />
+
           </div>
 
           <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
             Customer Dashboard
           </h2>
+
         </div>
 
         <p className="mt-1 text-sm text-slate-500">
-          Overview and activity of {name}.
+          Overview, earnings, binary network and activity of{" "}
+          {name}.
         </p>
+
       </div>
 
       {/* =================================================
           MAIN STAT CARDS
       ================================================= */}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+
         <StatCard
           title="Wallet Balance"
-          value={formatCurrency(walletBalance)}
+          value={formatCurrency(
+            walletBalance
+          )}
           icon={Wallet}
           iconClass="bg-blue-50 text-blue-600"
           valueClass="text-slate-900"
@@ -760,27 +956,350 @@ const CustomerDetails = () => {
 
         <StatCard
           title="Total Earnings"
-          value={formatCurrency(totalEarnings)}
+          value={formatCurrency(
+            totalEarnings
+          )}
           icon={IndianRupee}
           iconClass="bg-emerald-50 text-emerald-600"
           valueClass="text-emerald-700"
         />
 
         <StatCard
-          title="Total Withdrawn"
-          value={formatCurrency(totalWithdrawn)}
+          title="Binary Income"
+          value={formatCurrency(
+            binaryIncome
+          )}
+          icon={GitBranch}
+          iconClass="bg-cyan-50 text-cyan-600"
+          valueClass="text-cyan-700"
+        />
+
+        <StatCard
+          title="Total Income"
+          value={formatCurrency(
+            totalIncome
+          )}
           icon={TrendingUp}
+          iconClass="bg-violet-50 text-violet-600"
+          valueClass="text-violet-700"
+        />
+
+        <StatCard
+          title="Total Withdrawn"
+          value={formatCurrency(
+            totalWithdrawn
+          )}
+          icon={ArrowDownToLineIcon}
           iconClass="bg-purple-50 text-purple-600"
           valueClass="text-purple-700"
         />
 
-        <StatCard
-          title="Pending Withdrawal"
-          value={formatCurrency(pendingWithdrawals)}
-          icon={Clock}
-          iconClass="bg-amber-50 text-amber-600"
-          valueClass="text-amber-700"
-        />
+      </div>
+
+      {/* =================================================
+          INCOME + BINARY OVERVIEW
+      ================================================= */}
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+
+        {/* Income Overview */}
+
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+          <div className="border-b border-slate-200 px-5 py-4">
+
+            <div className="flex items-center justify-between gap-4">
+
+              <div>
+
+                <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+
+                  <IndianRupee className="h-5 w-5 text-emerald-600" />
+
+                  Income Overview
+
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Complete income breakup of this customer.
+                </p>
+
+              </div>
+
+              <div className="rounded-xl bg-emerald-50 p-2.5">
+
+                <TrendingUp className="h-5 w-5 text-emerald-600" />
+
+              </div>
+
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+
+            <IncomeItem
+              label="Binary Income"
+              value={formatCurrency(
+                binaryIncome
+              )}
+              valueClass="text-cyan-700"
+            />
+
+            <IncomeItem
+              label="Matching Income"
+              value={formatCurrency(
+                matchingIncome
+              )}
+              valueClass="text-violet-700"
+            />
+
+            <IncomeItem
+              label="Today's Matching"
+              value={formatCurrency(
+                todayMatchingIncome
+              )}
+              valueClass="text-emerald-700"
+            />
+
+            <IncomeItem
+              label="Franchise Referral"
+              value={formatCurrency(
+                franchiseReferralIncome
+              )}
+              valueClass="text-pink-700"
+            />
+
+            <IncomeItem
+              label="Franchise Matching"
+              value={formatCurrency(
+                franchiseMatchingIncome
+              )}
+              valueClass="text-orange-700"
+            />
+
+            <IncomeItem
+              label="Total Income"
+              value={formatCurrency(
+                totalIncome
+              )}
+              valueClass="text-slate-900"
+            />
+
+          </div>
+        </div>
+
+        {/* Binary Overview */}
+
+        <div className="rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 shadow-sm">
+
+          <div className="border-b border-cyan-100 px-5 py-4">
+
+            <div className="flex items-center justify-between gap-4">
+
+              <div>
+
+                <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+
+                  <Network className="h-5 w-5 text-cyan-600" />
+
+                  Binary Overview
+
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Binary team placement and pair information.
+                </p>
+
+              </div>
+
+              <div className="rounded-xl bg-cyan-100 p-2.5">
+
+                <GitBranch className="h-5 w-5 text-cyan-700" />
+
+              </div>
+
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2">
+
+            <BinaryItem
+              label="Completed Pairs"
+              value={formatNumber(
+                binaryPairCount
+              )}
+            />
+
+            <BinaryItem
+              label="Income / Pair"
+              value="₹450.00"
+              valueClass="text-emerald-700"
+            />
+
+            <BinaryItem
+              label="Left Team"
+              value={formatNumber(
+                binaryLeftCount
+              )}
+              valueClass="text-violet-700"
+            />
+
+            <BinaryItem
+              label="Right Team"
+              value={formatNumber(
+                binaryRightCount
+              )}
+              valueClass="text-orange-700"
+            />
+
+            <BinaryItem
+              label="Total Binary Team"
+              value={formatNumber(
+                binaryTotalTeam
+              )}
+              valueClass="text-cyan-700"
+            />
+
+            <BinaryItem
+              label="Binary Position"
+              value={
+                binaryPosition
+                  ? String(
+                      binaryPosition
+                    ).toUpperCase()
+                  : "ROOT / NOT PLACED"
+              }
+              valueClass="text-slate-900"
+            />
+
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* =================================================
+          BINARY BUSINESS + PV
+      ================================================= */}
+
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+        <div className="border-b border-slate-200 px-5 py-4">
+
+          <div className="flex items-center gap-3">
+
+            <div className="rounded-xl bg-cyan-50 p-2.5">
+
+              <Network className="h-5 w-5 text-cyan-600" />
+
+            </div>
+
+            <div>
+
+              <h3 className="text-base font-bold text-slate-900">
+                Binary Team Details
+              </h3>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Left/right team, business and PV information.
+              </p>
+
+            </div>
+
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+
+          <InfoItem
+            label="Left Count"
+            value={formatNumber(
+              binaryLeftCount
+            )}
+            icon={GitBranch}
+          />
+
+          <InfoItem
+            label="Right Count"
+            value={formatNumber(
+              binaryRightCount
+            )}
+            icon={GitBranch}
+          />
+
+          <InfoItem
+            label="Total Binary Team"
+            value={formatNumber(
+              binaryTotalTeam
+            )}
+            icon={Network}
+          />
+
+          <InfoItem
+            label="Left Business"
+            value={formatCurrency(
+              leftBusiness
+            )}
+          />
+
+          <InfoItem
+            label="Right Business"
+            value={formatCurrency(
+              rightBusiness
+            )}
+          />
+
+          <InfoItem
+            label="Left PV"
+            value={formatNumber(
+              leftPv
+            )}
+          />
+
+          <InfoItem
+            label="Right PV"
+            value={formatNumber(
+              rightPv
+            )}
+          />
+
+          <InfoItem
+            label="Left Carry Forward PV"
+            value={formatNumber(
+              leftCarryForwardPv
+            )}
+          />
+
+          <InfoItem
+            label="Right Carry Forward PV"
+            value={formatNumber(
+              rightCarryForwardPv
+            )}
+          />
+
+          <InfoItem
+            label="Binary Parent ID"
+            value={
+              binaryParentId
+                ? String(
+                    binaryParentId
+                  )
+                : "Root / Not Placed"
+            }
+          />
+
+          <InfoItem
+            label="Binary Position"
+            value={
+              binaryPosition
+                ? String(
+                    binaryPosition
+                  ).toUpperCase()
+                : "-"
+            }
+          />
+
+        </div>
       </div>
 
       {/* =================================================
@@ -788,6 +1307,7 @@ const CustomerDetails = () => {
       ================================================= */}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+
         <StatCard
           title="Total Work"
           value={totalWork}
@@ -811,6 +1331,7 @@ const CustomerDetails = () => {
           iconClass="bg-amber-50 text-amber-600"
           valueClass="text-amber-700"
         />
+
       </div>
 
       {/* =================================================
@@ -818,27 +1339,40 @@ const CustomerDetails = () => {
       ================================================= */}
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
         <div className="border-b border-slate-200 px-5 py-4">
+
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
             <div>
+
               <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+
                 <Target className="h-5 w-5 text-blue-600" />
+
                 Captcha Statistics
+
               </h3>
 
               <p className="mt-1 text-xs text-slate-500">
                 Captcha work and performance of this customer.
               </p>
+
             </div>
 
             <div className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+
               <Activity className="h-3.5 w-3.5" />
+
               Customer Specific
+
             </div>
+
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+
           <StatCard
             title="Total Attempts"
             value={totalCaptchaAttempts}
@@ -865,15 +1399,20 @@ const CustomerDetails = () => {
 
           <StatCard
             title="Accuracy"
-            value={`${captchaAccuracy.toFixed(2)}%`}
+            value={`${captchaAccuracy.toFixed(
+              2
+            )}%`}
             icon={Target}
             iconClass="bg-purple-50 text-purple-600"
             valueClass="text-purple-700"
           />
+
         </div>
 
         <div className="border-t border-slate-200">
+
           <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-5">
+
             <CaptchaSummaryItem
               label="Today Attempts"
               value={todayCaptchaAttempts}
@@ -899,10 +1438,14 @@ const CustomerDetails = () => {
 
             <CaptchaSummaryItem
               label="Captcha Earnings"
-              value={formatCurrency(captchaEarnings)}
+              value={formatCurrency(
+                captchaEarnings
+              )}
               valueClass="text-emerald-600"
             />
+
           </div>
+
         </div>
       </div>
 
@@ -911,19 +1454,26 @@ const CustomerDetails = () => {
       ================================================= */}
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
         <div className="border-b border-slate-200 px-5 py-4">
+
           <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+
             <ListChecks className="h-5 w-5 text-cyan-600" />
+
             Recent Captcha Attempts
+
           </h3>
 
           <p className="mt-1 text-xs text-slate-500">
             Latest captcha activity of {name}.
           </p>
+
         </div>
 
         {recentCaptchaAttempts.length === 0 ? (
           <div className="p-8 text-center">
+
             <Target className="mx-auto h-10 w-10 text-slate-300" />
 
             <p className="mt-3 text-sm font-semibold text-slate-600">
@@ -933,12 +1483,17 @@ const CustomerDetails = () => {
             <p className="mt-1 text-xs text-slate-400">
               This customer has not submitted any captcha yet.
             </p>
+
           </div>
         ) : (
           <div className="overflow-x-auto">
+
             <table className="min-w-full text-left">
+
               <thead>
+
                 <tr className="border-b border-slate-200 bg-slate-50">
+
                   <th className="whitespace-nowrap px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-400">
                     #
                   </th>
@@ -954,25 +1509,29 @@ const CustomerDetails = () => {
                   <th className="whitespace-nowrap px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-400">
                     Date & Time
                   </th>
+
                 </tr>
+
               </thead>
 
               <tbody className="divide-y divide-slate-100">
+
                 {recentCaptchaAttempts.map(
-                  (attempt, index) => {
-                    const result = String(
-                      attempt?.result ||
-                        attempt?.status ||
-                        ""
-                    ).toLowerCase();
+                  (
+                    attempt,
+                    index
+                  ) => {
+
+                    const result =
+                      String(
+                        attempt?.result ||
+                          attempt?.status ||
+                          ""
+                      ).toLowerCase();
 
                     const isCorrect =
                       result === "correct";
 
-                    /*
-                     * Backend uses "reward".
-                     * Support older "rewardEarned" too.
-                     */
                     const reward =
                       Number(
                         attempt?.reward ??
@@ -988,11 +1547,13 @@ const CustomerDetails = () => {
                         }
                         className="transition hover:bg-slate-50"
                       >
+
                         <td className="whitespace-nowrap px-5 py-3.5 text-sm font-semibold text-slate-700">
                           {index + 1}
                         </td>
 
                         <td className="whitespace-nowrap px-5 py-3.5">
+
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
                               isCorrect
@@ -1000,6 +1561,7 @@ const CustomerDetails = () => {
                                 : "bg-red-100 text-red-700"
                             }`}
                           >
+
                             {isCorrect ? (
                               <CheckCircle2 className="h-3.5 w-3.5" />
                             ) : (
@@ -1009,11 +1571,15 @@ const CustomerDetails = () => {
                             {isCorrect
                               ? "Correct"
                               : "Wrong"}
+
                           </span>
+
                         </td>
 
                         <td className="whitespace-nowrap px-5 py-3.5 text-sm font-semibold text-slate-700">
-                          {formatCurrency(reward)}
+                          {formatCurrency(
+                            reward
+                          )}
                         </td>
 
                         <td className="whitespace-nowrap px-5 py-3.5 text-sm text-slate-500">
@@ -1022,14 +1588,17 @@ const CustomerDetails = () => {
                               attempt?.timestamp
                           )}
                         </td>
+
                       </tr>
                     );
                   }
                 )}
+
               </tbody>
             </table>
           </div>
         )}
+
       </div>
 
       {/* =================================================
@@ -1037,17 +1606,25 @@ const CustomerDetails = () => {
       ================================================= */}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
         {/* Personal Information */}
 
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
           <div className="border-b border-slate-200 px-5 py-4">
+
             <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+
               <User className="h-5 w-5 text-blue-600" />
+
               Personal Information
+
             </h3>
+
           </div>
 
           <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+
             <InfoItem
               label="Full Name"
               value={name}
@@ -1083,20 +1660,28 @@ const CustomerDetails = () => {
                   : "Inactive"
               }
             />
+
           </div>
         </div>
 
         {/* Account Information */}
 
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
           <div className="border-b border-slate-200 px-5 py-4">
+
             <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+
               <ShieldCheck className="h-5 w-5 text-emerald-600" />
+
               Account Information
+
             </h3>
+
           </div>
 
           <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+
             <InfoItem
               label="Joined Date"
               value={formatDate(
@@ -1131,8 +1716,10 @@ const CustomerDetails = () => {
               value={accountId}
               icon={CreditCard}
             />
+
           </div>
         </div>
+
       </div>
 
       {/* =================================================
@@ -1140,62 +1727,146 @@ const CustomerDetails = () => {
       ================================================= */}
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
         <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+
           <div>
+
             <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+
               <Wallet className="h-5 w-5 text-blue-600" />
+
               Wallet Summary
+
             </h3>
 
             <p className="mt-1 text-xs text-slate-500">
-              Financial summary for this customer.
+              Financial and wallet details for this customer.
             </p>
+
           </div>
+
         </div>
 
-        <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
+        <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-3 xl:grid-cols-6">
+
           <WalletItem
             label="Current Balance"
-            value={formatCurrency(walletBalance)}
+            value={formatCurrency(
+              walletBalance
+            )}
           />
 
           <WalletItem
             label="Total Earnings"
-            value={formatCurrency(totalEarnings)}
+            value={formatCurrency(
+              totalEarnings
+            )}
+          />
+
+          <WalletItem
+            label="Binary Income"
+            value={formatCurrency(
+              binaryIncome
+            )}
+            valueClass="text-cyan-700"
+          />
+
+          <WalletItem
+            label="Referral Commissions"
+            value={formatCurrency(
+              referralCommissions
+            )}
+            valueClass="text-pink-700"
           />
 
           <WalletItem
             label="Total Withdrawn"
-            value={formatCurrency(totalWithdrawn)}
+            value={formatCurrency(
+              totalWithdrawn
+            )}
           />
 
           <WalletItem
             label="Pending Withdrawal"
-            value={formatCurrency(pendingWithdrawals)}
+            value={formatCurrency(
+              pendingWithdrawals
+            )}
+            valueClass="text-amber-700"
           />
+
         </div>
+
+        <div className="border-t border-slate-200 p-5">
+
+          <div className="rounded-xl border border-cyan-100 bg-cyan-50 p-4">
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+              <div>
+
+                <div className="flex items-center gap-2">
+
+                  <GitBranch className="h-4 w-4 text-cyan-700" />
+
+                  <span className="text-xs font-bold uppercase tracking-wide text-cyan-700">
+                    Binary Income Rule
+                  </span>
+
+                </div>
+
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  A completed left + right binary pair generates ₹450.
+                </p>
+
+              </div>
+
+              <div className="rounded-lg bg-white px-4 py-2 text-sm font-black text-cyan-700 shadow-sm">
+                {formatCurrency(
+                  binaryIncome
+                )}
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
 
       {/* =================================================
-          ACTIVITY
+          CUSTOMER ACTIVITY
       ================================================= */}
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
         <div className="border-b border-slate-200 px-5 py-4">
+
           <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+
             <Activity className="h-5 w-5 text-cyan-600" />
+
             Customer Activity
+
           </h3>
+
         </div>
 
         <div className="p-5">
+
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+
             <div className="flex items-start gap-3">
+
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100">
+
                 <CheckCircle2 className="h-5 w-5 text-blue-600" />
+
               </div>
 
               <div>
+
                 <p className="text-sm font-semibold text-slate-800">
                   Customer account is{" "}
                   {isActive
@@ -1204,13 +1875,17 @@ const CustomerDetails = () => {
                 </p>
 
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Customer activity and captcha
-                  work statistics are displayed
-                  above.
+                  Customer activity, income,
+                  binary team and captcha
+                  statistics are displayed above.
                 </p>
+
               </div>
+
             </div>
+
           </div>
+
         </div>
       </div>
 
@@ -1220,19 +1895,27 @@ const CustomerDetails = () => {
 
       {showResetPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+
             {/* Modal Header */}
 
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+
               <div>
+
                 <div className="flex items-center gap-2">
+
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
+
                     <KeyRound className="h-4 w-4 text-blue-600" />
+
                   </div>
 
                   <h3 className="text-base font-bold text-slate-900">
                     Reset Customer Password
                   </h3>
+
                 </div>
 
                 <p className="mt-2 text-xs text-slate-500">
@@ -1241,26 +1924,36 @@ const CustomerDetails = () => {
                     {name}
                   </span>
                 </p>
+
               </div>
 
               <button
                 type="button"
-                onClick={closeResetPasswordModal}
-                disabled={resetPasswordLoading}
+                onClick={
+                  closeResetPasswordModal
+                }
+                disabled={
+                  resetPasswordLoading
+                }
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 title="Close"
               >
                 <X className="h-5 w-5" />
               </button>
+
             </div>
 
             {/* Modal Body */}
 
             <form
-              onSubmit={handleResetPassword}
+              onSubmit={
+                handleResetPassword
+              }
               className="space-y-5 p-5"
             >
+
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   Account ID
                 </p>
@@ -1268,11 +1961,13 @@ const CustomerDetails = () => {
                 <p className="mt-1.5 break-all text-sm font-bold text-slate-800">
                   {accountId}
                 </p>
+
               </div>
 
               {/* New Password */}
 
               <div>
+
                 <label
                   htmlFor="newPassword"
                   className="mb-1.5 block text-sm font-semibold text-slate-700"
@@ -1281,6 +1976,7 @@ const CustomerDetails = () => {
                 </label>
 
                 <div className="relative">
+
                   <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
                   <input
@@ -1290,15 +1986,21 @@ const CustomerDetails = () => {
                         ? "text"
                         : "password"
                     }
-                    value={newPassword}
-                    onChange={(event) =>
+                    value={
+                      newPassword
+                    }
+                    onChange={(
+                      event
+                    ) =>
                       setNewPassword(
                         event.target.value
                       )
                     }
                     placeholder="Enter new password"
                     autoComplete="new-password"
-                    disabled={resetPasswordLoading}
+                    disabled={
+                      resetPasswordLoading
+                    }
                     minLength={6}
                     className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50"
                   />
@@ -1307,10 +2009,13 @@ const CustomerDetails = () => {
                     type="button"
                     onClick={() =>
                       setShowNewPassword(
-                        (value) => !value
+                        (value) =>
+                          !value
                       )
                     }
-                    disabled={resetPasswordLoading}
+                    disabled={
+                      resetPasswordLoading
+                    }
                     className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                     title={
                       showNewPassword
@@ -1324,16 +2029,19 @@ const CustomerDetails = () => {
                       <Eye className="h-4 w-4" />
                     )}
                   </button>
+
                 </div>
 
                 <p className="mt-1.5 text-[11px] text-slate-400">
                   Minimum 6 characters.
                 </p>
+
               </div>
 
               {/* Confirm Password */}
 
               <div>
+
                 <label
                   htmlFor="confirmPassword"
                   className="mb-1.5 block text-sm font-semibold text-slate-700"
@@ -1342,6 +2050,7 @@ const CustomerDetails = () => {
                 </label>
 
                 <div className="relative">
+
                   <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
                   <input
@@ -1351,15 +2060,21 @@ const CustomerDetails = () => {
                         ? "text"
                         : "password"
                     }
-                    value={confirmPassword}
-                    onChange={(event) =>
+                    value={
+                      confirmPassword
+                    }
+                    onChange={(
+                      event
+                    ) =>
                       setConfirmPassword(
                         event.target.value
                       )
                     }
                     placeholder="Re-enter password"
                     autoComplete="new-password"
-                    disabled={resetPasswordLoading}
+                    disabled={
+                      resetPasswordLoading
+                    }
                     minLength={6}
                     className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50"
                   />
@@ -1368,10 +2083,13 @@ const CustomerDetails = () => {
                     type="button"
                     onClick={() =>
                       setShowConfirmPassword(
-                        (value) => !value
+                        (value) =>
+                          !value
                       )
                     }
-                    disabled={resetPasswordLoading}
+                    disabled={
+                      resetPasswordLoading
+                    }
                     className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                     title={
                       showConfirmPassword
@@ -1385,20 +2103,26 @@ const CustomerDetails = () => {
                       <Eye className="h-4 w-4" />
                     )}
                   </button>
+
                 </div>
+
               </div>
 
               {/* Error */}
 
               {resetPasswordError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3">
+
                   <div className="flex items-start gap-2">
+
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
 
                     <p className="text-xs font-medium leading-5 text-red-700">
                       {resetPasswordError}
                     </p>
+
                   </div>
+
                 </div>
               )}
 
@@ -1406,33 +2130,44 @@ const CustomerDetails = () => {
 
               {resetPasswordSuccess && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
+
                   <div className="flex items-start gap-2">
+
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
 
                     <p className="text-xs font-medium leading-5 text-emerald-700">
                       {resetPasswordSuccess}
                     </p>
+
                   </div>
+
                 </div>
               )}
 
               {/* Security Note */}
 
               <div className="rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-3">
+
                 <p className="text-xs leading-5 text-blue-700">
                   The new password will be securely
                   hashed before it is stored in the
                   backend database.
                 </p>
+
               </div>
 
               {/* Buttons */}
 
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+
                 <button
                   type="button"
-                  onClick={closeResetPasswordModal}
-                  disabled={resetPasswordLoading}
+                  onClick={
+                    closeResetPasswordModal
+                  }
+                  disabled={
+                    resetPasswordLoading
+                  }
                   className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
@@ -1440,7 +2175,9 @@ const CustomerDetails = () => {
 
                 <button
                   type="submit"
-                  disabled={resetPasswordLoading}
+                  disabled={
+                    resetPasswordLoading
+                  }
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {resetPasswordLoading ? (
@@ -1455,12 +2192,39 @@ const CustomerDetails = () => {
                     </>
                   )}
                 </button>
+
               </div>
+
             </form>
           </div>
         </div>
       )}
     </div>
+  );
+};
+
+// =====================================================
+// ARROW DOWN ICON HELPER
+// =====================================================
+
+const ArrowDownToLineIcon = ({
+  className = "",
+}) => {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </svg>
   );
 };
 
@@ -1477,8 +2241,11 @@ const StatCard = ({
 }) => {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+
       <div className="flex items-start justify-between gap-3">
+
         <div className="min-w-0">
+
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             {title}
           </p>
@@ -1488,6 +2255,7 @@ const StatCard = ({
           >
             {value}
           </p>
+
         </div>
 
         <div
@@ -1495,7 +2263,60 @@ const StatCard = ({
         >
           <Icon className="h-5 w-5" />
         </div>
+
       </div>
+    </div>
+  );
+};
+
+// =====================================================
+// INCOME ITEM
+// =====================================================
+
+const IncomeItem = ({
+  label,
+  value,
+  valueClass = "text-slate-900",
+}) => {
+  return (
+    <div className="p-5">
+
+      <p className="text-xs font-medium text-slate-400">
+        {label}
+      </p>
+
+      <p
+        className={`mt-2 text-xl font-black ${valueClass}`}
+      >
+        {value}
+      </p>
+
+    </div>
+  );
+};
+
+// =====================================================
+// BINARY ITEM
+// =====================================================
+
+const BinaryItem = ({
+  label,
+  value,
+  valueClass = "text-slate-900",
+}) => {
+  return (
+    <div className="rounded-xl border border-cyan-100 bg-white p-4 shadow-sm">
+
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+
+      <p
+        className={`mt-2 text-lg font-black ${valueClass}`}
+      >
+        {value}
+      </p>
+
     </div>
   );
 };
@@ -1511,6 +2332,7 @@ const CaptchaSummaryItem = ({
 }) => {
   return (
     <div className="p-5">
+
       <p className="text-xs font-medium text-slate-400">
         {label}
       </p>
@@ -1520,6 +2342,7 @@ const CaptchaSummaryItem = ({
       >
         {value}
       </p>
+
     </div>
   );
 };
@@ -1535,7 +2358,9 @@ const InfoItem = ({
 }) => {
   return (
     <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-3.5">
+
       <div className="flex items-center gap-2">
+
         {Icon && (
           <Icon className="h-4 w-4 shrink-0 text-slate-400" />
         )}
@@ -1543,11 +2368,13 @@ const InfoItem = ({
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           {label}
         </p>
+
       </div>
 
       <p className="mt-1.5 break-words text-sm font-semibold text-slate-800">
         {value || "-"}
       </p>
+
     </div>
   );
 };
@@ -1559,16 +2386,21 @@ const InfoItem = ({
 const WalletItem = ({
   label,
   value,
+  valueClass = "text-slate-900",
 }) => {
   return (
     <div className="p-5">
+
       <p className="text-xs font-medium text-slate-400">
         {label}
       </p>
 
-      <p className="mt-2 text-xl font-bold text-slate-900">
+      <p
+        className={`mt-2 text-xl font-bold ${valueClass}`}
+      >
         {value}
       </p>
+
     </div>
   );
 };

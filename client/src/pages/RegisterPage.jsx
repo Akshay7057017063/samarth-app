@@ -65,16 +65,24 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validate all required fields
     if (
       !formData.name.trim() ||
       !formData.email.trim() ||
       !formData.phone.trim() ||
-      !formData.password
+      !formData.password.trim()
     ) {
       setError("Please fill in all required fields.");
       return;
     }
 
+    // Referral / Sponsor Code is mandatory
+    if (!formData.sponsorCode.trim()) {
+      setError("Sponsor / Referral Code is required to register.");
+      return;
+    }
+
+    // Terms validation
     if (!termsAccepted) {
       setError(
         "Please read and accept the Terms & Conditions before registering."
@@ -86,7 +94,10 @@ export default function RegisterPage() {
     setError("");
 
     try {
-      const res = await register(formData);
+      const res = await register({
+        ...formData,
+        sponsorCode: formData.sponsorCode.trim().toUpperCase(),
+      });
 
       if (res?.success) {
         navigate("/dashboard");
@@ -351,12 +362,15 @@ export default function RegisterPage() {
                   </div>
                 )}
 
-                {/* Sponsor */}
+                {/* ====================================================
+                    Sponsor / Referral Code - REQUIRED
+                ==================================================== */}
                 <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-3.5">
 
                   <label className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-violet-600">
                     <Network className="h-3.5 w-3.5" />
                     Sponsor / Referral Code
+                    <span className="text-red-500">*</span>
                   </label>
 
                   <input
@@ -365,13 +379,15 @@ export default function RegisterPage() {
                     onChange={(e) =>
                       handleChange("sponsorCode", e.target.value)
                     }
-                    placeholder="e.g. SAM1001 (Optional)"
+                    placeholder="e.g. SAM1001"
+                    required
+                    aria-required="true"
                     className="w-full rounded-xl border border-violet-100 bg-white px-3 py-2.5 font-mono text-xs uppercase text-slate-800 placeholder:text-slate-400 outline-none transition-all focus:border-violet-400 focus:ring-2 focus:ring-violet-500/10"
                   />
 
-                  <p className="mt-1.5 text-[10px] leading-4 text-slate-400">
-                    If empty, you will be placed directly under the root
-                    network admin.
+                  <p className="mt-1.5 text-[10px] leading-4 text-violet-500">
+                    A valid sponsor / referral code is required to create
+                    your account.
                   </p>
                 </div>
 

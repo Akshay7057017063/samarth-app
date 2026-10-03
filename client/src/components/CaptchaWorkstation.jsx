@@ -25,12 +25,8 @@ import confetti from "canvas-confetti";
 // CONFIG
 // ============================================================
 
-const CAPTCHA_TIMEOUT_SECONDS = 10;
-
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/+$/, "");
-
-console.log("🌐 Captcha API Base URL:", API_BASE_URL);
 
 // ============================================================
 // COMPONENT
@@ -69,7 +65,6 @@ export default function CaptchaWorkstation() {
   const [dailyLimit, setDailyLimit] = useState(50);
   const [rewardRate, setRewardRate] = useState(0.5);
   const [cooldown, setCooldown] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(CAPTCHA_TIMEOUT_SECONDS);
 
   const [inputFocused, setInputFocused] = useState(false);
 
@@ -94,12 +89,9 @@ export default function CaptchaWorkstation() {
 
       const wrapperRect = wrapper.getBoundingClientRect();
 
-      // Normal browser viewport fallback
       let visibleTop = 8;
       let visibleHeight = window.innerHeight;
 
-      // When keyboard is open, visualViewport gives the
-      // actually visible viewport area.
       if (visualViewport) {
         visibleTop = Math.max(
           8,
@@ -115,22 +107,14 @@ export default function CaptchaWorkstation() {
       const wrapperTop =
         currentScrollY + wrapperRect.top;
 
-      const wrapperBottom =
-        currentScrollY + wrapperRect.bottom;
-
       const wrapperHeight = wrapperRect.height;
 
-      // We want CAPTCHA + INPUT to remain visible together.
-      // First preference: keep the complete block inside
-      // the visible viewport.
       if (
         wrapperRect.top < visibleTop ||
         wrapperRect.bottom > visibleBottom
       ) {
-        let targetTop =
-          wrapperTop - visibleTop;
+        let targetTop = wrapperTop - visibleTop;
 
-        // Center the task block when possible.
         if (wrapperHeight < visibleHeight - 20) {
           targetTop =
             wrapperTop -
@@ -141,12 +125,11 @@ export default function CaptchaWorkstation() {
             );
         }
 
-        const maxScroll =
-          Math.max(
-            0,
-            document.documentElement.scrollHeight -
-              window.innerHeight
-          );
+        const maxScroll = Math.max(
+          0,
+          document.documentElement.scrollHeight -
+            window.innerHeight
+        );
 
         targetTop = Math.max(
           0,
@@ -159,9 +142,7 @@ export default function CaptchaWorkstation() {
         });
       }
 
-      // Extra safety:
-      // if input is still hidden behind keyboard,
-      // bring input into visible bottom area.
+      // Extra safety: if input is still hidden behind keyboard
       requestAnimationFrame(() => {
         const input = inputRef.current;
 
@@ -169,21 +150,17 @@ export default function CaptchaWorkstation() {
           return;
         }
 
-        const inputRect =
-          input.getBoundingClientRect();
+        const inputRect = input.getBoundingClientRect();
 
-        const latestViewport =
-          window.visualViewport;
+        const latestViewport = window.visualViewport;
 
-        const latestTop =
-          latestViewport
-            ? latestViewport.offsetTop + 8
-            : 8;
+        const latestTop = latestViewport
+          ? latestViewport.offsetTop + 8
+          : 8;
 
-        const latestHeight =
-          latestViewport
-            ? latestViewport.height
-            : window.innerHeight;
+        const latestHeight = latestViewport
+          ? latestViewport.height
+          : window.innerHeight;
 
         const latestBottom =
           latestTop + latestHeight - 12;
@@ -200,18 +177,14 @@ export default function CaptchaWorkstation() {
             latestTop -
             Math.max(
               20,
-              Math.min(
-                100,
-                latestHeight * 0.12
-              )
+              Math.min(100, latestHeight * 0.12)
             );
 
-          const maxScroll =
-            Math.max(
-              0,
-              document.documentElement.scrollHeight -
-                window.innerHeight
-            );
+          const maxScroll = Math.max(
+            0,
+            document.documentElement.scrollHeight -
+              window.innerHeight
+          );
 
           window.scrollTo({
             top: Math.max(
@@ -241,24 +214,19 @@ export default function CaptchaWorkstation() {
       }
 
       if (scrollFrameRef.current) {
-        cancelAnimationFrame(
-          scrollFrameRef.current
-        );
+        cancelAnimationFrame(scrollFrameRef.current);
       }
 
-      scrollFrameRef.current =
-        requestAnimationFrame(() => {
+      scrollFrameRef.current = requestAnimationFrame(
+        () => {
           scrollCaptchaAndInputIntoView("auto");
-        });
-    }, [
-      inputFocused,
-      scrollCaptchaAndInputIntoView,
-    ]);
+        }
+      );
+    }, [inputFocused, scrollCaptchaAndInputIntoView]);
 
   const handleInputFocus = () => {
     setInputFocused(true);
 
-    // Let mobile browser begin keyboard animation first.
     setTimeout(() => {
       scrollCaptchaAndInputIntoView("auto");
     }, 80);
@@ -289,8 +257,7 @@ export default function CaptchaWorkstation() {
       return;
     }
 
-    const viewport =
-      window.visualViewport;
+    const viewport = window.visualViewport;
 
     if (!viewport) {
       return;
@@ -332,9 +299,7 @@ export default function CaptchaWorkstation() {
       );
 
       if (scrollFrameRef.current) {
-        cancelAnimationFrame(
-          scrollFrameRef.current
-        );
+        cancelAnimationFrame(scrollFrameRef.current);
       }
     };
   }, [scheduleMobileViewportAdjustment]);
@@ -354,7 +319,6 @@ export default function CaptchaWorkstation() {
       setCaptchaSvg("");
       setCaptchaToken("");
       setUserInput("");
-      setTimeLeft(0);
 
       const res = await fetch(
         `${API_BASE_URL}/captcha/new`,
@@ -378,35 +342,23 @@ export default function CaptchaWorkstation() {
 
       if (!res.ok || !data.success) {
         throw new Error(
-          data.message ||
-            "Failed to load CAPTCHA."
+          data.message || "Failed to load CAPTCHA."
         );
       }
 
       setCaptchaSvg(data.svg || "");
       setCaptchaToken(data.token || "");
 
-      setTimeLeft(
-        Number(
-          data.expiresInSeconds ||
-            CAPTCHA_TIMEOUT_SECONDS
-        )
-      );
-
       setMessage({
         text: "",
         type: "",
       });
     } catch (error) {
-      console.error(
-        "LOAD CAPTCHA ERROR:",
-        error
-      );
+      console.error("LOAD CAPTCHA ERROR:", error);
 
       setCaptchaSvg("");
       setCaptchaToken("");
       setUserInput("");
-      setTimeLeft(0);
 
       setMessage({
         text:
@@ -423,70 +375,58 @@ export default function CaptchaWorkstation() {
   // LOAD WALLET / PROGRESS
   // ==========================================================
 
-  const loadCaptchaProgress = useCallback(
-    async () => {
-      if (!token) {
+  const loadCaptchaProgress = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/wallet/summary`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const contentType =
+        res.headers.get("content-type") || "";
+
+      const data = contentType.includes(
+        "application/json"
+      )
+        ? await res.json()
+        : {};
+
+      if (!res.ok || !data.success) {
         return;
       }
 
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/wallet/summary`,
-          {
-            method: "GET",
-            headers: {
-              Accept: "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        const contentType =
-          res.headers.get("content-type") || "";
-
-        const data = contentType.includes(
-          "application/json"
-        )
-          ? await res.json()
-          : {};
-
-        if (!res.ok || !data.success) {
-          return;
-        }
-
-        if (data.wallet) {
-          setTodaySolved(
-            Number(
-              data.wallet
-                .todayCaptchasSolved || 0
-            )
-          );
-        }
-
-        if (data.settings) {
-          setRewardRate(
-            Number(
-              data.settings.captchaReward ??
-                0.5
-            )
-          );
-
-          setDailyLimit(
-            Number(
-              data.settings
-                .dailyCaptchaLimit ?? 50
-            )
-          );
-        }
-      } catch (error) {
-        console.error(
-          "LOAD CAPTCHA PROGRESS ERROR:",
-          error
+      if (data.wallet) {
+        setTodaySolved(
+          Number(data.wallet.todayCaptchasSolved || 0)
         );
       }
-    },
-    [token]
-  );
+
+      if (data.settings) {
+        setRewardRate(
+          Number(data.settings.captchaReward ?? 0.5)
+        );
+
+        setDailyLimit(
+          Number(data.settings.dailyCaptchaLimit ?? 50)
+        );
+      }
+    } catch (error) {
+      console.error(
+        "LOAD CAPTCHA PROGRESS ERROR:",
+        error
+      );
+    }
+  }, [token]);
 
   // ==========================================================
   // INITIAL LOAD
@@ -499,14 +439,10 @@ export default function CaptchaWorkstation() {
 
     loadNewCaptcha();
     loadCaptchaProgress();
-  }, [
-    token,
-    loadNewCaptcha,
-    loadCaptchaProgress,
-  ]);
+  }, [token, loadNewCaptcha, loadCaptchaProgress]);
 
   // ==========================================================
-  // COOLDOWN TIMER
+  // COOLDOWN TIMER (delay between submissions)
   // ==========================================================
 
   useEffect(() => {
@@ -524,70 +460,17 @@ export default function CaptchaWorkstation() {
   }, [cooldown]);
 
   // ==========================================================
-  // CAPTCHA TIMER
-  // ==========================================================
-
-  useEffect(() => {
-    if (!captchaToken) {
-      return;
-    }
-
-    if (captchaLoading) {
-      return;
-    }
-
-    if (loading) {
-      return;
-    }
-
-    if (todaySolved >= dailyLimit) {
-      return;
-    }
-
-    if (timeLeft <= 0) {
-      setUserInput("");
-
-      setMessage({
-        text:
-          "This CAPTCHA expired after 10 seconds. Loading a new CAPTCHA...",
-        type: "error",
-      });
-
-      loadNewCaptcha();
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setTimeLeft((previous) =>
-        Math.max(0, previous - 1)
-      );
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [
-    captchaToken,
-    timeLeft,
-    captchaLoading,
-    loading,
-    todaySolved,
-    dailyLimit,
-    loadNewCaptcha,
-  ]);
-
-  // ==========================================================
   // SUBMIT CAPTCHA
   // ==========================================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const trimmedInput =
-      userInput.trim();
+    const trimmedInput = userInput.trim();
 
     if (!trimmedInput) {
       setMessage({
-        text:
-          "Please enter the characters shown in the image.",
+        text: "Please enter the characters shown in the image.",
         type: "error",
       });
 
@@ -597,24 +480,10 @@ export default function CaptchaWorkstation() {
 
     if (!captchaToken) {
       setMessage({
-        text:
-          "CAPTCHA is not ready. Please refresh and try again.",
+        text: "CAPTCHA is not ready. Please refresh and try again.",
         type: "error",
       });
 
-      return;
-    }
-
-    if (timeLeft <= 0) {
-      setMessage({
-        text:
-          "This CAPTCHA has expired. Loading a new CAPTCHA...",
-        type: "error",
-      });
-
-      setUserInput("");
-
-      await loadNewCaptcha();
       return;
     }
 
@@ -629,8 +498,7 @@ export default function CaptchaWorkstation() {
 
     if (todaySolved >= dailyLimit) {
       setMessage({
-        text:
-          "Your daily CAPTCHA limit has been reached.",
+        text: "Your daily CAPTCHA limit has been reached.",
         type: "error",
       });
 
@@ -650,8 +518,7 @@ export default function CaptchaWorkstation() {
         {
           method: "POST",
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
             Accept: "application/json",
             Authorization: `Bearer ${token}`,
           },
@@ -683,8 +550,7 @@ export default function CaptchaWorkstation() {
         });
 
         const solved = Number(
-          data.todayCaptchasSolved ??
-            todaySolved + 1
+          data.todayCaptchasSolved ?? todaySolved + 1
         );
 
         const reward = Number(
@@ -693,28 +559,17 @@ export default function CaptchaWorkstation() {
 
         setTodaySolved(solved);
 
-        if (
-          data.dailyCaptchaLimit !==
-          undefined
-        ) {
-          setDailyLimit(
-            Number(data.dailyCaptchaLimit)
-          );
+        if (data.dailyCaptchaLimit !== undefined) {
+          setDailyLimit(Number(data.dailyCaptchaLimit));
         }
 
-        if (
-          data.currentBalance !==
-          undefined
-        ) {
+        if (data.currentBalance !== undefined) {
           updateWalletLocally(
             Number(data.currentBalance),
             solved
           );
         } else {
-          updateWalletLocally(
-            undefined,
-            solved
-          );
+          updateWalletLocally(undefined, solved);
         }
 
         setMessage({
@@ -727,7 +582,6 @@ export default function CaptchaWorkstation() {
         });
 
         setUserInput("");
-        setTimeLeft(0);
         setCooldown(3);
 
         await loadNewCaptcha();
@@ -738,15 +592,9 @@ export default function CaptchaWorkstation() {
       // DAILY LIMIT
       // ======================================================
 
-      if (
-        res.status === 429 ||
-        data.result === "limit"
-      ) {
+      if (res.status === 429 || data.result === "limit") {
         setTodaySolved(
-          Number(
-            data.todayCaptchasSolved ??
-              dailyLimit
-          )
+          Number(data.todayCaptchasSolved ?? dailyLimit)
         );
 
         setMessage({
@@ -759,7 +607,6 @@ export default function CaptchaWorkstation() {
         setUserInput("");
         setCaptchaSvg("");
         setCaptchaToken("");
-        setTimeLeft(0);
 
         return;
       }
@@ -773,12 +620,11 @@ export default function CaptchaWorkstation() {
           text:
             data.message ||
             data.reason ||
-            "This CAPTCHA is invalid or expired. Please try a new one.",
+            "This CAPTCHA is invalid. Please try a new one.",
           type: "error",
         });
 
         setUserInput("");
-        setTimeLeft(0);
 
         await loadNewCaptcha();
         return;
@@ -800,7 +646,6 @@ export default function CaptchaWorkstation() {
         });
 
         setUserInput("");
-        setTimeLeft(0);
 
         await loadNewCaptcha();
         return;
@@ -819,18 +664,13 @@ export default function CaptchaWorkstation() {
       });
 
       setUserInput("");
-      setTimeLeft(0);
 
       await loadNewCaptcha();
     } catch (error) {
-      console.error(
-        "CAPTCHA SUBMIT ERROR:",
-        error
-      );
+      console.error("CAPTCHA SUBMIT ERROR:", error);
 
       setMessage({
-        text:
-          "Network error. Please check the server connection and try again.",
+        text: "Network error. Please check the server connection and try again.",
         type: "error",
       });
     } finally {
@@ -854,12 +694,9 @@ export default function CaptchaWorkstation() {
 
     await loadNewCaptcha();
 
-    // Keep task area visible on mobile after refresh.
     setTimeout(() => {
       if (inputFocused) {
-        scrollCaptchaAndInputIntoView(
-          "auto"
-        );
+        scrollCaptchaAndInputIntoView("auto");
       }
     }, 100);
   };
@@ -873,27 +710,10 @@ export default function CaptchaWorkstation() {
 
   const progressPercent = Math.min(
     100,
-    Math.round(
-      (todaySolved / safeDailyLimit) *
-        100
-    )
+    Math.round((todaySolved / safeDailyLimit) * 100)
   );
 
-  const limitReached =
-    todaySolved >= safeDailyLimit;
-
-  const countdownPercent = Math.max(
-    0,
-    Math.min(
-      100,
-      (timeLeft /
-        CAPTCHA_TIMEOUT_SECONDS) *
-        100
-    )
-  );
-
-  const isExpiringSoon =
-    timeLeft <= 3 && timeLeft > 0;
+  const limitReached = todaySolved >= safeDailyLimit;
 
   // ==========================================================
   // RENDER
@@ -908,9 +728,7 @@ export default function CaptchaWorkstation() {
         backdrop-blur-xl sm:p-8
       "
     >
-      {/* ====================================================
-          AMBIENT BACKGROUND
-      ==================================================== */}
+      {/* AMBIENT BACKGROUND */}
 
       <div className="pointer-events-none absolute -left-20 -top-20 h-56 w-56 rounded-full bg-violet-400/10 blur-3xl" />
 
@@ -918,9 +736,7 @@ export default function CaptchaWorkstation() {
 
       <div className="pointer-events-none absolute bottom-0 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-orange-400/10 blur-3xl" />
 
-      {/* ====================================================
-          HEADER
-      ==================================================== */}
+      {/* HEADER */}
 
       <div
         className="
@@ -1019,108 +835,20 @@ export default function CaptchaWorkstation() {
         </div>
       </div>
 
-      {/* ====================================================
-          MAIN TASK AREA
-      ==================================================== */}
+      {/* MAIN TASK AREA */}
 
       <form
         ref={taskAreaRef}
         onSubmit={handleSubmit}
         className="relative order-1 z-10 w-full"
       >
-        {/* ==================================================
-            TIMER
-        ================================================== */}
-
-        <div
-          className="
-            rounded-2xl border border-violet-100
-            bg-violet-50/80 px-3 py-2
-            sm:mt-4 sm:px-4 sm:py-3
-          "
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div
-              className={`
-                flex min-w-0 items-center gap-2
-                text-[11px] font-bold sm:text-xs
-                ${
-                  isExpiringSoon
-                    ? "text-red-600"
-                    : "text-violet-700"
-                }
-              `}
-            >
-              <Clock3
-                className={`
-                  h-4 w-4 shrink-0
-                  ${
-                    isExpiringSoon
-                      ? "animate-pulse"
-                      : ""
-                  }
-                `}
-              />
-
-              <span>CAPTCHA expires in</span>
-            </div>
-
-            <span
-              className={`
-                shrink-0 text-base font-black sm:text-lg
-                ${
-                  isExpiringSoon
-                    ? "text-red-600"
-                    : "text-violet-700"
-                }
-              `}
-            >
-              {captchaToken
-                ? `${timeLeft}s`
-                : "--"}
-            </span>
-          </div>
-
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/80">
-            <div
-              className={`
-                h-full rounded-full
-                transition-all duration-1000
-                ${
-                  isExpiringSoon
-                    ? "bg-gradient-to-r from-red-500 to-orange-500"
-                    : "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500"
-                }
-              `}
-              style={{
-                width: `${
-                  captchaToken
-                    ? countdownPercent
-                    : 0
-                }%`,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* ==================================================
-            CAPTCHA + INPUT MOBILE TASK WRAPPER
-
-            IMPORTANT:
-            This whole section is moved into the visible
-            viewport when mobile keyboard opens.
-        ================================================== */}
+        {/* CAPTCHA + INPUT MOBILE TASK WRAPPER */}
 
         <div
           ref={captchaAndInputRef}
-          className="
-            mt-2 w-full scroll-mt-2
-            sm:mt-4
-          "
+          className="w-full scroll-mt-2"
         >
-          {/* ==================================================
-              CAPTCHA BOX
-          ================================================== */}
+          {/* CAPTCHA BOX */}
 
           <div
             className="
@@ -1138,9 +866,7 @@ export default function CaptchaWorkstation() {
             >
               <ShieldCheck className="h-4 w-4 shrink-0 text-violet-600" />
 
-              <span>
-                Type the characters shown
-              </span>
+              <span>Type the characters shown</span>
             </div>
 
             {/* CAPTCHA IMAGE */}
@@ -1178,10 +904,7 @@ export default function CaptchaWorkstation() {
               <button
                 type="button"
                 onClick={handleRefresh}
-                disabled={
-                  loading ||
-                  captchaLoading
-                }
+                disabled={loading || captchaLoading}
                 title="Refresh CAPTCHA"
                 aria-label="Refresh CAPTCHA"
                 className="
@@ -1200,20 +923,14 @@ export default function CaptchaWorkstation() {
                 <RefreshCw
                   className={`
                     h-3.5 w-3.5 sm:h-5 sm:w-5
-                    ${
-                      captchaLoading
-                        ? "animate-spin"
-                        : ""
-                    }
+                    ${captchaLoading ? "animate-spin" : ""}
                   `}
                 />
               </button>
             </div>
           </div>
 
-          {/* ==================================================
-              INPUT BOX
-          ================================================== */}
+          {/* INPUT BOX */}
 
           <div className="mt-2 sm:mt-4">
             <label
@@ -1232,9 +949,7 @@ export default function CaptchaWorkstation() {
               type="text"
               value={userInput}
               onChange={(e) =>
-                setUserInput(
-                  e.target.value
-                )
+                setUserInput(e.target.value)
               }
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
@@ -1280,9 +995,7 @@ export default function CaptchaWorkstation() {
           </div>
         </div>
 
-        {/* ==================================================
-            FEEDBACK
-        ================================================== */}
+        {/* FEEDBACK */}
 
         {message.text && (
           <div
@@ -1309,9 +1022,7 @@ export default function CaptchaWorkstation() {
           </div>
         )}
 
-        {/* ==================================================
-            SUBMIT BUTTON
-        ================================================== */}
+        {/* SUBMIT BUTTON */}
 
         <button
           type="submit"
@@ -1320,8 +1031,7 @@ export default function CaptchaWorkstation() {
             captchaLoading ||
             cooldown > 0 ||
             limitReached ||
-            !captchaToken ||
-            timeLeft <= 0
+            !captchaToken
           }
           className="
             mt-2.5 flex min-h-[48px]
@@ -1353,30 +1063,18 @@ export default function CaptchaWorkstation() {
           ) : cooldown > 0 ? (
             <>
               <Clock3 className="h-4 w-4" />
-              <span>
-                Please wait {cooldown}s...
-              </span>
+              <span>Please wait {cooldown}s...</span>
             </>
           ) : limitReached ? (
             <>
               <CheckCircle2 className="h-4 w-4" />
-              <span>
-                Daily Limit Reached
-              </span>
-            </>
-          ) : timeLeft <= 0 ? (
-            <>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              <span>
-                Loading New CAPTCHA...
-              </span>
+              <span>Daily Limit Reached</span>
             </>
           ) : (
             <>
               <Coins className="h-4 w-4" />
               <span>
-                Verify & Claim ₹
-                {rewardRate.toFixed(2)}
+                Verify & Claim ₹{rewardRate.toFixed(2)}
               </span>
             </>
           )}
@@ -1396,9 +1094,7 @@ export default function CaptchaWorkstation() {
         </p>
       </form>
 
-      {/* ====================================================
-          DAILY STATS
-      ==================================================== */}
+      {/* DAILY STATS */}
 
       <div
         className="
@@ -1424,9 +1120,7 @@ export default function CaptchaWorkstation() {
           >
             <TrendingUp className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
 
-            <span className="truncate">
-              Today
-            </span>
+            <span className="truncate">Today</span>
           </div>
 
           <div className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
@@ -1451,9 +1145,7 @@ export default function CaptchaWorkstation() {
           >
             <ImageIcon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
 
-            <span className="truncate">
-              Limit
-            </span>
+            <span className="truncate">Limit</span>
           </div>
 
           <div className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
@@ -1478,9 +1170,7 @@ export default function CaptchaWorkstation() {
           >
             <Clock3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
 
-            <span className="truncate">
-              Progress
-            </span>
+            <span className="truncate">Progress</span>
           </div>
 
           <div className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
@@ -1489,9 +1179,7 @@ export default function CaptchaWorkstation() {
         </div>
       </div>
 
-      {/* ====================================================
-          DAILY PROGRESS
-      ==================================================== */}
+      {/* DAILY PROGRESS */}
 
       <div
         className="
@@ -1533,9 +1221,7 @@ export default function CaptchaWorkstation() {
         </div>
       </div>
 
-      {/* ====================================================
-          INFO
-      ==================================================== */}
+      {/* INFO */}
 
       <div
         className="
@@ -1552,9 +1238,9 @@ export default function CaptchaWorkstation() {
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-pink-500" />
 
           <span className="leading-5">
-            Submit the CAPTCHA within the
-            10-second timer. Expired tasks are
-            automatically replaced.
+            Type the characters shown in the image and
+            submit. Tap refresh anytime to get a new
+            CAPTCHA.
           </span>
         </div>
 
@@ -1569,9 +1255,7 @@ export default function CaptchaWorkstation() {
         >
           <CheckCircle2 className="h-3.5 w-3.5" />
 
-          <span>
-            Instant Wallet Credit
-          </span>
+          <span>Instant Wallet Credit</span>
         </div>
       </div>
     </div>

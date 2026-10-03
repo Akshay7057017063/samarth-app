@@ -1,8 +1,12 @@
-
 import express from "express";
 
 import { authenticateToken } from "../middleware/auth.js";
+
 import { requireSuperOrAdmin } from "../middleware/adminAuth.js";
+
+// =====================================================
+// EXISTING ADMIN CONTROLLERS
+// =====================================================
 
 import {
   getAdminStats,
@@ -25,6 +29,23 @@ import {
   getCaptchaStats,
   getCustomerCaptchaStats,
 } from "../controllers/adminController.js";
+
+// =====================================================
+// BINARY TREE CONTROLLERS
+// =====================================================
+
+import {
+  getBinaryRoot,
+  getAdminBinaryTree,
+  getAdminBinaryChildren,
+  getAdminBinaryParent,
+  getAdminBinaryStatus,
+  placeBinaryUser,
+  autoPlaceBinaryUser,
+  getBinaryTeamCounts,
+  syncAdminBinaryCounts,
+  searchBinaryUsers,
+} from "../controllers/admin/binary.controller.js";
 
 const router = express.Router();
 
@@ -182,5 +203,138 @@ router.put(
   updateSiteContent
 );
 
-export default router;
+// =====================================================
+// BINARY TREE MANAGEMENT
+// =====================================================
+//
+// All routes below are automatically protected by:
+//
+// authenticateToken
+// requireSuperOrAdmin
+//
+// because router.use() above applies to all routes.
+// =====================================================
 
+// -----------------------------------------------------
+// Get Binary Tree Root
+// GET /api/admin/binary/root
+// -----------------------------------------------------
+
+router.get(
+  "/binary/root",
+  getBinaryRoot
+);
+
+// -----------------------------------------------------
+// Search Users for Binary Placement
+// GET /api/admin/binary/users?search=ABC
+// -----------------------------------------------------
+
+router.get(
+  "/binary/users",
+  searchBinaryUsers
+);
+
+// -----------------------------------------------------
+// Get Binary Tree
+// GET /api/admin/binary/tree/:userId?depth=5
+// -----------------------------------------------------
+
+router.get(
+  "/binary/tree/:userId",
+  getAdminBinaryTree
+);
+
+// -----------------------------------------------------
+// Get Binary Children
+// GET /api/admin/binary/children/:userId
+// -----------------------------------------------------
+
+router.get(
+  "/binary/children/:userId",
+  getAdminBinaryChildren
+);
+
+// -----------------------------------------------------
+// Get Binary Parent
+// GET /api/admin/binary/parent/:userId
+// -----------------------------------------------------
+
+router.get(
+  "/binary/parent/:userId",
+  getAdminBinaryParent
+);
+
+// -----------------------------------------------------
+// Get Binary Status
+// GET /api/admin/binary/status/:userId
+// -----------------------------------------------------
+
+router.get(
+  "/binary/status/:userId",
+  getAdminBinaryStatus
+);
+
+// -----------------------------------------------------
+// Get Binary Team Counts
+// GET /api/admin/binary/counts/:userId
+// -----------------------------------------------------
+
+router.get(
+  "/binary/counts/:userId",
+  getBinaryTeamCounts
+);
+
+// -----------------------------------------------------
+// Manual Binary Placement
+// POST /api/admin/binary/place
+//
+// Body:
+// {
+//   "userId": "...",
+//   "parentId": "...",
+//   "position": "left"
+// }
+// -----------------------------------------------------
+
+router.post(
+  "/binary/place",
+  placeBinaryUser
+);
+
+// -----------------------------------------------------
+// Automatic Binary Placement
+// POST /api/admin/binary/auto-place
+//
+// Body:
+// {
+//   "userId": "..."
+// }
+//
+// Optional:
+// {
+//   "userId": "...",
+//   "parentId": "..."
+// }
+// -----------------------------------------------------
+
+router.post(
+  "/binary/auto-place",
+  autoPlaceBinaryUser
+);
+
+// -----------------------------------------------------
+// Synchronize Binary Team Counts
+// POST /api/admin/binary/sync-counts/:userId
+// -----------------------------------------------------
+
+router.post(
+  "/binary/sync-counts/:userId",
+  syncAdminBinaryCounts
+);
+
+// =====================================================
+// EXPORT
+// =====================================================
+
+export default router;

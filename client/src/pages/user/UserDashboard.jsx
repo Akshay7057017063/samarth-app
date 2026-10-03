@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useEffect,
   useMemo,
   useState,
@@ -13,8 +13,6 @@ import {
   IndianRupee,
   Users,
   Layers,
-  ArrowLeft,
-  ArrowRight,
   Copy,
   CreditCard,
   KeyRound,
@@ -27,11 +25,32 @@ import {
   RefreshCw,
   Clock3,
   Activity,
+  Network,
+  GitBranch,
 } from "lucide-react";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://api.bull-mark.com/api";
+/* ============================================================
+   API BASE URL
+============================================================ */
+
+/*
+ * Local:
+ * Vite proxy -> /api -> http://localhost:5000
+ *
+ * Production:
+ * Set VITE_API_BASE_URL in .env
+ *
+ * Example:
+ * VITE_API_BASE_URL=https://api.bull-mark.com/api
+ */
+
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "/api"
+).replace(/\/+$/, "");
+
+/* ============================================================
+   USER DASHBOARD
+============================================================ */
 
 export default function UserDashboard() {
   const {
@@ -41,9 +60,9 @@ export default function UserDashboard() {
     logout,
   } = useAuth();
 
-  // ==========================================================
-  // LOCAL LIVE DASHBOARD STATE
-  // ==========================================================
+  /* ==========================================================
+     LOCAL LIVE DASHBOARD STATE
+  ========================================================== */
 
   const [dashboardUser, setDashboardUser] =
     useState(authUser);
@@ -72,18 +91,12 @@ export default function UserDashboard() {
   const [pageError, setPageError] =
     useState("");
 
-  const [copiedLeft, setCopiedLeft] =
+  const [copiedReferral, setCopiedReferral] =
     useState(false);
 
-  const [copiedRight, setCopiedRight] =
-    useState(false);
-
-  const [activeTab, setActiveTab] =
-    useState("dashboard");
-
-  // ==========================================================
-  // SYNC CONTEXT DATA
-  // ==========================================================
+  /* ==========================================================
+     SYNC AUTH CONTEXT DATA
+  ========================================================== */
 
   useEffect(() => {
     if (authUser) {
@@ -95,9 +108,9 @@ export default function UserDashboard() {
     }
   }, [authUser, authWallet]);
 
-  // ==========================================================
-  // API HELPER
-  // ==========================================================
+  /* ==========================================================
+     API HELPER
+  ========================================================== */
 
   const fetchJson = async (
     url,
@@ -107,9 +120,15 @@ export default function UserDashboard() {
       url,
       {
         ...options,
+
         headers: {
           ...(options.headers || {}),
-          Authorization: `Bearer ${token}`,
+
+          ...(token
+            ? {
+                Authorization: `Bearer ${token}`,
+              }
+            : {}),
         },
       }
     );
@@ -132,9 +151,9 @@ export default function UserDashboard() {
     return data;
   };
 
-  // ==========================================================
-  // LOAD COMPLETE CUSTOMER DASHBOARD DATA
-  // ==========================================================
+  /* ==========================================================
+     LOAD COMPLETE CUSTOMER DASHBOARD DATA
+  ========================================================== */
 
   const loadDashboardData = async ({
     showPageLoader = true,
@@ -153,15 +172,14 @@ export default function UserDashboard() {
     setPageError("");
 
     try {
-      // ------------------------------------------------------
-      // STEP 1
-      // Get the latest authenticated customer + wallet.
-      // ------------------------------------------------------
+      /* ======================================================
+         STEP 1
+         Latest authenticated user + wallet
+      ====================================================== */
 
-      const meData =
-        await fetchJson(
-          `${API_BASE_URL}/auth/me`
-        );
+      const meData = await fetchJson(
+        `${API_BASE_URL}/auth/me`
+      );
 
       if (
         meData?.success &&
@@ -181,13 +199,13 @@ export default function UserDashboard() {
         );
       }
 
-      // ------------------------------------------------------
-      // STEP 2
-      // Load all page-specific customer data.
-      //
-      // Promise.allSettled is used so one endpoint failure
-      // does not remove all other valid customer data.
-      // ------------------------------------------------------
+      /* ======================================================
+         STEP 2
+         Customer-specific APIs
+
+         Promise.allSettled ensures that one failed endpoint
+         does not break the complete dashboard.
+      ====================================================== */
 
       const results =
         await Promise.allSettled([
@@ -199,6 +217,16 @@ export default function UserDashboard() {
             `${API_BASE_URL}/wallet/transactions`
           ),
 
+          /*
+           * Existing tree route is kept here.
+           * The response may expose:
+           *
+           * data.tree
+           * OR
+           * data.binaryTree
+           *
+           * The frontend handles both.
+           */
           fetchJson(
             `${API_BASE_URL}/referral/tree`
           ),
@@ -220,12 +248,13 @@ export default function UserDashboard() {
         captchaResult,
       ] = results;
 
-      // ------------------------------------------------------
-      // WALLET SUMMARY
-      // ------------------------------------------------------
+      /* ======================================================
+         WALLET SUMMARY
+      ====================================================== */
 
       if (
-        walletResult.status === "fulfilled"
+        walletResult.status ===
+        "fulfilled"
       ) {
         const data =
           walletResult.value;
@@ -244,14 +273,17 @@ export default function UserDashboard() {
           data?.user
         ) {
           setDashboardUser(
-            data.user
+            (previous) => ({
+              ...previous,
+              ...data.user,
+            })
           );
         }
       }
 
-      // ------------------------------------------------------
-      // TRANSACTIONS
-      // ------------------------------------------------------
+      /* ======================================================
+         TRANSACTIONS
+      ====================================================== */
 
       if (
         transactionsResult.status ===
@@ -271,9 +303,9 @@ export default function UserDashboard() {
         setTransactions([]);
       }
 
-      // ------------------------------------------------------
-      // REFERRAL TREE
-      // ------------------------------------------------------
+      /* ======================================================
+         BINARY / REFERRAL TREE
+      ====================================================== */
 
       if (
         referralTreeResult.status ===
@@ -284,42 +316,89 @@ export default function UserDashboard() {
 
         if (data?.success) {
           setReferralStats(
-            data.stats || null
+            data?.stats ||
+              data?.summary ||
+              null
           );
 
-          // If the tree endpoint has a fresher user tree,
-          // use its root values for customer statistics.
-          if (data.tree) {
+          /*
+           * Support both possible response keys.
+           */
+          const binaryTree =
+            data?.binaryTree ||
+            data?.tree ||
+            data?.data?.binaryTree ||
+            data?.data?.tree ||
+            null;
+
+          if (binaryTree) {
+            const derivedLeftCount =
+              Number(
+                binaryTree?.leftCount ??
+                  0
+              );
+
+            const derivedRightCount =
+              Number(
+                binaryTree?.rightCount ??
+                  0
+              );
+
+            const derivedTotalTeam =
+              Number(
+                binaryTree?.totalTeam ??
+                  binaryTree?.totalCount ??
+                  derivedLeftCount +
+                    derivedRightCount
+              );
+
             setDashboardUser(
               (previous) => ({
                 ...previous,
+
                 leftCount:
-                  data.tree.leftCount ??
-                  previous?.leftCount,
+                  binaryTree?.leftCount ??
+                  previous?.leftCount ??
+                  0,
+
                 rightCount:
-                  data.tree.rightCount ??
-                  previous?.rightCount,
+                  binaryTree?.rightCount ??
+                  previous?.rightCount ??
+                  0,
+
+                totalTeam:
+                  binaryTree?.totalTeam ??
+                  previous?.totalTeam ??
+                  derivedTotalTeam,
+
                 leftPv:
-                  data.tree.leftPv ??
-                  previous?.leftPv,
+                  binaryTree?.leftPv ??
+                  previous?.leftPv ??
+                  0,
+
                 rightPv:
-                  data.tree.rightPv ??
-                  previous?.rightPv,
+                  binaryTree?.rightPv ??
+                  previous?.rightPv ??
+                  0,
+
                 leftBusiness:
-                  data.tree.leftBusiness ??
-                  previous?.leftBusiness,
+                  binaryTree?.leftBusiness ??
+                  previous?.leftBusiness ??
+                  0,
+
                 rightBusiness:
-                  data.tree.rightBusiness ??
-                  previous?.rightBusiness,
+                  binaryTree?.rightBusiness ??
+                  previous?.rightBusiness ??
+                  0,
               })
             );
           }
         }
       }
 
-      // ------------------------------------------------------
-      // DIRECT REFERRALS
-      // ------------------------------------------------------
+      /* ======================================================
+         DIRECT REFERRALS
+      ====================================================== */
 
       if (
         directRefsResult.status ===
@@ -339,9 +418,9 @@ export default function UserDashboard() {
         setDirects([]);
       }
 
-      // ------------------------------------------------------
-      // CAPTCHA STATISTICS
-      // ------------------------------------------------------
+      /* ======================================================
+         CAPTCHA STATISTICS
+      ====================================================== */
 
       if (
         captchaResult.status ===
@@ -362,9 +441,9 @@ export default function UserDashboard() {
         setCaptchaStats(null);
       }
 
-      // ------------------------------------------------------
-      // PARTIAL ERROR INFORMATION
-      // ------------------------------------------------------
+      /* ======================================================
+         PARTIAL ERROR INFORMATION
+      ====================================================== */
 
       const failedRequests =
         results.filter(
@@ -391,7 +470,7 @@ export default function UserDashboard() {
       );
 
       setPageError(
-        error.message ||
+        error?.message ||
           "Unable to load your customer dashboard."
       );
     } finally {
@@ -400,9 +479,9 @@ export default function UserDashboard() {
     }
   };
 
-  // ==========================================================
-  // INITIAL DASHBOARD LOAD
-  // ==========================================================
+  /* ==========================================================
+     INITIAL DASHBOARD LOAD
+  ========================================================== */
 
   useEffect(() => {
     if (!token) {
@@ -415,9 +494,9 @@ export default function UserDashboard() {
     });
   }, [token]);
 
-  // ==========================================================
-  // HELPERS
-  // ==========================================================
+  /* ==========================================================
+     HELPERS
+  ========================================================== */
 
   const formatCurrency = (
     value
@@ -549,14 +628,18 @@ export default function UserDashboard() {
     )[0];
   };
 
-  // ==========================================================
-  // COPY REFERRAL LINK
-  // ==========================================================
+  /* ==========================================================
+     COPY REFERRAL LINK
+  ========================================================== */
 
-  const copyLink = async (
-    text,
-    isLeft
-  ) => {
+  const copyLink = async () => {
+    const text =
+      referralLink;
+
+    if (!text) {
+      return;
+    }
+
     try {
       if (
         navigator?.clipboard
@@ -595,19 +678,11 @@ export default function UserDashboard() {
         );
       }
 
-      if (isLeft) {
-        setCopiedLeft(true);
+      setCopiedReferral(true);
 
-        setTimeout(() => {
-          setCopiedLeft(false);
-        }, 2000);
-      } else {
-        setCopiedRight(true);
-
-        setTimeout(() => {
-          setCopiedRight(false);
-        }, 2000);
-      }
+      setTimeout(() => {
+        setCopiedReferral(false);
+      }, 2000);
     } catch (error) {
       console.error(
         "COPY REFERRAL LINK ERROR:",
@@ -616,9 +691,9 @@ export default function UserDashboard() {
     }
   };
 
-  // ==========================================================
-  // CUSTOMER DATA
-  // ==========================================================
+  /* ==========================================================
+     CUSTOMER DATA
+  ========================================================== */
 
   const userCode =
     dashboardUser?.userCode ||
@@ -627,6 +702,7 @@ export default function UserDashboard() {
 
   const sponsorCode =
     dashboardUser?.sponsorCode ||
+    dashboardUser?.sponsorMemberId ||
     "-";
 
   const matchingIncome =
@@ -655,13 +731,29 @@ export default function UserDashboard() {
     captchaStats?.currentBalance ??
     0;
 
+  /* ==========================================================
+     BINARY COUNTS
+  ========================================================== */
+
   const leftCount =
-    dashboardUser?.leftCount ??
-    0;
+    Number(
+      dashboardUser?.leftCount ??
+        0
+    );
 
   const rightCount =
-    dashboardUser?.rightCount ??
-    0;
+    Number(
+      dashboardUser?.rightCount ??
+        0
+    );
+
+  const binaryTotalTeam =
+    Number(
+      dashboardUser?.totalTeam ??
+        dashboardUser?.teamCount ??
+        leftCount +
+          rightCount
+    );
 
   const leftBusiness =
     dashboardUser?.leftBusiness ??
@@ -671,16 +763,24 @@ export default function UserDashboard() {
     dashboardUser?.rightBusiness ??
     0;
 
+  /* ==========================================================
+     REFERRAL COUNTS
+  ========================================================== */
+
   const totalReferral =
-    dashboardUser?.totalReferral ??
-    referralStats?.directCount ??
-    directs.length ??
-    0;
+    Number(
+      dashboardUser?.totalReferral ??
+        referralStats?.directCount ??
+        directs.length ??
+        0
+    );
 
   const activeReferral =
-    dashboardUser?.activeReferral ??
-    referralStats?.activeDirectCount ??
-    0;
+    Number(
+      dashboardUser?.activeReferral ??
+        referralStats?.activeDirectCount ??
+        0
+    );
 
   const leftPv =
     dashboardUser?.leftPv ??
@@ -699,10 +799,11 @@ export default function UserDashboard() {
     0;
 
   const totalTeam =
-    referralStats?.totalDownline ??
-    dashboardUser?.totalTeam ??
-    dashboardUser?.teamCount ??
-    0;
+    Number(
+      referralStats?.totalDownline ??
+        binaryTotalTeam ??
+        0
+    );
 
   const activeTeam =
     dashboardUser?.activeTeam ??
@@ -710,7 +811,8 @@ export default function UserDashboard() {
 
   const teamPercent =
     Number(
-      dashboardUser?.teamPercent ?? 0
+      dashboardUser?.teamPercent ??
+        0
     );
 
   const rank =
@@ -731,9 +833,9 @@ export default function UserDashboard() {
     dashboardUser?.joiningPackage ||
     "-";
 
-  // ==========================================================
-  // CAPTCHA LIVE DATA
-  // ==========================================================
+  /* ==========================================================
+     CAPTCHA LIVE DATA
+  ========================================================== */
 
   const dailyLimit =
     Number(
@@ -789,38 +891,99 @@ export default function UserDashboard() {
         0
     );
 
-  const captchaProgress = Math.min(
-    100,
-    Math.round(
-      (todayCaptchaSolved /
-        Math.max(
-          1,
-          dailyLimit
-        )) *
-        100
-    )
-  );
+  /* ==========================================================
+     BINARY INCOME
+  ========================================================== */
 
-  // ==========================================================
-  // REFERRAL LINKS
-  // ==========================================================
+  /*
+   * Binary income is read directly from binary_income
+   * transactions so the dashboard shows the actual
+   * credited binary amount.
+   *
+   * Example:
+   * 1 completed pair = ₹450
+   * 2 completed pairs = ₹900
+   */
+
+  const calculatedBinaryIncome =
+    transactions
+      .filter(
+        (transaction) =>
+          String(
+            transaction?.type ||
+              ""
+          ).toLowerCase() ===
+          "binary_income"
+      )
+      .reduce(
+        (
+          total,
+          transaction
+        ) =>
+          total +
+          Number(
+            transaction?.amount ??
+              transaction?.netAmount ??
+              0
+          ),
+        0
+      );
+
+  /*
+   * Fallback to matchingIncome when the transaction
+   * endpoint is temporarily unavailable or empty.
+   *
+   * Backend currently credits:
+   * matchingIncome += ₹450
+   */
+  const binaryIncome =
+    calculatedBinaryIncome > 0
+      ? calculatedBinaryIncome
+      : Number(
+          dashboardUser?.matchingIncome ??
+            0
+        );
+
+  const captchaProgress =
+    Math.min(
+      100,
+      Math.round(
+        (todayCaptchaSolved /
+          Math.max(
+            1,
+            dailyLimit
+          )) *
+          100
+      )
+    );
+
+  /* ==========================================================
+     PERSONAL REFERRAL LINK
+  ========================================================== */
 
   const origin =
-    window.location.origin;
+    typeof window !==
+    "undefined"
+      ? window.location.origin
+      : "";
 
-  const leftReferralLink =
-    `${origin}/register?ref=${encodeURIComponent(
-      userCode
-    )}&pos=1`;
+  /*
+   * Current backend automatically decides the binary slot using
+   * autoPlaceUser() + BFS.
+   *
+   * Therefore we should NOT claim that `pos=1` means forced LEFT
+   * and `pos=2` means forced RIGHT.
+   */
 
-  const rightReferralLink =
-    `${origin}/register?ref=${encodeURIComponent(
-      userCode
-    )}&pos=2`;
+  const referralLink = origin
+    ? `${origin}/register?ref=${encodeURIComponent(
+        userCode
+      )}`
+    : "";
 
-  // ==========================================================
-  // PERSONAL STAT CARDS
-  // ==========================================================
+  /* ==========================================================
+     PERSONAL STAT CARDS
+  ========================================================== */
 
   const personalStats =
     useMemo(
@@ -834,6 +997,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label: "Sponsor Code",
           value: sponsorCode,
@@ -843,6 +1007,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label: "Date Of Entry",
           value:
@@ -854,6 +1019,7 @@ export default function UserDashboard() {
             "bg-orange-100 text-orange-600",
           valueClass: "",
         },
+
         {
           label: "User Type",
           value: userType,
@@ -863,6 +1029,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label: "Activation Date",
           value:
@@ -874,6 +1041,7 @@ export default function UserDashboard() {
             "bg-emerald-100 text-emerald-600",
           valueClass: "",
         },
+
         {
           label: "Joining Package",
           value:
@@ -883,30 +1051,33 @@ export default function UserDashboard() {
             "bg-amber-100 text-amber-600",
           valueClass: "",
         },
+
         {
-          label: "Left Count",
+          label: "Binary Left Count",
           value:
             formatNumber(
               leftCount
             ),
-          icon: Layers,
+          icon: ArrowUpRight,
           iconClass:
             "bg-violet-100 text-violet-600",
           valueClass:
             "font-mono",
         },
+
         {
-          label: "Right Count",
+          label: "Binary Right Count",
           value:
             formatNumber(
               rightCount
             ),
-          icon: CreditCard,
+          icon: GitBranch,
           iconClass:
             "bg-pink-100 text-pink-600",
           valueClass:
             "font-mono",
         },
+
         {
           label: "Left Business",
           value:
@@ -919,6 +1090,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label: "Right Business",
           value:
@@ -931,6 +1103,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label: "Total Referral",
           value:
@@ -943,6 +1116,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label: "Active Referral",
           value:
@@ -955,6 +1129,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label: "Left PV",
           value:
@@ -967,6 +1142,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label: "Right PV",
           value:
@@ -979,6 +1155,7 @@ export default function UserDashboard() {
           valueClass:
             "font-mono",
         },
+
         {
           label:
             "Left Carry Forward PV",
@@ -986,12 +1163,13 @@ export default function UserDashboard() {
             formatNumber(
               leftCarryForwardPv
             ),
-          icon: ArrowLeft,
+          icon: Layers,
           iconClass:
             "bg-cyan-100 text-cyan-600",
           valueClass:
             "font-mono",
         },
+
         {
           label:
             "Right Carry Forward PV",
@@ -999,7 +1177,7 @@ export default function UserDashboard() {
             formatNumber(
               rightCarryForwardPv
             ),
-          icon: ArrowRight,
+          icon: Layers,
           iconClass:
             "bg-emerald-100 text-emerald-600",
           valueClass:
@@ -1026,9 +1204,9 @@ export default function UserDashboard() {
       ]
     );
 
-  // ==========================================================
-  // LOADING VIEW
-  // ==========================================================
+  /* ==========================================================
+     LOADING VIEW
+  ========================================================== */
 
   if (
     pageLoading &&
@@ -1052,13 +1230,17 @@ export default function UserDashboard() {
           </h2>
 
           <p className="mt-2 text-xs text-slate-500">
-            Fetching your latest account, wallet, team and activity data.
+            Fetching your latest account, wallet, binary team and activity data.
           </p>
 
         </div>
       </div>
     );
   }
+
+  /* ==========================================================
+     MAIN UI
+  ========================================================== */
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-violet-50 via-white to-orange-50 text-slate-800 antialiased font-sans">
@@ -1069,8 +1251,11 @@ export default function UserDashboard() {
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-violet-300/20 blur-3xl" />
+
         <div className="absolute right-[-100px] top-20 h-80 w-80 rounded-full bg-pink-300/20 blur-3xl" />
+
         <div className="absolute left-1/3 top-1/2 h-72 w-72 rounded-full bg-cyan-300/10 blur-3xl" />
+
         <div className="absolute bottom-[-100px] right-1/4 h-80 w-80 rounded-full bg-orange-300/15 blur-3xl" />
       </div>
 
@@ -1088,6 +1273,7 @@ export default function UserDashboard() {
               to="/"
               className="group flex shrink-0 items-center gap-3"
             >
+
               <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500 p-[2px] shadow-lg shadow-violet-200 transition-transform duration-300 group-hover:scale-105">
 
                 <div className="flex h-full w-full items-center justify-center rounded-[14px] bg-white">
@@ -1166,7 +1352,9 @@ export default function UserDashboard() {
               </div>
 
               <div className="text-sm font-black text-slate-900">
-                {formatCurrency(walletBalance)}
+                {formatCurrency(
+                  walletBalance
+                )}
               </div>
 
             </div>
@@ -1182,20 +1370,12 @@ export default function UserDashboard() {
 
         <div className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto text-xs font-bold">
 
-          <button
-            type="button"
-            onClick={() =>
-              setActiveTab("dashboard")
-            }
-            className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 transition-all ${
-              activeTab ===
-              "dashboard"
-                ? "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 text-white shadow-md shadow-violet-200"
-                : "text-slate-600 hover:bg-violet-50 hover:text-violet-700"
-            }`}
+          <Link
+            to="/dashboard"
+            className="flex shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 px-3 py-2.5 text-white shadow-md shadow-violet-200"
           >
             Dashboard
-          </button>
+          </Link>
 
           <Link
             to="/dashboard/profile"
@@ -1206,9 +1386,10 @@ export default function UserDashboard() {
 
           <Link
             to="/dashboard/tree"
-            className="shrink-0 rounded-xl px-3 py-2.5 text-slate-600 transition-all hover:bg-pink-50 hover:text-pink-700"
+            className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2.5 text-slate-600 transition-all hover:bg-pink-50 hover:text-pink-700"
           >
-            Team
+            <Network className="h-3.5 w-3.5" />
+            Binary Team
           </Link>
 
           <Link
@@ -1300,6 +1481,10 @@ export default function UserDashboard() {
 
       <main className="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-8 lg:py-8">
 
+        {/* ==================================================
+            ERROR
+        ================================================== */}
+
         {pageError && (
           <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
 
@@ -1322,32 +1507,46 @@ export default function UserDashboard() {
           </div>
         )}
 
+        {/* ==================================================
+            REFRESH INDICATOR
+        ================================================== */}
+
         {refreshing && (
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-3 py-2 text-[11px] font-bold text-violet-700">
+
             <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+
             Updating your latest customer data...
+
           </div>
         )}
+
+        {/* ==================================================
+            PAGE HEADING
+        ================================================== */}
 
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 
           <div>
 
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-violet-600 shadow-sm">
+
               <Sparkles className="h-3.5 w-3.5" />
+
               Live Member Portal
+
             </div>
 
             <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
               Customer
+
               <span className="ml-2 bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-transparent">
                 Dashboard
               </span>
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Your account information, wallet, earnings, team and task
-              activity are loaded from your customer account.
+              Your account information, wallet, earnings, binary team and task activity are loaded from your customer account.
             </p>
 
           </div>
@@ -1371,7 +1570,13 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {/* ==================================================
+            INCOME CARDS
+        ================================================== */}
+
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+
+          {/* Matching Income */}
 
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 via-pink-500 to-rose-500 p-[1px] shadow-lg shadow-orange-100 transition-transform duration-300 hover:-translate-y-1">
 
@@ -1382,6 +1587,7 @@ export default function UserDashboard() {
               <div className="relative flex items-start justify-between gap-3">
 
                 <div>
+
                   <p className="text-[11px] font-bold uppercase tracking-wider text-white/75">
                     Matching Income
                   </p>
@@ -1391,15 +1597,21 @@ export default function UserDashboard() {
                       matchingIncome
                     )}
                   </div>
+
                 </div>
 
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+
                   <TrendingUp className="h-5 w-5" />
+
                 </div>
 
               </div>
+
             </div>
           </div>
+
+          {/* Today's Matching */}
 
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 p-[1px] shadow-lg shadow-violet-100 transition-transform duration-300 hover:-translate-y-1">
 
@@ -1410,6 +1622,7 @@ export default function UserDashboard() {
               <div className="relative flex items-start justify-between gap-3">
 
                 <div>
+
                   <p className="text-[11px] font-bold uppercase tracking-wider text-white/75">
                     Today's Matching
                   </p>
@@ -1419,15 +1632,21 @@ export default function UserDashboard() {
                       todayMatchingIncome
                     )}
                   </div>
+
                 </div>
 
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+
                   <Sparkles className="h-5 w-5" />
+
                 </div>
 
               </div>
+
             </div>
           </div>
+
+          {/* Franchise Referral */}
 
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-violet-600 to-indigo-600 p-[1px] shadow-lg shadow-blue-100 transition-transform duration-300 hover:-translate-y-1">
 
@@ -1438,6 +1657,7 @@ export default function UserDashboard() {
               <div className="relative flex items-start justify-between gap-3">
 
                 <div>
+
                   <p className="text-[11px] font-bold uppercase tracking-wider text-white/75">
                     Franchise Referral
                   </p>
@@ -1447,15 +1667,21 @@ export default function UserDashboard() {
                       franchiseReferralIncome
                     )}
                   </div>
+
                 </div>
 
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+
                   <Users className="h-5 w-5" />
+
                 </div>
 
               </div>
+
             </div>
           </div>
+
+          {/* Franchise Matching */}
 
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 p-[1px] shadow-lg shadow-orange-100 transition-transform duration-300 hover:-translate-y-1">
 
@@ -1466,6 +1692,7 @@ export default function UserDashboard() {
               <div className="relative flex items-start justify-between gap-3">
 
                 <div>
+
                   <p className="text-[11px] font-bold uppercase tracking-wider text-white/75">
                     Franchise Matching
                   </p>
@@ -1475,15 +1702,21 @@ export default function UserDashboard() {
                       franchiseMatchingIncome
                     )}
                   </div>
+
                 </div>
 
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+
                   <ArrowUpRight className="h-5 w-5" />
+
                 </div>
 
               </div>
+
             </div>
           </div>
+
+          {/* Total Income */}
 
           <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 p-[1px] shadow-lg shadow-emerald-100 transition-transform duration-300 hover:-translate-y-1">
 
@@ -1494,6 +1727,7 @@ export default function UserDashboard() {
               <div className="relative flex items-start justify-between gap-3">
 
                 <div>
+
                   <p className="text-[11px] font-bold uppercase tracking-wider text-white/75">
                     Total Income
                   </p>
@@ -1503,25 +1737,73 @@ export default function UserDashboard() {
                       totalIncome
                     )}
                   </div>
+
                 </div>
 
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+
                   <IndianRupee className="h-5 w-5" />
+
                 </div>
 
               </div>
+
             </div>
           </div>
+
+          {/* Binary Income */}
+
+          <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-600 p-[1px] shadow-lg shadow-cyan-100 transition-transform duration-300 hover:-translate-y-1">
+
+            <div className="relative h-full overflow-hidden rounded-[23px] bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-600 p-5 text-white">
+
+              <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
+
+              <div className="relative flex items-start justify-between gap-3">
+
+                <div>
+
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-white/75">
+                    Binary Income
+                  </p>
+
+                  <div className="mt-2 text-2xl font-black">
+                    {formatCurrency(
+                      binaryIncome
+                    )}
+                  </div>
+
+                </div>
+
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+
+                  <GitBranch className="h-5 w-5" />
+
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+
         </section>
 
+        {/* ==================================================
+            QUICK LIVE CARDS
+        ================================================== */}
+
         <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+          {/* Wallet */}
 
           <div className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
 
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
+
                 <WalletCards className="h-5 w-5" />
+
               </div>
 
               <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-emerald-700 shadow-sm">
@@ -1542,10 +1824,14 @@ export default function UserDashboard() {
 
           </div>
 
+          {/* Total Earnings */}
+
           <div className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-pink-50 p-5 shadow-sm">
 
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm">
+
               <IndianRupee className="h-5 w-5" />
+
             </div>
 
             <div className="mt-4 text-[10px] font-bold uppercase tracking-wider text-violet-700/70">
@@ -1560,17 +1846,23 @@ export default function UserDashboard() {
 
           </div>
 
+          {/* CAPTCHA */}
+
           <div className="rounded-3xl border border-pink-100 bg-gradient-to-br from-pink-50 via-white to-orange-50 p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
 
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-pink-600 shadow-sm">
+
                 <KeyRound className="h-5 w-5" />
+
               </div>
 
               <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-pink-700 shadow-sm">
-                {todayCaptchaSolved}
-                /{dailyLimit}
+
+                {todayCaptchaSolved}/
+                {dailyLimit}
+
               </span>
 
             </div>
@@ -1585,25 +1877,47 @@ export default function UserDashboard() {
 
           </div>
 
+          {/* Binary Team */}
+
           <div className="rounded-3xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-yellow-50 p-5 shadow-sm">
 
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
-              <Users className="h-5 w-5" />
+            <div className="flex items-center justify-between">
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
+
+                <Network className="h-5 w-5" />
+
+              </div>
+
+              <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-orange-700 shadow-sm">
+                Binary
+              </span>
+
             </div>
 
             <div className="mt-4 text-[10px] font-bold uppercase tracking-wider text-orange-700/70">
-              Referral Team
+              Binary Team
             </div>
 
             <div className="mt-1 text-2xl font-black text-slate-900">
               {formatNumber(
-                totalTeam
+                binaryTotalTeam
               )}
+            </div>
+
+            <div className="mt-1 text-[10px] text-slate-500">
+              L {formatNumber(leftCount)}
+              {" • "}
+              R {formatNumber(rightCount)}
             </div>
 
           </div>
 
         </section>
+
+        {/* ==================================================
+            ACCOUNT + TEAM
+        ================================================== */}
 
         <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
 
@@ -1612,6 +1926,7 @@ export default function UserDashboard() {
             <div className="mb-4 flex items-center justify-between">
 
               <div>
+
                 <h2 className="text-lg font-black text-slate-900">
                   Account Overview
                 </h2>
@@ -1619,11 +1934,15 @@ export default function UserDashboard() {
                 <p className="mt-1 text-xs text-slate-500">
                   Information loaded from your customer account.
                 </p>
+
               </div>
 
               <div className="hidden items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-slate-500 shadow-sm ring-1 ring-slate-100 sm:flex">
+
                 <CircleCheck className="h-3.5 w-3.5 text-emerald-500" />
+
                 Customer Account
+
               </div>
 
             </div>
@@ -1671,12 +1990,16 @@ export default function UserDashboard() {
                 }
               )}
 
+              {/* Rank */}
+
               <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-white to-violet-50/80 p-4 shadow-sm sm:col-span-2 lg:col-span-2">
 
                 <div className="flex items-center gap-3">
 
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-100 to-pink-100 text-violet-600">
+
                     <Award className="h-5 w-5" />
+
                   </div>
 
                   <div>
@@ -1690,15 +2013,20 @@ export default function UserDashboard() {
                     </div>
 
                   </div>
+
                 </div>
               </div>
+
+              {/* Wallet */}
 
               <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-cyan-50 p-4 shadow-sm">
 
                 <div className="flex items-center gap-3">
 
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
+
                     <WalletCards className="h-5 w-5" />
+
                   </div>
 
                   <div className="min-w-0">
@@ -1716,10 +2044,17 @@ export default function UserDashboard() {
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
 
+          {/* ==================================================
+              RIGHT SIDE
+          ================================================== */}
+
           <div className="space-y-5 xl:col-span-4">
+
+            {/* Grow */}
 
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500 p-[1px] shadow-xl shadow-violet-100">
 
@@ -1730,7 +2065,9 @@ export default function UserDashboard() {
                 <div className="relative">
 
                   <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+
                     <TrendingUp className="h-5 w-5" />
+
                   </div>
 
                   <h3 className="text-xl font-black leading-tight">
@@ -1738,8 +2075,7 @@ export default function UserDashboard() {
                   </h3>
 
                   <p className="mt-2 text-xs leading-5 text-white/80">
-                    Manage your account and access your available customer
-                    portal features.
+                    Manage your account and access your available customer portal features.
                   </p>
 
                   <button
@@ -1759,57 +2095,134 @@ export default function UserDashboard() {
               </div>
             </div>
 
+            {/* =================================================
+                BINARY TEAM SUMMARY
+            ================================================= */}
+
             <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm backdrop-blur">
 
               <div className="flex items-center justify-between">
 
                 <div>
+
                   <h3 className="text-base font-black text-slate-900">
-                    Team Summary
+                    Binary Team Summary
                   </h3>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Latest network statistics.
+                    Current left and right binary team statistics.
                   </p>
+
                 </div>
 
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-50 text-pink-600">
-                  <Users className="h-5 w-5" />
+
+                  <Network className="h-5 w-5" />
+
                 </div>
 
               </div>
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-5 space-y-3">
+
+                {/* Total */}
 
                 <div className="rounded-2xl bg-gradient-to-r from-violet-50 to-pink-50 p-4">
 
                   <div className="flex items-center justify-between">
 
                     <div>
+
                       <div className="text-xs font-bold text-slate-500">
-                        Total Team
+                        Total Binary Team
                       </div>
 
                       <div className="mt-1 text-2xl font-black text-slate-900">
                         {formatNumber(
-                          totalTeam
+                          binaryTotalTeam
                         )}
                       </div>
+
                     </div>
 
                     <div className="rounded-xl bg-white px-2.5 py-1.5 text-[10px] font-black text-violet-600 shadow-sm">
+
                       {teamPercent}%
+
                     </div>
 
                   </div>
 
                 </div>
 
+                {/* Left */}
+
+                <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
+
+                  <div className="flex items-center justify-between">
+
+                    <div>
+
+                      <div className="text-xs font-bold text-violet-600">
+                        Left Team
+                      </div>
+
+                      <div className="mt-1 text-2xl font-black text-slate-900">
+                        {formatNumber(
+                          leftCount
+                        )}
+                      </div>
+
+                    </div>
+
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm">
+
+                      <ArrowUpRight className="h-4 w-4 -rotate-90" />
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                {/* Right */}
+
+                <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+
+                  <div className="flex items-center justify-between">
+
+                    <div>
+
+                      <div className="text-xs font-bold text-orange-600">
+                        Right Team
+                      </div>
+
+                      <div className="mt-1 text-2xl font-black text-slate-900">
+                        {formatNumber(
+                          rightCount
+                        )}
+                      </div>
+
+                    </div>
+
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
+
+                      <GitBranch className="h-4 w-4" />
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                {/* Active */}
+
                 <div className="rounded-2xl bg-gradient-to-r from-emerald-50 to-cyan-50 p-4">
 
                   <div className="flex items-center justify-between">
 
                     <div>
+
                       <div className="text-xs font-bold text-slate-500">
                         Active Team
                       </div>
@@ -1819,10 +2232,13 @@ export default function UserDashboard() {
                           activeTeam
                         )}
                       </div>
+
                     </div>
 
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
+
                       <CircleCheck className="h-4 w-4" />
+
                     </div>
 
                   </div>
@@ -1830,18 +2246,33 @@ export default function UserDashboard() {
                 </div>
 
               </div>
+
+              <Link
+                to="/dashboard/tree"
+                className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 px-4 py-2.5 text-xs font-extrabold text-white shadow-md shadow-violet-100 transition-all hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                Open Binary Tree
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+
             </div>
+
+            {/* CAPTCHA */}
 
             <div className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-6 shadow-sm">
 
               <div className="flex items-center justify-between gap-4">
 
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+
                   <KeyRound className="h-5 w-5" />
+
                 </div>
 
                 <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-emerald-700 shadow-sm ring-1 ring-emerald-100">
+
                   {remainingCaptcha} Left
+
                 </span>
 
               </div>
@@ -1856,15 +2287,18 @@ export default function UserDashboard() {
               </p>
 
               <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-200">
+
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 transition-all"
                   style={{
                     width: `${captchaProgress}%`,
                   }}
                 />
+
               </div>
 
               <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+
                 <span>
                   Reward / task
                 </span>
@@ -1874,6 +2308,7 @@ export default function UserDashboard() {
                     captchaReward
                   )}
                 </span>
+
               </div>
 
               <Link
@@ -1887,15 +2322,23 @@ export default function UserDashboard() {
             </div>
 
           </div>
+
         </section>
 
+        {/* ==================================================
+            WALLET + CAPTCHA
+        ================================================== */}
+
         <section className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+          {/* Wallet */}
 
           <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
 
             <div className="flex items-center justify-between">
 
               <div>
+
                 <h2 className="text-base font-black text-slate-900">
                   Wallet Summary
                 </h2>
@@ -1903,56 +2346,93 @@ export default function UserDashboard() {
                 <p className="mt-1 text-xs text-slate-500">
                   Latest wallet information.
                 </p>
+
               </div>
 
               <WalletCards className="h-5 w-5 text-violet-600" />
 
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+
+              {/* Balance */}
 
               <div className="rounded-2xl bg-violet-50 p-4">
+
                 <div className="text-[10px] font-bold uppercase tracking-wider text-violet-600">
                   Balance
                 </div>
+
                 <div className="mt-1 text-lg font-black text-slate-900">
                   {formatCurrency(
                     walletBalance
                   )}
                 </div>
+
               </div>
 
+              {/* Earnings */}
+
               <div className="rounded-2xl bg-emerald-50 p-4">
+
                 <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
                   Earnings
                 </div>
+
                 <div className="mt-1 text-lg font-black text-slate-900">
                   {formatCurrency(
                     totalEarnings
                   )}
                 </div>
+
               </div>
 
+              {/* CAPTCHA */}
+
               <div className="rounded-2xl bg-pink-50 p-4">
+
                 <div className="text-[10px] font-bold uppercase tracking-wider text-pink-600">
                   CAPTCHA
                 </div>
+
                 <div className="mt-1 text-lg font-black text-slate-900">
                   {formatCurrency(
                     captchaEarnings
                   )}
                 </div>
+
               </div>
 
+              {/* Binary Income */}
+
+              <div className="rounded-2xl bg-cyan-50 p-4">
+
+                <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-600">
+                  Binary Income
+                </div>
+
+                <div className="mt-1 text-lg font-black text-slate-900">
+                  {formatCurrency(
+                    binaryIncome
+                  )}
+                </div>
+
+              </div>
+
+              {/* Withdrawn */}
+
               <div className="rounded-2xl bg-orange-50 p-4">
+
                 <div className="text-[10px] font-bold uppercase tracking-wider text-orange-600">
                   Withdrawn
                 </div>
+
                 <div className="mt-1 text-lg font-black text-slate-900">
                   {formatCurrency(
                     totalWithdrawn
                   )}
                 </div>
+
               </div>
 
             </div>
@@ -1972,15 +2452,19 @@ export default function UserDashboard() {
                 </span>
 
               </div>
+
             </div>
 
           </div>
+
+          {/* CAPTCHA */}
 
           <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
 
             <div className="flex items-center justify-between">
 
               <div>
+
                 <h2 className="text-base font-black text-slate-900">
                   CAPTCHA Activity
                 </h2>
@@ -1988,45 +2472,57 @@ export default function UserDashboard() {
                 <p className="mt-1 text-xs text-slate-500">
                   Latest task statistics from your account.
                 </p>
+
               </div>
 
               <Activity className="h-5 w-5 text-pink-600" />
 
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
 
               <div className="rounded-2xl bg-violet-50 p-4">
+
                 <div className="text-[10px] font-bold uppercase tracking-wider text-violet-600">
                   Today
                 </div>
+
                 <div className="mt-1 text-lg font-black text-slate-900">
                   {todayCaptchaSolved}
                 </div>
+
               </div>
 
               <div className="rounded-2xl bg-pink-50 p-4">
+
                 <div className="text-[10px] font-bold uppercase tracking-wider text-pink-600">
                   Limit
                 </div>
+
                 <div className="mt-1 text-lg font-black text-slate-900">
                   {dailyLimit}
                 </div>
+
               </div>
 
               <div className="rounded-2xl bg-orange-50 p-4">
+
                 <div className="text-[10px] font-bold uppercase tracking-wider text-orange-600">
                   Remaining
                 </div>
+
                 <div className="mt-1 text-lg font-black text-slate-900">
                   {remainingCaptcha}
                 </div>
+
               </div>
 
               <div className="rounded-2xl bg-emerald-50 p-4">
+
                 <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
                   Accuracy
                 </div>
+
                 <div className="mt-1 text-lg font-black text-slate-900">
                   {Number(
                     captchaStats?.accuracy ??
@@ -2034,6 +2530,7 @@ export default function UserDashboard() {
                   ).toFixed(2)}
                   %
                 </div>
+
               </div>
 
             </div>
@@ -2041,6 +2538,7 @@ export default function UserDashboard() {
             <div className="mt-4">
 
               <div className="mb-2 flex items-center justify-between text-[10px] font-bold text-slate-500">
+
                 <span>
                   Today's progress
                 </span>
@@ -2048,21 +2546,29 @@ export default function UserDashboard() {
                 <span>
                   {captchaProgress}%
                 </span>
+
               </div>
 
               <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
+
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 transition-all"
                   style={{
                     width: `${captchaProgress}%`,
                   }}
                 />
+
               </div>
 
             </div>
 
           </div>
+
         </section>
+
+        {/* ==================================================
+            QUICK ACTIONS
+        ================================================== */}
 
         <section className="mt-6">
 
@@ -2084,8 +2590,11 @@ export default function UserDashboard() {
               to="/dashboard/captcha"
               className="group rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg"
             >
+
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-transform group-hover:scale-105">
+
                 <KeyRound className="h-5 w-5" />
+
               </div>
 
               <h3 className="mt-4 text-sm font-black text-slate-900">
@@ -2095,31 +2604,39 @@ export default function UserDashboard() {
               <p className="mt-1.5 text-xs leading-5 text-slate-500">
                 Complete your available CAPTCHA tasks.
               </p>
+
             </Link>
 
             <Link
               to="/dashboard/tree"
               className="group rounded-2xl border border-violet-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-violet-200 hover:shadow-lg"
             >
+
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-600 transition-transform group-hover:scale-105">
-                <Users className="h-5 w-5" />
+
+                <Network className="h-5 w-5" />
+
               </div>
 
               <h3 className="mt-4 text-sm font-black text-slate-900">
-                My Team
+                My Binary Team
               </h3>
 
               <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                View your referral tree and direct members.
+                View your binary tree, left team and right team.
               </p>
+
             </Link>
 
             <Link
               to="/dashboard/wallet"
               className="group rounded-2xl border border-orange-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-orange-200 hover:shadow-lg"
             >
+
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-100 text-orange-600 transition-transform group-hover:scale-105">
+
                 <WalletCards className="h-5 w-5" />
+
               </div>
 
               <h3 className="mt-4 text-sm font-black text-slate-900">
@@ -2129,14 +2646,18 @@ export default function UserDashboard() {
               <p className="mt-1.5 text-xs leading-5 text-slate-500">
                 Check your balance and withdrawal details.
               </p>
+
             </Link>
 
             <Link
               to="/dashboard/profile"
               className="group rounded-2xl border border-pink-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-pink-200 hover:shadow-lg"
             >
+
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-pink-100 text-pink-600 transition-transform group-hover:scale-105">
+
                 <ShieldCheck className="h-5 w-5" />
+
               </div>
 
               <h3 className="mt-4 text-sm font-black text-slate-900">
@@ -2146,161 +2667,119 @@ export default function UserDashboard() {
               <p className="mt-1.5 text-xs leading-5 text-slate-500">
                 Manage your profile and KYC information.
               </p>
+
             </Link>
 
           </div>
+
         </section>
+
+        {/* ==================================================
+            REFERRAL LINK
+        ================================================== */}
 
         <section className="mt-6">
 
           <div className="mb-4">
 
             <h2 className="text-lg font-black text-slate-900">
-              Referral Links
+              Referral Link
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              Your live referral links are generated from your member code.
+              Share your member link. New customers are automatically placed in the binary tree according to the configured placement logic.
             </p>
 
           </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-white p-6 shadow-sm">
 
-            <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-white p-6 shadow-sm">
+            <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-violet-100/50 blur-2xl" />
 
-              <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-violet-100/50 blur-2xl" />
+            <div className="relative">
 
-              <div className="relative">
+              <div className="flex items-center justify-between gap-3">
 
-                <div className="flex items-center justify-between gap-3">
+                <div>
 
-                  <div>
-                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-violet-600">
-                      Position 01
-                    </div>
-
-                    <h3 className="mt-1 text-base font-black text-slate-900">
-                      Left Side Referral
-                    </h3>
+                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-violet-600">
+                    Personal Invite
                   </div>
 
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
-                    <ArrowLeft className="h-5 w-5" />
-                  </div>
+                  <h3 className="mt-1 text-base font-black text-slate-900">
+                    Your Referral Link
+                  </h3>
 
                 </div>
 
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
 
-                  <input
-                    type="text"
-                    readOnly
-                    value={
-                      leftReferralLink
-                    }
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-mono text-slate-600 outline-none"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      copyLink(
-                        leftReferralLink,
-                        true
-                      )
-                    }
-                    className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition-all ${
-                      copiedLeft
-                        ? "bg-emerald-500"
-                        : "bg-gradient-to-r from-violet-600 to-pink-500 hover:-translate-y-0.5 hover:shadow-md"
-                    }`}
-                  >
-                    {copiedLeft ? (
-                      <>
-                        <CircleCheck className="h-4 w-4" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </>
-                    )}
-                  </button>
+                  <Copy className="h-5 w-5" />
 
                 </div>
+
               </div>
-            </div>
 
-            <div className="relative overflow-hidden rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
 
-              <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-orange-100/50 blur-2xl" />
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    referralLink
+                  }
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-mono text-slate-600 outline-none"
+                />
 
-              <div className="relative">
+                <button
+                  type="button"
+                  onClick={
+                    copyLink
+                  }
+                  disabled={
+                    !referralLink
+                  }
+                  className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                    copiedReferral
+                      ? "bg-emerald-500"
+                      : "bg-gradient-to-r from-violet-600 to-pink-500 hover:-translate-y-0.5 hover:shadow-md"
+                  }`}
+                >
 
-                <div className="flex items-center justify-between gap-3">
+                  {copiedReferral ? (
+                    <>
+                      <CircleCheck className="h-4 w-4" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </>
+                  )}
 
-                  <div>
-                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-orange-600">
-                      Position 02
-                    </div>
+                </button>
 
-                    <h3 className="mt-1 text-base font-black text-slate-900">
-                      Right Side Referral
-                    </h3>
-                  </div>
-
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
-                    <ArrowRight className="h-5 w-5" />
-                  </div>
-
-                </div>
-
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-
-                  <input
-                    type="text"
-                    readOnly
-                    value={
-                      rightReferralLink
-                    }
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-mono text-slate-600 outline-none"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      copyLink(
-                        rightReferralLink,
-                        false
-                      )
-                    }
-                    className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition-all ${
-                      copiedRight
-                        ? "bg-emerald-500"
-                        : "bg-gradient-to-r from-orange-500 to-pink-500 hover:-translate-y-0.5 hover:shadow-md"
-                    }`}
-                  >
-                    {copiedRight ? (
-                      <>
-                        <CircleCheck className="h-4 w-4" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </>
-                    )}
-                  </button>
-
-                </div>
               </div>
-            </div>
 
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-3 py-2">
+
+                <Network className="h-3.5 w-3.5 shrink-0 text-violet-600" />
+
+                <p className="text-[10px] font-semibold text-violet-700">
+                  Binary placement is handled automatically by the server.
+                </p>
+
+              </div>
+
+            </div>
           </div>
+
         </section>
+
+        {/* ==================================================
+            RECENT ACTIVITY
+        ================================================== */}
 
         <section className="mt-6 rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm backdrop-blur sm:p-7">
 
@@ -2319,7 +2798,9 @@ export default function UserDashboard() {
             </div>
 
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+
               <Activity className="h-5 w-5" />
+
             </div>
 
           </div>
@@ -2328,7 +2809,9 @@ export default function UserDashboard() {
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 py-10 text-center">
 
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm">
+
                 <Clock3 className="h-5 w-5" />
+
               </div>
 
               <h3 className="mt-4 text-sm font-black text-slate-700">
@@ -2396,18 +2879,41 @@ export default function UserDashboard() {
                               "completed"
                           ).toLowerCase();
 
-                        const isCredit =
-                          [
-                            "credit",
-                            "captcha_reward",
-                            "referral_bonus",
-                            "completed",
-                          ].includes(
-                            String(
-                              transaction?.type ||
-                                ""
-                            ).toLowerCase()
-                          );
+                        const transactionType =
+                          String(
+                            transaction?.type ||
+                              ""
+                          ).toLowerCase();
+
+                        /*
+                         * Binary income is a wallet credit.
+                         */
+                        const isCredit = [
+                          "credit",
+                          "captcha_reward",
+                          "referral_bonus",
+                          "binary_income",
+                          "completed",
+                        ].includes(
+                          transactionType
+                        );
+
+                        /*
+                         * Human readable transaction name.
+                         */
+                        const displayTransactionType =
+                          transactionType ===
+                          "binary_income"
+                            ? "Binary Income"
+                            : transactionType ===
+                              "captcha_reward"
+                            ? "CAPTCHA Reward"
+                            : transactionType ===
+                              "referral_bonus"
+                            ? "Referral Bonus"
+                            : transaction?.type ||
+                              transaction?.category ||
+                              "Transaction";
 
                         return (
                           <tr
@@ -2420,10 +2926,17 @@ export default function UserDashboard() {
 
                             <td className="px-4 py-4">
 
-                              <span className="rounded-lg bg-violet-50 px-2.5 py-1 font-mono text-[10px] font-extrabold text-violet-700">
-                                {transaction?.type ||
-                                  transaction?.category ||
-                                  "transaction"}
+                              <span
+                                className={`rounded-lg px-2.5 py-1 font-mono text-[10px] font-extrabold ${
+                                  transactionType ===
+                                  "binary_income"
+                                    ? "bg-cyan-50 text-cyan-700"
+                                    : "bg-violet-50 text-violet-700"
+                                }`}
+                              >
+                                {
+                                  displayTransactionType
+                                }
                               </span>
 
                             </td>
@@ -2474,10 +2987,12 @@ export default function UserDashboard() {
                             </td>
 
                             <td className="px-4 py-4 text-slate-500">
+
                               {formatDateTime(
                                 transaction?.createdAt ||
                                   transaction?.timestamp
                               )}
+
                             </td>
 
                           </tr>
@@ -2486,12 +3001,15 @@ export default function UserDashboard() {
                     )}
 
                 </tbody>
-
               </table>
             </div>
           )}
 
         </section>
+
+        {/* ==================================================
+            LATEST NEWS
+        ================================================== */}
 
         <section className="relative mt-6 overflow-hidden rounded-3xl border border-violet-100 bg-white/90 p-[1px] shadow-sm">
 
@@ -2502,7 +3020,9 @@ export default function UserDashboard() {
             <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start">
 
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-pink-500 text-white shadow-md">
+
                 <Sparkles className="h-5 w-5" />
+
               </div>
 
               <div>
@@ -2520,15 +3040,17 @@ export default function UserDashboard() {
                 </div>
 
                 <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500">
-                  Welcome to your Samarth India customer portal. Your
-                  dashboard is connected to your account data, wallet,
-                  network and task activity.
+                  Welcome to your Samarth India customer portal. Your dashboard is connected to your account data, wallet, binary network and task activity.
                 </p>
 
               </div>
             </div>
           </div>
         </section>
+
+        {/* ==================================================
+            PORTAL STATUS
+        ================================================== */}
 
         <section className="mt-6 overflow-hidden rounded-3xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 p-[1px] shadow-lg shadow-violet-100">
 
@@ -2539,7 +3061,9 @@ export default function UserDashboard() {
               <div className="flex items-center gap-3">
 
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+
                   <ShieldCheck className="h-5 w-5" />
+
                 </div>
 
                 <div>
@@ -2556,8 +3080,11 @@ export default function UserDashboard() {
               </div>
 
               <div className="flex items-center gap-2 text-[10px] font-bold text-white/80">
+
                 <CircleCheck className="h-4 w-4 text-white" />
+
                 Secure Customer Access
+
               </div>
 
             </div>

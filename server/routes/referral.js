@@ -4,47 +4,92 @@ import mongoose from "mongoose";
 import { User } from "../models/User.js";
 import { authenticateToken } from "../middleware/auth.js";
 
+import {
+  getMyBinaryTree,
+  countBinaryTeam,
+  getBinaryParent,
+} from "../utils/binaryTree.js";
+
 const router = express.Router();
 
 // =====================================================
 // SAFE CUSTOMER FIELDS
 // =====================================================
-// Never expose password, PAN, bank details or other
-// private financial/KYC fields of other customers.
+//
+// Never expose:
+// - password
+// - PAN
+// - bank details
+// - KYC private information
+// - wallet financial information
+// - other sensitive fields
+//
+// These fields are only for public/customer-network data.
 // =====================================================
 
 const CUSTOMER_PUBLIC_FIELDS = [
   "_id",
+
   "memberId",
   "userCode",
+
   "name",
   "email",
   "phone",
+
   "status",
+
+  // Sponsor / Referral Tree
   "sponsorId",
   "sponsorCode",
   "sponsorMemberId",
+
+  // Legacy referral structure
   "level",
   "position",
+
+  // Binary Tree
+  "binaryParentId",
+  "binaryPosition",
+  "binaryLeftId",
+  "binaryRightId",
+  "binaryLevel",
+  "binaryPath",
+
+  // Package / account
   "userType",
   "activationDate",
   "joiningPackage",
   "rank",
+
+  // Referral counts
   "directReferralsCount",
   "teamCount",
+
+  // Binary counts
   "leftCount",
   "rightCount",
+
+  // Business
   "leftBusiness",
   "rightBusiness",
+
+  // Referral counts
   "totalReferral",
   "activeReferral",
+
+  // PV
   "leftPv",
   "rightPv",
   "leftCarryForwardPv",
   "rightCarryForwardPv",
+
+  // Team
   "totalTeam",
   "activeTeam",
   "teamPercent",
+
+  // Dates
   "createdAt",
   "updatedAt",
 ].join(" ");
@@ -60,7 +105,7 @@ const findAuthenticatedUser = async (req) => {
 
   if (
     !mongoose.Types.ObjectId.isValid(
-      req.user.id
+      String(req.user.id)
     )
   ) {
     return null;
@@ -92,10 +137,25 @@ const formatMember = (member) => {
   return {
     id: String(member._id),
 
+    _id: member._id,
+
+    // -------------------------------------------------
+    // MEMBER IDENTIFIERS
+    // -------------------------------------------------
+
     memberId:
+      member.memberId ||
+      member.userCode ||
+      "—",
+
+    userCode:
       member.userCode ||
       member.memberId ||
       "—",
+
+    // -------------------------------------------------
+    // BASIC INFO
+    // -------------------------------------------------
 
     name:
       member.name ||
@@ -121,13 +181,64 @@ const formatMember = (member) => {
       member.userType ||
       "UNPAID",
 
-    level:
-      Number(member.level || 1),
+    // -------------------------------------------------
+    // SPONSOR / REFERRAL TREE
+    // -------------------------------------------------
 
+    sponsorId:
+      member.sponsorId || null,
+
+    sponsorCode:
+      member.sponsorCode || "",
+
+    sponsorMemberId:
+      member.sponsorMemberId || "",
+
+    level:
+      Number(
+        member.level || 1
+      ),
+
+    /*
+     * Legacy referral position.
+     *
+     * IMPORTANT:
+     * This is NOT binaryPosition.
+     */
     position:
-      member.position === "right"
-        ? "right"
-        : "left",
+      member.position || null,
+
+    // -------------------------------------------------
+    // BINARY TREE
+    // -------------------------------------------------
+
+    binaryParentId:
+      member.binaryParentId ||
+      null,
+
+    binaryPosition:
+      member.binaryPosition ||
+      null,
+
+    binaryLeftId:
+      member.binaryLeftId ||
+      null,
+
+    binaryRightId:
+      member.binaryRightId ||
+      null,
+
+    binaryLevel:
+      Number(
+        member.binaryLevel || 1
+      ),
+
+    binaryPath:
+      member.binaryPath || "/",
+
+    // -------------------------------------------------
+    // REFERRAL COUNTS
+    // -------------------------------------------------
 
     directReferralsCount:
       Number(
@@ -139,6 +250,10 @@ const formatMember = (member) => {
         member.teamCount || 0
       ),
 
+    // -------------------------------------------------
+    // BINARY COUNTS
+    // -------------------------------------------------
+
     leftCount:
       Number(
         member.leftCount || 0
@@ -148,6 +263,25 @@ const formatMember = (member) => {
       Number(
         member.rightCount || 0
       ),
+
+    totalTeam:
+      Number(
+        member.totalTeam || 0
+      ),
+
+    activeTeam:
+      Number(
+        member.activeTeam || 0
+      ),
+
+    teamPercent:
+      Number(
+        member.teamPercent || 0
+      ),
+
+    // -------------------------------------------------
+    // BUSINESS
+    // -------------------------------------------------
 
     leftBusiness:
       Number(
@@ -159,6 +293,10 @@ const formatMember = (member) => {
         member.rightBusiness || 0
       ),
 
+    // -------------------------------------------------
+    // REFERRAL STATS
+    // -------------------------------------------------
+
     totalReferral:
       Number(
         member.totalReferral || 0
@@ -168,6 +306,10 @@ const formatMember = (member) => {
       Number(
         member.activeReferral || 0
       ),
+
+    // -------------------------------------------------
+    // PV
+    // -------------------------------------------------
 
     leftPv:
       Number(
@@ -189,310 +331,87 @@ const formatMember = (member) => {
         member.rightCarryForwardPv || 0
       ),
 
-    totalTeam:
-      Number(
-        member.totalTeam || 0
-      ),
-
-    activeTeam:
-      Number(
-        member.activeTeam || 0
-      ),
-
-    teamPercent:
-      Number(
-        member.teamPercent || 0
-      ),
+    // -------------------------------------------------
+    // PACKAGE
+    // -------------------------------------------------
 
     activationDate:
-      member.activationDate || null,
+      member.activationDate ||
+      null,
 
     joiningPackage:
-      member.joiningPackage || "",
+      member.joiningPackage ||
+      "",
+
+    // -------------------------------------------------
+    // DATES
+    // -------------------------------------------------
 
     createdAt:
-      member.createdAt || null,
+      member.createdAt ||
+      null,
 
     updatedAt:
-      member.updatedAt || null,
+      member.updatedAt ||
+      null,
 
-    children: [],
+    // -------------------------------------------------
+    // BINARY TREE CHILDREN
+    // -------------------------------------------------
+
+    children: {
+      left: null,
+      right: null,
+    },
   };
 };
 
 // =====================================================
-// HELPER: BUILD RELATIONSHIP MAP
+// HELPER: SORT MEMBERS
 // =====================================================
 
-const buildRelationshipMaps = (members) => {
-  const bySponsorId = new Map();
-  const bySponsorCode = new Map();
-
-  const addToMap = (
-    map,
-    key,
-    member
-  ) => {
-    if (!key) {
-      return;
-    }
-
-    if (!map.has(key)) {
-      map.set(key, []);
-    }
-
-    map.get(key).push(member);
-  };
-
-  for (const member of members) {
-    // -------------------------------------------------
-    // PRIMARY RELATIONSHIP: sponsorId
-    // -------------------------------------------------
-
-    if (member.sponsorId) {
-      addToMap(
-        bySponsorId,
-        String(member.sponsorId),
-        member
-      );
-    }
-
-    // -------------------------------------------------
-    // COMPATIBILITY RELATIONSHIPS
-    // -------------------------------------------------
-
-    const sponsorCode =
-      normalize(
-        member.sponsorCode
-      );
-
-    const sponsorMemberId =
-      normalize(
-        member.sponsorMemberId
-      );
-
-    if (sponsorCode) {
-      addToMap(
-        bySponsorCode,
-        sponsorCode,
-        member
-      );
-    }
-
-    if (
-      sponsorMemberId &&
-      sponsorMemberId !== sponsorCode
-    ) {
-      addToMap(
-        bySponsorCode,
-        sponsorMemberId,
-        member
-      );
-    }
-  }
-
-  return {
-    bySponsorId,
-    bySponsorCode,
-  };
-};
-
-// =====================================================
-// HELPER: FIND CHILDREN OF A MEMBER
-// =====================================================
-
-const getChildrenForMember = (
-  member,
-  relationshipMaps
+const sortMembersByCreatedAt = (
+  members,
+  direction = 1
 ) => {
-  const {
-    bySponsorId,
-    bySponsorCode,
-  } = relationshipMaps;
-
-  const children = [];
-  const seen = new Set();
-
-  const addChildren = (list = []) => {
-    for (const child of list) {
-      const id = String(child._id);
-
-      if (seen.has(id)) {
-        continue;
-      }
-
-      seen.add(id);
-      children.push(child);
-    }
-  };
-
-  // -------------------------------------------------
-  // PRIMARY: sponsorId
-  // -------------------------------------------------
-
-  addChildren(
-    bySponsorId.get(
-      String(member._id)
-    ) || []
-  );
-
-  // -------------------------------------------------
-  // FALLBACK: userCode / memberId
-  // -------------------------------------------------
-
-  const userCode =
-    normalize(
-      member.userCode
-    );
-
-  const memberId =
-    normalize(
-      member.memberId
-    );
-
-  if (userCode) {
-    addChildren(
-      bySponsorCode.get(
-        userCode
-      ) || []
-    );
-  }
-
-  if (
-    memberId &&
-    memberId !== userCode
-  ) {
-    addChildren(
-      bySponsorCode.get(
-        memberId
-      ) || []
-    );
-  }
-
-  // Remove self if malformed data ever points back
-  return children.filter(
-    (child) =>
-      String(child._id) !==
-      String(member._id)
-  );
-};
-
-// =====================================================
-// HELPER: SORT CHILDREN
-// =====================================================
-
-const sortChildren = (children) => {
-  return [...children].sort(
+  return [...members].sort(
     (a, b) => {
       const dateA = new Date(
-        a.createdAt || 0
+        a?.createdAt || 0
       ).getTime();
 
       const dateB = new Date(
-        b.createdAt || 0
+        b?.createdAt || 0
       ).getTime();
 
-      return dateA - dateB;
+      return (
+        (dateA - dateB) *
+        direction
+      );
     }
-  );
-};
-
-// =====================================================
-// HELPER: BUILD COMPLETE TREE
-// =====================================================
-
-const buildTreeNode = (
-  member,
-  relationshipMaps,
-  visited = new Set()
-) => {
-  const memberId = String(
-    member._id
-  );
-
-  // -------------------------------------------------
-  // Prevent malformed circular relationships
-  // -------------------------------------------------
-
-  if (visited.has(memberId)) {
-    const safeMember =
-      formatMember(member);
-
-    return safeMember;
-  }
-
-  const nextVisited =
-    new Set(visited);
-
-  nextVisited.add(memberId);
-
-  const safeMember =
-    formatMember(member);
-
-  const children =
-    sortChildren(
-      getChildrenForMember(
-        member,
-        relationshipMaps
-      )
-    );
-
-  safeMember.children =
-    children.map((child) =>
-      buildTreeNode(
-        child,
-        relationshipMaps,
-        nextVisited
-      )
-    );
-
-  return safeMember;
-};
-
-// =====================================================
-// HELPER: FLATTEN TREE COUNT
-// =====================================================
-
-const countDescendants = (node) => {
-  if (
-    !node ||
-    !Array.isArray(node.children)
-  ) {
-    return 0;
-  }
-
-  let count = node.children.length;
-
-  for (const child of node.children) {
-    count += countDescendants(child);
-  }
-
-  return count;
-};
-
-// =====================================================
-// HELPER: FIND MAX LEVEL
-// =====================================================
-
-const findMaxLevel = (node) => {
-  if (
-    !node ||
-    !Array.isArray(node.children) ||
-    node.children.length === 0
-  ) {
-    return Number(node?.level || 1);
-  }
-
-  return Math.max(
-    Number(node.level || 1),
-    ...node.children.map(
-      findMaxLevel
-    )
   );
 };
 
 // =====================================================
 // GET /api/referral/tree
+// =====================================================
+//
+// IMPORTANT:
+//
+// This endpoint now returns the ACTUAL BINARY TREE.
+//
+// Sponsor relationship:
+//     sponsorId
+//
+// Binary relationship:
+//     binaryParentId
+//     binaryPosition
+//     binaryLeftId
+//     binaryRightId
+//
+// The binary tree is loaded from:
+//     server/utils/binaryTree.js
+//
 // =====================================================
 
 router.get(
@@ -510,7 +429,8 @@ router.get(
       if (!user) {
         return res.status(404).json({
           success: false,
-          message: "User not found.",
+          message:
+            "User not found.",
         });
       }
 
@@ -520,7 +440,9 @@ router.get(
 
       if (
         user.status &&
-        String(user.status).toLowerCase() !==
+        String(
+          user.status
+        ).toLowerCase() !==
           "active"
       ) {
         return res.status(403).json({
@@ -531,132 +453,205 @@ router.get(
       }
 
       // -------------------------------------------------
-      // LOAD CUSTOMER NETWORK DATA
+      // LOAD ACTUAL BINARY TREE
       // -------------------------------------------------
       //
-      // Only safe customer fields are selected.
-      // Password, PAN, bank details and private
-      // financial information are NOT loaded.
+      // getMyBinaryTree() starts from the authenticated
+      // customer and follows:
+      //
+      // binaryLeftId
+      // binaryRightId
+      //
+      // It does NOT use sponsorId.
       // -------------------------------------------------
 
-      const members =
-        await User.find({
-          role: "user",
-        })
-          .select(
-            CUSTOMER_PUBLIC_FIELDS
-          )
-          .sort({
-            createdAt: 1,
-          })
-          .lean();
+      const binaryTree =
+        await getMyBinaryTree(
+          user._id,
+          5
+        );
+
+      if (!binaryTree) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Binary tree not found.",
+        });
+      }
 
       // -------------------------------------------------
-      // BUILD RELATIONSHIP MAPS
+      // CALCULATE LIVE ROOT COUNTS
+      // -------------------------------------------------
+      //
+      // This calculates actual descendants from binary
+      // child references instead of trusting potentially
+      // stale stored counts.
       // -------------------------------------------------
 
-      const relationshipMaps =
-        buildRelationshipMaps(
-          members
+      const binaryCounts =
+        await countBinaryTeam(
+          user._id
         );
 
       // -------------------------------------------------
-      // BUILD COMPLETE RECURSIVE TREE
+      // OVERRIDE ROOT COUNTS WITH LIVE VALUES
       // -------------------------------------------------
 
-      const tree =
-        buildTreeNode(
-          user,
-          relationshipMaps
+      binaryTree.leftCount =
+        binaryCounts.leftCount;
+
+      binaryTree.rightCount =
+        binaryCounts.rightCount;
+
+      binaryTree.totalTeam =
+        binaryCounts.totalCount;
+
+      // -------------------------------------------------
+      // BINARY DIRECT CHILDREN
+      // -------------------------------------------------
+
+      const binaryLeft =
+        binaryTree?.children?.left ||
+        null;
+
+      const binaryRight =
+        binaryTree?.children?.right ||
+        null;
+
+      // -------------------------------------------------
+      // OPTIONAL BINARY PARENT
+      // -------------------------------------------------
+
+      const binaryParent =
+        await getBinaryParent(
+          user._id
         );
 
       // -------------------------------------------------
-      // DIRECT CHILDREN
+      // BINARY LEVEL
       // -------------------------------------------------
 
-      const directChildren =
-        Array.isArray(tree.children)
-          ? tree.children
-          : [];
-
-      // -------------------------------------------------
-      // LEFT / RIGHT DIRECT CHILDREN
-      // -------------------------------------------------
-
-      const leftTeam =
-        directChildren.filter(
-          (child) =>
-            child.position !== "right"
-        );
-
-      const rightTeam =
-        directChildren.filter(
-          (child) =>
-            child.position === "right"
+      const binaryLevel =
+        Number(
+          binaryTree?.binaryLevel ||
+            user?.binaryLevel ||
+            1
         );
 
       // -------------------------------------------------
-      // NETWORK STATISTICS
-      // -------------------------------------------------
-
-      const totalDownline =
-        countDescendants(tree);
-
-      const maxLevel =
-        findMaxLevel(tree);
-
-      // Count direct active members from
-      // actual tree data.
-      const activeDirects =
-        directChildren.filter(
-          (child) =>
-            String(
-              child.status || ""
-            ).toLowerCase() ===
-            "active"
-        ).length;
-
-      // -------------------------------------------------
-      // RESPONSE
+      // RETURN RESPONSE
       // -------------------------------------------------
 
       return res.status(200).json({
         success: true,
 
-        tree,
+        // -----------------------------------------------
+        // Main binary tree
+        // -----------------------------------------------
 
-        leftTeam,
+        tree: binaryTree,
 
-        rightTeam,
+        // -----------------------------------------------
+        // Explicit binary tree alias
+        //
+        // Frontend can use either:
+        // data.tree
+        // or
+        // data.binaryTree
+        // -----------------------------------------------
+
+        binaryTree,
+
+        // -----------------------------------------------
+        // Binary direct children
+        // -----------------------------------------------
+
+        left: binaryLeft,
+
+        right: binaryRight,
+
+        leftTeam: binaryLeft
+          ? [binaryLeft]
+          : [],
+
+        rightTeam: binaryRight
+          ? [binaryRight]
+          : [],
+
+        // -----------------------------------------------
+        // Binary parent
+        // -----------------------------------------------
+
+        parent:
+          binaryParent
+            ? formatMember(
+                binaryParent
+              )
+            : null,
+
+        // -----------------------------------------------
+        // Statistics
+        // -----------------------------------------------
 
         stats: {
+          // Sponsor/referral direct members
+          // are intentionally NOT mixed into
+          // binary counts.
           directCount:
-            directChildren.length,
+            Number(
+              user.directReferralsCount ||
+                user.totalReferral ||
+                0
+            ),
 
           activeDirectCount:
-            activeDirects,
+            Number(
+              user.activeReferral ||
+                0
+            ),
 
-          totalDownline,
+          // Actual binary descendants
+          leftCount:
+            binaryCounts.leftCount,
 
-          maxLevel,
+          rightCount:
+            binaryCounts.rightCount,
 
-          leftDirectCount:
-            leftTeam.length,
+          totalTeam:
+            binaryCounts.totalCount,
 
-          rightDirectCount:
-            rightTeam.length,
+          totalCount:
+            binaryCounts.totalCount,
+
+          // Useful UI data
+          binaryLevel,
+
+          binaryPosition:
+            user.binaryPosition ||
+            null,
+
+          binaryPath:
+            user.binaryPath ||
+            "/",
+
+          hasLeft:
+            Boolean(binaryLeft),
+
+          hasRight:
+            Boolean(binaryRight),
         },
       });
     } catch (error) {
       console.error(
-        "❌ Referral tree error:",
+        "❌ Binary tree error:",
         error
       );
 
       return res.status(500).json({
         success: false,
         message:
-          "Failed to fetch referral tree.",
+          error?.message ||
+          "Failed to fetch binary tree.",
       });
     }
   }
@@ -664,6 +659,15 @@ router.get(
 
 // =====================================================
 // GET /api/referral/directs
+// =====================================================
+//
+// This endpoint remains the SPONSOR / REFERRAL TREE.
+//
+// It is intentionally separate from binary placement.
+//
+// sponsorId = direct referral relationship
+//
+// binaryParentId = binary placement relationship
 // =====================================================
 
 router.get(
@@ -681,7 +685,8 @@ router.get(
       if (!user) {
         return res.status(404).json({
           success: false,
-          message: "User not found.",
+          message:
+            "User not found.",
         });
       }
 
@@ -691,7 +696,9 @@ router.get(
 
       if (
         user.status &&
-        String(user.status).toLowerCase() !==
+        String(
+          user.status
+        ).toLowerCase() !==
           "active"
       ) {
         return res.status(403).json({
@@ -702,12 +709,14 @@ router.get(
       }
 
       // -------------------------------------------------
-      // LOAD CUSTOMER NETWORK
+      // PRIMARY QUERY
+      // sponsorId
       // -------------------------------------------------
 
-      const members =
+      let directMembers =
         await User.find({
           role: "user",
+          sponsorId: user._id,
         })
           .select(
             CUSTOMER_PUBLIC_FIELDS
@@ -718,45 +727,135 @@ router.get(
           .lean();
 
       // -------------------------------------------------
-      // RELATIONSHIP MAP
+      // LEGACY FALLBACK
+      // -------------------------------------------------
+      //
+      // Older records may not have sponsorId populated.
+      // Use sponsorCode / sponsorMemberId as fallback.
+      //
+      // This does NOT affect binary tree placement.
       // -------------------------------------------------
 
-      const relationshipMaps =
-        buildRelationshipMaps(
-          members
+      if (
+        directMembers.length === 0
+      ) {
+        const userCode =
+          normalize(
+            user.userCode
+          );
+
+        const memberId =
+          normalize(
+            user.memberId
+          );
+
+        const fallbackCodes = [];
+
+        if (userCode) {
+          fallbackCodes.push(
+            userCode
+          );
+        }
+
+        if (
+          memberId &&
+          memberId !== userCode
+        ) {
+          fallbackCodes.push(
+            memberId
+          );
+        }
+
+        if (
+          fallbackCodes.length > 0
+        ) {
+          directMembers =
+            await User.find({
+              role: "user",
+              $or: [
+                {
+                  sponsorCode: {
+                    $in: fallbackCodes,
+                  },
+                },
+                {
+                  sponsorMemberId: {
+                    $in: fallbackCodes,
+                  },
+                },
+              ],
+            })
+              .select(
+                CUSTOMER_PUBLIC_FIELDS
+              )
+              .sort({
+                createdAt: -1,
+              })
+              .lean();
+        }
+      }
+
+      // -------------------------------------------------
+      // REMOVE DUPLICATES
+      // -------------------------------------------------
+
+      const uniqueMembers =
+        new Map();
+
+      for (
+        const member of directMembers
+      ) {
+        uniqueMembers.set(
+          String(member._id),
+          member
+        );
+      }
+
+      // -------------------------------------------------
+      // FORMAT DIRECT MEMBERS
+      // -------------------------------------------------
+
+      const sortedMembers =
+        sortMembersByCreatedAt(
+          Array.from(
+            uniqueMembers.values()
+          ),
+          -1
         );
 
-      // -------------------------------------------------
-      // CURRENT USER'S DIRECTS
-      // -------------------------------------------------
-
-      const directMembers =
-        sortChildren(
-          getChildrenForMember(
-            user,
-            relationshipMaps
-          )
-        ).reverse();
-
-      // -------------------------------------------------
-      // SAFE RESPONSE
-      // -------------------------------------------------
-
       const directs =
-        directMembers.map(
+        sortedMembers.map(
           (member) => {
             const formatted =
-              formatMember(member);
+              formatMember(
+                member
+              );
 
             return {
               ...formatted,
 
-              // Direct page does not need
-              // recursive tree children.
-              children: [],
+              // Direct referral endpoint
+              // does not return recursive children.
+              children: {
+                left: null,
+                right: null,
+              },
             };
           }
         );
+
+      // -------------------------------------------------
+      // DIRECT STATS
+      // -------------------------------------------------
+
+      const activeDirectCount =
+        directs.filter(
+          (member) =>
+            String(
+              member.status || ""
+            ).toLowerCase() ===
+            "active"
+        ).length;
 
       // -------------------------------------------------
       // RESPONSE
@@ -771,14 +870,13 @@ router.get(
           directCount:
             directs.length,
 
-          activeDirectCount:
-            directs.filter(
-              (member) =>
-                String(
-                  member.status || ""
-                ).toLowerCase() ===
-                "active"
-            ).length,
+          activeDirectCount,
+
+          totalDirects:
+            directs.length,
+
+          activeDirects:
+            activeDirectCount,
         },
       });
     } catch (error) {
@@ -790,6 +888,7 @@ router.get(
       return res.status(500).json({
         success: false,
         message:
+          error?.message ||
           "Failed to fetch direct referrals.",
       });
     }
