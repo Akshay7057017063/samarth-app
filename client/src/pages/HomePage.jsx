@@ -48,7 +48,7 @@ export default function HomePage() {
     cmsContent?.missionStatement ||
     'To empower every family across India with drug-free magnetic health therapy and transparent, rewarding affiliate career opportunities.';
 
-  const phone = cmsContent?.supportPhone || '+91 98765 43210';
+  const phone = cmsContent?.supportPhone || '+91 8459949190';
 
   // Calculator state
   const [directReferrals, setDirectReferrals] = useState(5);

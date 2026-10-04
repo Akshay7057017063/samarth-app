@@ -18,10 +18,10 @@ export default function Footer() {
     cmsContent?.officeAddress ||
     "Ganga Shopping Mall, 2nd Floor, Main Agra Road, Dausa, Rajasthan 303303";
 
-  const phone = cmsContent?.supportPhone || "+91 98765 43210";
+  const phone = cmsContent?.supportPhone || "+91 8459949190";
 
   const email =
-    cmsContent?.supportEmail || "contact@samarthindia.com";
+    cmsContent?.supportEmail || "contact@digital-lyf LYF.com";
 
   return (
     <footer className="relative overflow-hidden border-t border-violet-100 bg-gradient-to-br from-violet-50 via-white to-orange-50 text-slate-600">

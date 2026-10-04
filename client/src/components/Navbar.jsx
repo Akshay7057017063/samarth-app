@@ -30,11 +30,11 @@ export default function Navbar() {
 
   const phone =
     cmsContent?.supportPhone ||
-    "+91 98765 43210";
+    "+91 8459949190";
 
   const email =
     cmsContent?.supportEmail ||
-    "contact@samarthindia.com";
+    "contact@digital-lyf LYF.com";
 
   const hours =
     cmsContent?.workingHours ||

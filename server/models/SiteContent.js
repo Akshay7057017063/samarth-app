@@ -138,13 +138,13 @@ const siteContentSchema = new mongoose.Schema(
 
     supportPhone: {
       type: String,
-      default: "+91 98765 43210",
+      default: "+91 8459949190",
       trim: true,
     },
 
     supportEmail: {
       type: String,
-      default: "contact@samarthindia.com",
+      default: "contact@digital-lyf LYF.com",
       lowercase: true,
       trim: true,
     },

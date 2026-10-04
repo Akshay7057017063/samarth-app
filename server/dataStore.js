@@ -697,7 +697,7 @@ class DataStore {
         'Welcome to DIGITAL LYF PVT. LTD. Organics & Wellness',
 
       supportPhone:
-        '+91 98765 43210',
+        '+91 8459949190',
 
       supportEmail:
         'contact@samarthindia.online',
