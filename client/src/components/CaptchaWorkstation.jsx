@@ -1179,7 +1179,7 @@ export default function CaptchaWorkstation() {
         </div>
       </div>
 
-      {/* DAILY PROGRESS */}
+     
 
       <div
         className="
