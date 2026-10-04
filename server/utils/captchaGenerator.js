@@ -1,3 +1,4 @@
+
 import crypto from "crypto";
 
 /*
@@ -11,6 +12,7 @@ import crypto from "crypto";
 | 1 / I / l
 |
 */
+
 const CAPTCHA_CHARS =
   "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz";
 
@@ -21,6 +23,18 @@ const SECRET_KEY =
 const DEFAULT_LENGTH = 6;
 const MIN_LENGTH = 4;
 const MAX_LENGTH = 10;
+
+/*
+|--------------------------------------------------------------------------
+| CAPTCHA TOKEN EXPIRY
+|--------------------------------------------------------------------------
+|
+| CAPTCHA token itself remains valid for 5 minutes.
+|
+| IMPORTANT:
+| This is NOT a 10-second solve-time restriction.
+|
+*/
 
 const CAPTCHA_EXPIRY_MS = 5 * 60 * 1000;
 
@@ -372,16 +386,16 @@ export function generateCaptcha(
 |
 | This function DOES NOT compare the user's answer.
 |
-| It only:
+| It:
 |
 | 1. Decodes token
 | 2. Checks timestamp
-| 3. Checks expiry
+| 3. Checks 5-minute expiry
 | 4. Recreates HMAC
 | 5. Verifies HMAC
 | 6. Returns original CAPTCHA text
 |
-| captcha.js will compare the submitted answer separately.
+| The solve route compares the submitted answer separately.
 |
 */
 
@@ -405,11 +419,13 @@ export function verifyCaptchaToken(token) {
     const parts =
       decoded.split(":");
 
+
     /*
      * Expected:
      *
      * timestamp:hmac:solution
      */
+
     if (parts.length !== 3) {
       return {
         valid: false,
@@ -417,14 +433,17 @@ export function verifyCaptchaToken(token) {
       };
     }
 
+
     const [
       timestampStr,
       receivedHmac,
       actualSolution
     ] = parts;
 
+
     const timestamp =
       Number(timestampStr);
+
 
     if (
       !Number.isFinite(timestamp) ||
@@ -438,15 +457,18 @@ export function verifyCaptchaToken(token) {
       };
     }
 
+
     const now =
       Date.now();
 
     const age =
       now - timestamp;
 
+
     /*
      * CAPTCHA cannot come from the future.
      */
+
     if (age < 0) {
       return {
         valid: false,
@@ -454,22 +476,26 @@ export function verifyCaptchaToken(token) {
       };
     }
 
+
     /*
-     * CAPTCHA expires after 5 minutes.
+     * CAPTCHA token expires after 5 minutes.
      */
+
     if (
       age > CAPTCHA_EXPIRY_MS
     ) {
       return {
         valid: false,
         reason:
-          "Captcha expired. Please refresh."
+          "Captcha expired after 5 minutes. Please refresh."
       };
     }
+
 
     /*
      * Recreate expected HMAC.
      */
+
     const expectedPayload =
       `${actualSolution}:${timestamp}`;
 
@@ -481,6 +507,7 @@ export function verifyCaptchaToken(token) {
         )
         .update(expectedPayload)
         .digest("hex");
+
 
     const receivedBuffer =
       Buffer.from(
@@ -494,10 +521,12 @@ export function verifyCaptchaToken(token) {
         "utf8"
       );
 
+
     /*
      * Length must match before
      * timingSafeEqual().
      */
+
     if (
       receivedBuffer.length !==
       expectedBuffer.length
@@ -509,9 +538,11 @@ export function verifyCaptchaToken(token) {
       };
     }
 
+
     /*
      * Secure HMAC comparison.
      */
+
     if (
       !crypto.timingSafeEqual(
         receivedBuffer,
@@ -525,13 +556,15 @@ export function verifyCaptchaToken(token) {
       };
     }
 
+
     /*
      * Token is valid.
      *
      * Return original CAPTCHA text
-     * so captcha.js can compare it
+     * so the solve route can compare it
      * with the user's submitted answer.
      */
+
     return {
       valid: true,
       text: actualSolution,
@@ -558,15 +591,17 @@ export function verifyCaptchaToken(token) {
 | VERIFY CAPTCHA SOLUTION
 |--------------------------------------------------------------------------
 |
-| This function is kept for compatibility with
-| any other code that may use it.
+| Compatibility function.
 |
-| It performs:
+| IMPORTANT:
+| There is NO 10-second solve-time restriction here.
 |
-| 1. Token validation
-| 2. Expiry validation
-| 3. Minimum solve-time validation
-| 4. Exact case-sensitive answer comparison
+| Token validity is controlled only by the
+| 5-minute CAPTCHA token expiry above.
+|
+| A minimum solve time can still be supplied
+| through minSeconds if another part of the
+| application uses this function.
 |
 */
 
@@ -587,8 +622,10 @@ export function verifyCaptchaSolution(
     };
   }
 
+
   const verification =
     verifyCaptchaToken(token);
+
 
   if (
     !verification ||
@@ -597,9 +634,13 @@ export function verifyCaptchaSolution(
     return verification;
   }
 
+
   /*
-   * Basic anti-bot timing check.
+   * Optional anti-bot minimum response time.
+   *
+   * This is NOT an expiry.
    */
+
   if (
     Number.isFinite(
       verification.timestamp
@@ -621,6 +662,7 @@ export function verifyCaptchaSolution(
     }
   }
 
+
   /*
    * IMPORTANT:
    *
@@ -630,8 +672,10 @@ export function verifyCaptchaSolution(
    * toLowerCase()
    * toUpperCase()
    */
+
   const submittedAnswer =
     userInput.trim();
+
 
   if (
     submittedAnswer !==
@@ -644,6 +688,7 @@ export function verifyCaptchaSolution(
     };
   }
 
+
   return {
     valid: true,
     text: verification.text,
@@ -651,3 +696,4 @@ export function verifyCaptchaSolution(
       verification.timestamp
   };
 }
+

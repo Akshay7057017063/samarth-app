@@ -1,3 +1,4 @@
+
 import express from "express";
 import mongoose from "mongoose";
 
@@ -20,13 +21,16 @@ const router = express.Router();
 // CAPTCHA SECURITY SETTINGS
 // =====================================================
 
-// CAPTCHA must be solved within 10 seconds.
-const CAPTCHA_EXPIRY_SECONDS = 10;
-const CAPTCHA_EXPIRY_MS =
-  CAPTCHA_EXPIRY_SECONDS * 1000;
+// IMPORTANT:
+// 10-second solve-time expiry has been REMOVED.
+//
+// CAPTCHA token validity is controlled by
+// captchaGenerator.js, which currently has a
+// 5-minute token expiry.
 
 // Minimum realistic response time.
 const MIN_RESPONSE_TIME_MS = 700;
+
 
 // =====================================================
 // HELPERS
@@ -39,6 +43,7 @@ const toNumber = (value, fallback = 0) => {
     ? number
     : fallback;
 };
+
 
 // -----------------------------------------------------
 // GET CAPTCHA SETTINGS FROM MONGODB
@@ -105,6 +110,7 @@ const getCaptchaSettings = async () => {
   }
 };
 
+
 // -----------------------------------------------------
 // GET TODAY DATE KEY
 // -----------------------------------------------------
@@ -125,6 +131,7 @@ const getTodayDateKey = () => {
 
   return `${year}-${month}-${day}`;
 };
+
 
 // -----------------------------------------------------
 // GET USER FROM JWT
@@ -162,6 +169,7 @@ const getUserFromRequest =
     }
   };
 
+
 // -----------------------------------------------------
 // CHECK ACTIVE USER
 // -----------------------------------------------------
@@ -169,7 +177,9 @@ const getUserFromRequest =
 const checkActiveUser =
   async (req, res) => {
     const user =
-      await getUserFromRequest(req);
+      await getUserFromRequest(
+        req
+      );
 
     if (!user) {
       res.status(401).json({
@@ -217,6 +227,7 @@ const checkActiveUser =
     return user;
   };
 
+
 // =====================================================
 // GET /api/captcha/new
 // =====================================================
@@ -256,10 +267,6 @@ router.get(
         token: captcha.token,
 
         length: captcha.length,
-
-        // Frontend can also use this value.
-        expiresInSeconds:
-          CAPTCHA_EXPIRY_SECONDS,
       });
     } catch (error) {
       console.error(
@@ -275,6 +282,7 @@ router.get(
     }
   }
 );
+
 
 // =====================================================
 // POST /api/captcha/solve
@@ -302,6 +310,7 @@ router.post(
         return;
       }
 
+
       // -------------------------------------------------
       // REQUEST DATA
       // -------------------------------------------------
@@ -311,6 +320,7 @@ router.post(
         answer,
       } = req.body || {};
 
+
       if (!token) {
         return res.status(400).json({
           success: false,
@@ -319,6 +329,7 @@ router.post(
             "CAPTCHA token is required.",
         });
       }
+
 
       if (
         typeof answer !== "string" ||
@@ -332,12 +343,14 @@ router.post(
         });
       }
 
+
       // -------------------------------------------------
       // VERIFY SIGNED CAPTCHA TOKEN
       // -------------------------------------------------
 
       const verification =
         verifyCaptchaToken(token);
+
 
       if (
         !verification ||
@@ -353,19 +366,23 @@ router.post(
         });
       }
 
+
       // -------------------------------------------------
-      // CAPTCHA TIMESTAMP IS REQUIRED
+      // CAPTCHA TIMESTAMP
       // -------------------------------------------------
       //
-      // The signed CAPTCHA token must provide the
-      // generation timestamp so the server can enforce
-      // the 10-second rule.
+      // Timestamp is used only to calculate the
+      // response time for logging / anti-bot purposes.
+      //
+      // IMPORTANT:
+      // There is NO 10-second expiry check.
       // -------------------------------------------------
 
       const generatedAt =
         Number(
           verification.timestamp
         );
+
 
       if (
         !Number.isFinite(
@@ -382,6 +399,7 @@ router.post(
         });
       }
 
+
       // -------------------------------------------------
       // RESPONSE TIME
       // -------------------------------------------------
@@ -393,32 +411,20 @@ router.post(
             generatedAt
         );
 
+
       // -------------------------------------------------
-      // SERVER-SIDE 10 SECOND EXPIRY
+      // IMPORTANT
       // -------------------------------------------------
       //
-      // This is the important security check.
+      // 10-second expiry has been REMOVED.
       //
-      // Even if someone bypasses the frontend countdown,
-      // the backend rejects the CAPTCHA after 10 seconds.
+      // The CAPTCHA can now be solved at any time
+      // while the signed token is valid.
+      //
+      // captchaGenerator.js controls the actual
+      // token expiry (currently 5 minutes).
       // -------------------------------------------------
 
-      if (
-        responseTimeMs >=
-        CAPTCHA_EXPIRY_MS
-      ) {
-        return res.status(400).json({
-          success: false,
-          counted: false,
-          result: "expired",
-
-          reason:
-            "CAPTCHA expired. You must solve each CAPTCHA within 10 seconds.",
-
-          message:
-            "CAPTCHA expired after 10 seconds. Please use the new CAPTCHA.",
-        });
-      }
 
       // -------------------------------------------------
       // SUSPICIOUSLY FAST SUBMISSION
@@ -437,6 +443,7 @@ router.post(
         });
       }
 
+
       // -------------------------------------------------
       // ACTUAL CAPTCHA ANSWER
       // -------------------------------------------------
@@ -445,6 +452,7 @@ router.post(
         verification.text ||
         verification.answer ||
         verification.captchaText;
+
 
       if (
         typeof actualSolution !==
@@ -459,6 +467,7 @@ router.post(
         });
       }
 
+
       // -------------------------------------------------
       // EXACT CASE-SENSITIVE COMPARISON
       // -------------------------------------------------
@@ -470,6 +479,7 @@ router.post(
         submittedAnswer ===
         actualSolution;
 
+
       // -------------------------------------------------
       // SETTINGS
       // -------------------------------------------------
@@ -480,9 +490,11 @@ router.post(
       } =
         await getCaptchaSettings();
 
+
       const memberId =
         user.memberId ||
         user.userCode;
+
 
       if (!memberId) {
         console.error(
@@ -497,6 +509,7 @@ router.post(
             "User account is missing member ID.",
         });
       }
+
 
       // =================================================
       // WRONG CAPTCHA
@@ -531,6 +544,7 @@ router.post(
             ) || "",
         });
 
+
         return res.status(200).json({
           success: false,
 
@@ -544,12 +558,14 @@ router.post(
         });
       }
 
+
       // =================================================
       // DAILY SUCCESS LIMIT
       // =================================================
 
       const todayDate =
         getTodayDateKey();
+
 
       const todayCorrectCount =
         await CaptchaAttempt.countDocuments(
@@ -567,6 +583,7 @@ router.post(
               "success",
           }
         );
+
 
       if (
         todayCorrectCount >=
@@ -589,6 +606,7 @@ router.post(
         });
       }
 
+
       // =================================================
       // MONGODB TRANSACTION
       // =================================================
@@ -598,9 +616,11 @@ router.post(
 
       let walletAfterSave;
 
+
       try {
         await session.withTransaction(
           async () => {
+
             // -------------------------------------------
             // FIND / CREATE WALLET
             // -------------------------------------------
@@ -612,6 +632,7 @@ router.post(
               }).session(
                 session
               );
+
 
             if (!wallet) {
               wallet =
@@ -644,12 +665,14 @@ router.post(
                 });
             }
 
+
             // -------------------------------------------
             // RESET DAILY WALLET COUNTER
             // -------------------------------------------
 
             const lastCaptchaDate =
               wallet.lastCaptchaDate;
+
 
             if (
               lastCaptchaDate
@@ -658,6 +681,7 @@ router.post(
                 new Date(
                   lastCaptchaDate
                 );
+
 
               if (
                 !Number.isNaN(
@@ -676,6 +700,7 @@ router.post(
                 const now =
                   new Date();
 
+
                 const sameDay =
                   lastYear ===
                     now.getFullYear() &&
@@ -684,11 +709,13 @@ router.post(
                   lastDay ===
                     now.getDate();
 
+
                 if (!sameDay) {
                   wallet.todayCaptchasSolved = 0;
                 }
               }
             }
+
 
             // -------------------------------------------
             // NORMALIZE WALLET
@@ -699,27 +726,27 @@ router.post(
                 wallet.currentBalance
               );
 
+
             wallet.totalEarnings =
               toNumber(
                 wallet.totalEarnings
               );
+
 
             wallet.captchaEarnings =
               toNumber(
                 wallet.captchaEarnings
               );
 
+
             wallet.todayCaptchasSolved =
               toNumber(
                 wallet.todayCaptchasSolved
               );
 
+
             // -------------------------------------------
             // SECOND DAILY LIMIT CHECK
-            // -------------------------------------------
-            //
-            // Check again inside the transaction so the
-            // latest wallet state is used before crediting.
             // -------------------------------------------
 
             if (
@@ -731,12 +758,14 @@ router.post(
               );
             }
 
+
             // -------------------------------------------
             // ADD CAPTCHA REWARD
             // -------------------------------------------
 
             wallet.todayCaptchasSolved +=
               1;
+
 
             wallet.currentBalance =
               Number(
@@ -746,6 +775,7 @@ router.post(
                 ).toFixed(2)
               );
 
+
             wallet.totalEarnings =
               Number(
                 (
@@ -753,6 +783,7 @@ router.post(
                   captchaReward
                 ).toFixed(2)
               );
+
 
             wallet.captchaEarnings =
               Number(
@@ -762,11 +793,14 @@ router.post(
                 ).toFixed(2)
               );
 
+
             wallet.lastCaptchaDate =
               new Date().toISOString();
 
+
             wallet.memberId =
               memberId;
+
 
             // -------------------------------------------
             // SAVE WALLET
@@ -775,6 +809,7 @@ router.post(
             await wallet.save({
               session,
             });
+
 
             // -------------------------------------------
             // CREATE CAPTCHA ATTEMPT
@@ -815,6 +850,7 @@ router.post(
                 session,
               }
             );
+
 
             // -------------------------------------------
             // CREATE WALLET TRANSACTION
@@ -864,11 +900,14 @@ router.post(
               }
             );
 
+
             walletAfterSave =
               wallet;
           }
         );
+
       } catch (error) {
+
         if (
           error.message ===
           "DAILY_CAPTCHA_LIMIT_REACHED"
@@ -891,9 +930,11 @@ router.post(
         }
 
         throw error;
+
       } finally {
         await session.endSession();
       }
+
 
       // =================================================
       // SUCCESS RESPONSE
@@ -932,7 +973,9 @@ router.post(
 
         responseTimeMs,
       });
+
     } catch (error) {
+
       console.error(
         "❌ CAPTCHA SOLVE ERROR:",
         error
@@ -950,6 +993,7 @@ router.post(
   }
 );
 
+
 // =====================================================
 // GET /api/captcha/my-stats
 // =====================================================
@@ -959,6 +1003,7 @@ router.get(
   authenticateToken,
   async (req, res) => {
     try {
+
       // -------------------------------------------------
       // USER
       // -------------------------------------------------
@@ -969,9 +1014,11 @@ router.get(
           res
         );
 
+
       if (!user) {
         return;
       }
+
 
       // -------------------------------------------------
       // SETTINGS
@@ -983,12 +1030,14 @@ router.get(
       } =
         await getCaptchaSettings();
 
+
       // -------------------------------------------------
       // TODAY
       // -------------------------------------------------
 
       const todayDate =
         getTodayDateKey();
+
 
       // -------------------------------------------------
       // TOTAL ATTEMPTS
@@ -1001,6 +1050,7 @@ router.get(
               user._id,
           }
         );
+
 
       // -------------------------------------------------
       // CORRECT
@@ -1020,6 +1070,7 @@ router.get(
           }
         );
 
+
       // -------------------------------------------------
       // WRONG
       // -------------------------------------------------
@@ -1037,6 +1088,7 @@ router.get(
               "failed",
           }
         );
+
 
       // -------------------------------------------------
       // TODAY CORRECT
@@ -1059,6 +1111,7 @@ router.get(
           }
         );
 
+
       // -------------------------------------------------
       // TODAY WRONG
       // -------------------------------------------------
@@ -1080,6 +1133,7 @@ router.get(
           }
         );
 
+
       // -------------------------------------------------
       // ACCURACY
       // -------------------------------------------------
@@ -1095,6 +1149,7 @@ router.get(
             )
           : 0;
 
+
       // -------------------------------------------------
       // WALLET
       // -------------------------------------------------
@@ -1104,6 +1159,7 @@ router.get(
           userId:
             user._id,
         }).lean();
+
 
       // -------------------------------------------------
       // RESPONSE
@@ -1142,9 +1198,6 @@ router.get(
 
           captchaReward,
 
-          captchaExpirySeconds:
-            CAPTCHA_EXPIRY_SECONDS,
-
           captchaEarnings:
             toNumber(
               wallet?.captchaEarnings
@@ -1156,7 +1209,9 @@ router.get(
             ),
         },
       });
+
     } catch (error) {
+
       console.error(
         "❌ MY CAPTCHA STATS ERROR:",
         error
@@ -1172,4 +1227,6 @@ router.get(
   }
 );
 
+
 export default router;
+
