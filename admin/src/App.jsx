@@ -7,6 +7,9 @@ import Login from "./pages/auth/Login";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Customer from "./pages/customer/Customer";
 import CustomerDetails from "./pages/customer/CustomerDetails";
+import CaptchaWork from "./pages/captcha/CaptchaWork";
+import Wallets from "./pages/wallet/Wallets";
+import PaymentReport from "./pages/reports/PaymentReport";
 
 const Placeholder = ({ title }) => {
   return (
@@ -27,97 +30,40 @@ const Placeholder = ({ title }) => {
 const App = () => {
   return (
     <Routes>
-      {/* ========================================
-          PUBLIC ROUTES
-      ======================================== */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
 
-      {/* Admin root ALWAYS opens login */}
-      <Route
-        path="/"
-        element={
-          <Navigate
-            to="/login"
-            replace
-          />
-        }
-      />
-
-      {/* Login */}
-      <Route
-        path="/login"
-        element={<Login />}
-      />
-
-      {/* ========================================
-          PROTECTED ADMIN ROUTES
-      ======================================== */}
+      <Route path="/login" element={<Login />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AdminLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
 
-          {/* Dashboard */}
-          <Route
-            path="/dashboard"
-            element={<Dashboard />}
-          />
-
-          {/* Customers */}
-          <Route
-            path="/customers"
-            element={<Customer />}
-          />
+          <Route path="/customers" element={<Customer />} />
 
           <Route
             path="/customers/:id"
             element={<CustomerDetails />}
           />
 
-          {/* Future Modules */}
+          <Route path="/captcha" element={<CaptchaWork />} />
 
-          <Route
-            path="/captcha"
-            element={
-              <Placeholder title="Captcha Work" />
-            }
-          />
-
-          <Route
-            path="/wallets"
-            element={
-              <Placeholder title="Wallets" />
-            }
-          />
+          <Route path="/wallets" element={<Wallets />} />
 
           <Route
             path="/reports"
-            element={
-              <Placeholder title="Reports" />
-            }
+            element={<PaymentReport />}
           />
 
           <Route
             path="/settings"
-            element={
-              <Placeholder title="Settings" />
-            }
+            element={<Placeholder title="Settings" />}
           />
-
         </Route>
       </Route>
 
-      {/* ========================================
-          UNKNOWN ROUTES
-      ======================================== */}
-
-      {/* Any unknown admin URL goes to login */}
       <Route
         path="*"
-        element={
-          <Navigate
-            to="/login"
-            replace
-          />
-        }
+        element={<Navigate to="/login" replace />}
       />
     </Routes>
   );

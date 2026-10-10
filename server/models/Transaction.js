@@ -66,22 +66,27 @@ const transactionSchema = new mongoose.Schema(
     //
     // Used for idempotency / duplicate protection.
     //
+    // Binary pair example:
+    //
+    // BINARY_PAIR:<parentId>:<pairNumber>
+    //
     // Example:
     //
-    // BINARY_PAIR:<parentId>:<leftId>:<rightId>
+    // BINARY_PAIR:68abc123...:1
+    // BINARY_PAIR:68abc123...:2
     //
     // sparse + unique means:
-    // - old transactions without referenceKey are allowed
-    // - the same referenceKey cannot be inserted twice
+    // - old transactions without referenceKey remain valid
+    // - same referenceKey cannot be inserted twice
     //
     // =====================================================
 
-  referenceKey: {
-  type: String,
-  trim: true,
-  unique: true,
-  sparse: true,
-},
+    referenceKey: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+    },
 
     // =====================================================
     // AMOUNTS
@@ -132,6 +137,12 @@ const transactionSchema = new mongoose.Schema(
     // =====================================================
     // BALANCE INFORMATION
     // =====================================================
+
+    balanceBefore: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
 
     balanceAfter: {
       type: Number,
@@ -256,10 +267,15 @@ transactionSchema.index({
   createdAt: -1,
 });
 
-
+// =========================================================
+// MODEL
+// =========================================================
 
 export const Transaction =
+  mongoose.models.Transaction ||
   mongoose.model(
     "Transaction",
     transactionSchema
   );
+
+export default Transaction;

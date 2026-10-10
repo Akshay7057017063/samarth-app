@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   X,
   AlertTriangle,
+  KeyRound,
 } from "lucide-react";
 
 import api from "../../services/api";
@@ -36,6 +37,11 @@ const Customer = () => {
 
   const [deleteCustomerData, setDeleteCustomerData] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Activation PIN
+  const [pinCustomer, setPinCustomer] = useState(null);
+  const [pinType, setPinType] = useState("unpaid");
+  const [sendingPin, setSendingPin] = useState(false);
 
   // =====================================================
   // GET CUSTOMER ID
@@ -227,6 +233,60 @@ const Customer = () => {
           err.message ||
           "Failed to update customer status."
       );
+    }
+  };
+
+  // =====================================================
+  // SEND ACTIVATION PIN (Paid / Unpaid)
+  // =====================================================
+
+  const handleSendPin = async () => {
+    const customerId = getCustomerId(pinCustomer);
+
+    if (!customerId) {
+      setError("Customer ID is missing.");
+      return;
+    }
+
+    try {
+      setSendingPin(true);
+      setError("");
+      setMessage("");
+
+      const response = await api.post(
+        `/admin/users/${customerId}/send-activation-pin`,
+        { pinType }
+      );
+
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.message ||
+            "Failed to send activation PIN."
+        );
+      }
+
+      setMessage(
+        response.data?.message ||
+          "Activation PIN sent successfully."
+      );
+
+      setPinCustomer(null);
+
+      await loadCustomers(true);
+
+      setTimeout(() => {
+        setMessage("");
+      }, 4000);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to send activation PIN."
+      );
+
+      setPinCustomer(null);
+    } finally {
+      setSendingPin(false);
     }
   };
 
@@ -482,6 +542,20 @@ const Customer = () => {
             >
               <Pencil className="h-4 w-4" />
             </button>
+
+            {!isActive && (
+              <button
+                type="button"
+                title="Send Activation PIN"
+                onClick={() => {
+                  setPinType("unpaid");
+                  setPinCustomer(customer);
+                }}
+                className="flex items-center justify-center rounded-lg border border-violet-200 p-2.5 text-violet-600 transition hover:bg-violet-50"
+              >
+                <KeyRound className="h-4 w-4" />
+              </button>
+            )}
 
             <button
               type="button"
@@ -864,6 +938,20 @@ const Customer = () => {
                               <Pencil className="h-4 w-4" />
                             </button>
 
+                            {!isActive && (
+                              <button
+                                type="button"
+                                title="Send Activation PIN"
+                                onClick={() => {
+                                  setPinType("unpaid");
+                                  setPinCustomer(customer);
+                                }}
+                                className="flex items-center justify-center rounded-lg border border-violet-200 p-2 text-violet-600 transition hover:bg-violet-50"
+                              >
+                                <KeyRound className="h-4 w-4" />
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               title={
@@ -1064,6 +1152,72 @@ const Customer = () => {
                     Delete Customer
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pinCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="px-5 py-5">
+              <h3 className="text-base font-bold text-slate-900">
+                Send Activation PIN
+              </h3>
+
+              <p className="mt-1 text-xs text-slate-500">
+                {pinCustomer.name} ({pinCustomer.memberId || pinCustomer.userCode})
+              </p>
+
+              <p className="mt-0.5 text-xs text-slate-500">
+                {pinCustomer.email}
+              </p>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {["paid", "unpaid"].map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setPinType(type)}
+                    className={`rounded-xl border px-4 py-3 text-sm font-bold uppercase transition ${
+                      pinType === type
+                        ? "border-violet-500 bg-violet-50 text-violet-700"
+                        : "border-slate-200 text-slate-500 hover:border-violet-200"
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+
+              <p className="mt-3 text-[11px] text-slate-500">
+                The 6 digit PIN is emailed to the customer. It is not shown here.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4">
+              <button
+                type="button"
+                disabled={sendingPin}
+                onClick={() => setPinCustomer(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={sendingPin}
+                onClick={handleSendPin}
+                className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+              >
+                {sendingPin ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <KeyRound className="h-4 w-4" />
+                )}
+                {sendingPin ? "Sending..." : "Send PIN"}
               </button>
             </div>
           </div>

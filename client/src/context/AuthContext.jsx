@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useContext,
@@ -7,34 +6,32 @@ import React, {
   useCallback,
 } from "react";
 
-const AuthContext = createContext(null);
+const AuthContext =
+  createContext(null);
 
-const TOKEN_KEY = "samarth_token";
+const TOKEN_KEY =
+  "samarth_token";
 
-// ============================================================
-// API BASE URL
-// ============================================================
-//
-// LOCAL (.env)
-// VITE_API_BASE_URL=/api
-//
-// PRODUCTION (.env.production)
-// VITE_API_BASE_URL=https://api.bull-mark.com/api
-//
-// Vite loads the correct environment file automatically
-// based on the current mode.
-//
-// IMPORTANT:
-// Do not hard-code the production API URL inside components.
-// ============================================================
+/* ============================================================
+   API BASE URL
+============================================================ */
+
+/*
+ * LOCAL:
+ * VITE_API_BASE_URL=/api
+ *
+ * PRODUCTION:
+ * VITE_API_BASE_URL=https://api.bull-mark.com/api
+ */
 
 const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "/api"
+  import.meta.env.VITE_API_BASE_URL ||
+  "/api"
 ).replace(/\/+$/, "");
 
-// ============================================================
-// DEBUG
-// ============================================================
+/* ============================================================
+   DEBUG
+============================================================ */
 
 console.log(
   "🌐 API BASE URL:",
@@ -51,44 +48,46 @@ console.log(
   import.meta.env.PROD
 );
 
-// ============================================================
-// SAFE JSON RESPONSE HELPER
-// ============================================================
-//
-// Prevents JSON parsing crashes when backend/proxy returns
-// an HTML error page, empty response, or invalid JSON.
-// ============================================================
+/* ============================================================
+   SAFE JSON RESPONSE HELPER
+============================================================ */
 
-const parseResponse = async (response) => {
-  const contentType =
-    response.headers.get("content-type") || "";
+const parseResponse =
+  async (response) => {
+    const contentType =
+      response.headers.get(
+        "content-type"
+      ) || "";
 
-  if (
-    contentType.includes("application/json")
-  ) {
-    return response.json();
-  }
+    if (
+      contentType.includes(
+        "application/json"
+      )
+    ) {
+      return response.json();
+    }
 
-  const text = await response.text();
+    const text =
+      await response.text();
 
-  return {
-    success: false,
-    message:
-      text ||
-      `Request failed with status ${response.status}.`,
+    return {
+      success: false,
+      message:
+        text ||
+        `Request failed with status ${response.status}.`,
+    };
   };
-};
 
-// ============================================================
-// AUTH PROVIDER
-// ============================================================
+/* ============================================================
+   AUTH PROVIDER
+============================================================ */
 
 export const AuthProvider = ({
   children,
 }) => {
-  // ==========================================================
-  // STATE
-  // ==========================================================
+  /* ==========================================================
+     STATE
+  ========================================================== */
 
   const [user, setUser] =
     useState(null);
@@ -96,15 +95,6 @@ export const AuthProvider = ({
   const [wallet, setWallet] =
     useState(null);
 
-  // IMPORTANT:
-  // Token is intentionally stored ONLY in React state.
-  //
-  // We do NOT use localStorage or sessionStorage.
-  //
-  // Therefore:
-  // - Refresh = logout
-  // - Browser reopen = logout
-  // - New app load = login required
   const [token, setToken] =
     useState(null);
 
@@ -114,9 +104,9 @@ export const AuthProvider = ({
   const [loading, setLoading] =
     useState(true);
 
-  // ==========================================================
-  // PUBLIC CMS CONTENT
-  // ==========================================================
+  /* ==========================================================
+     PUBLIC CMS CONTENT
+  ========================================================== */
 
   const fetchCmsContent =
     useCallback(async () => {
@@ -129,24 +119,21 @@ export const AuthProvider = ({
           url
         );
 
-        const res = await fetch(
-          url,
-          {
+        const res =
+          await fetch(url, {
             method: "GET",
-
             headers: {
               Accept:
                 "application/json",
             },
-          }
-        );
+          });
 
         const data =
           await parseResponse(res);
 
         if (
           res.ok &&
-          data.success
+          data?.success
         ) {
           setCmsContent(
             data.content || null
@@ -160,93 +147,110 @@ export const AuthProvider = ({
       }
     }, []);
 
-  // ==========================================================
-  // LOGOUT
-  // ==========================================================
+  /* ==========================================================
+     LOGOUT
+  ========================================================== */
 
-  const logout = useCallback(() => {
-    // --------------------------------------------------------
-    // IMPORTANT:
-    // Clear any old tokens that may have been created by the
-    // previous version of the application.
-    // --------------------------------------------------------
+  const logout =
+    useCallback(() => {
+      /*
+       * Remove any old legacy tokens.
+       *
+       * Active authentication is intentionally kept
+       * only in React memory.
+       */
+      localStorage.removeItem(
+        TOKEN_KEY
+      );
 
-    localStorage.removeItem(
-      TOKEN_KEY
-    );
+      sessionStorage.removeItem(
+        TOKEN_KEY
+      );
 
-    sessionStorage.removeItem(
-      TOKEN_KEY
-    );
+      setToken(null);
+      setUser(null);
+      setWallet(null);
+    }, []);
 
-    // --------------------------------------------------------
-    // Clear current React authentication state.
-    // --------------------------------------------------------
+  /* ==========================================================
+     FETCH CURRENT CUSTOMER SESSION
+  ========================================================== */
 
-    setToken(null);
-    setUser(null);
-    setWallet(null);
-  }, []);
+  const fetchMe =
+    useCallback(
+      async (authToken) => {
+        if (!authToken) {
+          setUser(null);
+          setWallet(null);
+          setLoading(false);
+          return false;
+        }
 
-  // ==========================================================
-  // FETCH CURRENT CUSTOMER SESSION
-  // ==========================================================
-  //
-  // This function is NOT called automatically when the app
-  // starts.
-  //
-  // It is called only:
-  // 1. After a successful manual login
-  // 2. When refreshUser() is explicitly requested
-  //
-  // ==========================================================
+        try {
+          const url =
+            `${API_BASE_URL}/auth/me`;
 
-  const fetchMe = useCallback(
-    async (authToken) => {
-      if (!authToken) {
-        setUser(null);
-        setWallet(null);
-        setLoading(false);
+          console.log(
+            "👤 SESSION REQUEST:",
+            url
+          );
 
-        return false;
-      }
+          const res =
+            await fetch(url, {
+              method: "GET",
+              headers: {
+                Accept:
+                  "application/json",
+                Authorization:
+                  `Bearer ${authToken}`,
+              },
+            });
 
-      try {
-        const url =
-          `${API_BASE_URL}/auth/me`;
+          const data =
+            await parseResponse(res);
 
-        console.log(
-          "👤 SESSION REQUEST:",
-          url
-        );
+          /* ==================================================
+             INVALID SESSION
+          ================================================== */
 
-        const res = await fetch(
-          url,
-          {
-            method: "GET",
+          if (
+            !res.ok ||
+            !data?.success
+          ) {
+            localStorage.removeItem(
+              TOKEN_KEY
+            );
 
-            headers: {
-              Accept:
-                "application/json",
+            sessionStorage.removeItem(
+              TOKEN_KEY
+            );
 
-              Authorization:
-                `Bearer ${authToken}`,
-            },
+            setToken(null);
+            setUser(null);
+            setWallet(null);
+
+            return false;
           }
-        );
 
-        const data =
-          await parseResponse(res);
+          /* ==================================================
+             VALID SESSION
+          ================================================== */
 
-        // ----------------------------------------------------
-        // INVALID SESSION
-        // ----------------------------------------------------
+          setUser(
+            data.user || null
+          );
 
-        if (
-          !res.ok ||
-          !data.success
-        ) {
-          // Remove any legacy stored tokens.
+          setWallet(
+            data.wallet || null
+          );
+
+          return true;
+        } catch (error) {
+          console.error(
+            "FAILED TO LOAD CUSTOMER SESSION:",
+            error
+          );
+
           localStorage.removeItem(
             TOKEN_KEY
           );
@@ -260,68 +264,27 @@ export const AuthProvider = ({
           setWallet(null);
 
           return false;
+        } finally {
+          setLoading(false);
         }
+      },
+      []
+    );
 
-        // ----------------------------------------------------
-        // VALID SESSION
-        // ----------------------------------------------------
+  /* ==========================================================
+     INITIAL APP LOAD
+  ========================================================== */
 
-        setUser(
-          data.user || null
-        );
-
-        setWallet(
-          data.wallet || null
-        );
-
-        return true;
-      } catch (error) {
-        console.error(
-          "FAILED TO LOAD CUSTOMER SESSION:",
-          error
-        );
-
-        // Remove any legacy stored tokens.
-        localStorage.removeItem(
-          TOKEN_KEY
-        );
-
-        sessionStorage.removeItem(
-          TOKEN_KEY
-        );
-
-        setToken(null);
-        setUser(null);
-        setWallet(null);
-
-        return false;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  // ==========================================================
-  // INITIAL APP LOAD
-  // ==========================================================
-  //
-  // IMPORTANT:
-  //
-  // We intentionally DO NOT restore an authentication session.
-  //
-  // Previous version:
-  //
-  // localStorage -> token -> fetchMe() -> automatic login
-  //
-  // New version:
-  //
-  // app starts -> clear old token -> user = null
-  // -> user must manually login
-  //
-  // This means even after browser refresh, the user must login
-  // again.
-  // ==========================================================
+  /*
+   * IMPORTANT:
+   *
+   * We intentionally DO NOT restore authentication from
+   * localStorage or sessionStorage.
+   *
+   * Existing legacy tokens are removed.
+   *
+   * Browser refresh requires login again.
+   */
 
   useEffect(() => {
     let cancelled = false;
@@ -330,14 +293,9 @@ export const AuthProvider = ({
       async () => {
         setLoading(true);
 
-        // ----------------------------------------------------
-        // REMOVE LEGACY AUTH TOKENS
-        // ----------------------------------------------------
-        //
-        // This is important because the previous version used
-        // localStorage. Existing users may still have an old
-        // samarth_token stored in their browser.
-        // ----------------------------------------------------
+        /* -----------------------------------------------
+           REMOVE LEGACY AUTH TOKENS
+        ------------------------------------------------ */
 
         localStorage.removeItem(
           TOKEN_KEY
@@ -347,9 +305,9 @@ export const AuthProvider = ({
           TOKEN_KEY
         );
 
-        // ----------------------------------------------------
-        // RESET AUTH STATE
-        // ----------------------------------------------------
+        /* -----------------------------------------------
+           RESET AUTH STATE
+        ------------------------------------------------ */
 
         if (!cancelled) {
           setToken(null);
@@ -357,19 +315,15 @@ export const AuthProvider = ({
           setWallet(null);
         }
 
-        // ----------------------------------------------------
-        // PUBLIC CMS CONTENT
-        // ----------------------------------------------------
-        //
-        // CMS content is public and should load regardless of
-        // authentication.
-        // ----------------------------------------------------
+        /* -----------------------------------------------
+           PUBLIC CMS CONTENT
+        ------------------------------------------------ */
 
         await fetchCmsContent();
 
-        // ----------------------------------------------------
-        // FINISH INITIAL LOADING
-        // ----------------------------------------------------
+        /* -----------------------------------------------
+           FINISH INITIAL LOADING
+        ------------------------------------------------ */
 
         if (!cancelled) {
           setLoading(false);
@@ -383,350 +337,356 @@ export const AuthProvider = ({
     };
   }, [fetchCmsContent]);
 
-  // ==========================================================
-  // LOGIN
-  // ==========================================================
+  /* ==========================================================
+     LOGIN
+  ========================================================== */
 
-  const login = async (
-    loginId,
-    password
-  ) => {
-    try {
-      const url =
-        `${API_BASE_URL}/auth/login`;
+  const login =
+    async (
+      loginId,
+      password
+    ) => {
+      try {
+        const url =
+          `${API_BASE_URL}/auth/login`;
 
-      console.log(
-        "🔐 LOGIN REQUEST:",
-        url
-      );
+        console.log(
+          "🔐 LOGIN REQUEST:",
+          url
+        );
 
-      const res = await fetch(
-        url,
-        {
-          method: "POST",
+        const res =
+          await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+              Accept:
+                "application/json",
+            },
+            body: JSON.stringify({
+              loginId,
+              password,
+            }),
+          });
 
-          headers: {
-            "Content-Type":
-              "application/json",
+        const data =
+          await parseResponse(res);
 
-            Accept:
-              "application/json",
-          },
+        console.log(
+          "🔐 LOGIN RESPONSE:",
+          data
+        );
 
-          body: JSON.stringify({
-            loginId,
-            password,
-          }),
+        /* -----------------------------------------------
+           BACKEND ERROR
+        ------------------------------------------------ */
+
+        if (
+          !res.ok ||
+          !data?.success
+        ) {
+          return {
+            success: false,
+            message:
+              data?.message ||
+              "Invalid login credentials.",
+          };
         }
-      );
 
-      const data =
-        await parseResponse(res);
+        /* -----------------------------------------------
+           TOKEN VALIDATION
+        ------------------------------------------------ */
 
-      console.log(
-        "🔐 LOGIN RESPONSE:",
-        data
-      );
+        if (!data?.token) {
+          return {
+            success: false,
+            message:
+              "Login succeeded but authentication token was not received.",
+          };
+        }
 
-      // -------------------------------------------------------
-      // BACKEND ERROR
-      // -------------------------------------------------------
+        /* -----------------------------------------------
+           STORE TOKEN ONLY IN MEMORY
+        ------------------------------------------------ */
 
-      if (
-        !res.ok ||
-        !data.success
-      ) {
-        return {
-          success: false,
-
-          message:
-            data.message ||
-            "Invalid login credentials.",
-        };
-      }
-
-      // -------------------------------------------------------
-      // TOKEN VALIDATION
-      // -------------------------------------------------------
-
-      if (!data.token) {
-        return {
-          success: false,
-
-          message:
-            "Login succeeded but authentication token was not received.",
-        };
-      }
-
-      // -------------------------------------------------------
-      // IMPORTANT:
-      // DO NOT SAVE TOKEN TO localStorage.
-      // DO NOT SAVE TOKEN TO sessionStorage.
-      //
-      // Token exists only in React memory.
-      //
-      // Therefore:
-      // Refresh browser -> token disappears.
-      // Close/reopen app -> token disappears.
-      // User must login manually again.
-      // -------------------------------------------------------
-
-      setToken(data.token);
-
-      // -------------------------------------------------------
-      // UPDATE USER STATE
-      // -------------------------------------------------------
-
-      setUser(
-        data.user || null
-      );
-
-      // -------------------------------------------------------
-      // UPDATE WALLET STATE
-      // -------------------------------------------------------
-
-      setWallet(
-        data.wallet || null
-      );
-
-      // -------------------------------------------------------
-      // FETCH COMPLETE CUSTOMER SESSION
-      // -------------------------------------------------------
-
-      const sessionLoaded =
-        await fetchMe(
+        setToken(
           data.token
         );
 
-      if (!sessionLoaded) {
-        return {
-          success: false,
+        /* -----------------------------------------------
+           INITIAL USER STATE
+        ------------------------------------------------ */
 
-          message:
-            "Login succeeded but customer session could not be loaded.",
-        };
-      }
+        setUser(
+          data.user || null
+        );
 
-      return {
-        success: true,
+        setWallet(
+          data.wallet || null
+        );
 
-        user:
-          data.user || null,
+        /* -----------------------------------------------
+           FETCH COMPLETE CUSTOMER SESSION
+        ------------------------------------------------ */
 
-        wallet:
-          data.wallet || null,
+        const sessionLoaded =
+          await fetchMe(
+            data.token
+          );
 
-        message:
-          data.message ||
-          "Login successful.",
-      };
-    } catch (error) {
-      console.error(
-        "LOGIN ERROR:",
-        error
-      );
-
-      return {
-        success: false,
-
-        message:
-          "Unable to connect to the server. Please try again.",
-      };
-    }
-  };
-
-  // ==========================================================
-  // REGISTER
-  // ==========================================================
-  //
-  // IMPORTANT:
-  //
-  // Registration does NOT automatically login the customer.
-  //
-  // After registration:
-  // Registration successful
-  //       ↓
-  // Login page
-  //       ↓
-  // User manually enters credentials
-  //       ↓
-  // Dashboard
-  //
-  // ==========================================================
-
-  const register = async (
-    formData
-  ) => {
-    try {
-      const url =
-        `${API_BASE_URL}/auth/register`;
-
-      console.log(
-        "📝 REGISTER REQUEST:",
-        url
-      );
-
-      const res = await fetch(
-        url,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            Accept:
-              "application/json",
-          },
-
-          body: JSON.stringify(
-            formData
-          ),
+        if (!sessionLoaded) {
+          return {
+            success: false,
+            message:
+              "Login succeeded but customer session could not be loaded.",
+          };
         }
-      );
 
-      const data =
-        await parseResponse(res);
-
-      console.log(
-        "📝 REGISTER RESPONSE:",
-        data
-      );
-
-      // -------------------------------------------------------
-      // BACKEND ERROR
-      // -------------------------------------------------------
-
-      if (
-        !res.ok ||
-        !data.success
-      ) {
         return {
-          success: false,
-
+          success: true,
+          user:
+            data.user || null,
+          wallet:
+            data.wallet || null,
           message:
             data.message ||
-            "Registration failed.",
+            "Login successful.",
         };
-      }
-
-      // -------------------------------------------------------
-      // REGISTRATION SUCCESS
-      // -------------------------------------------------------
-      //
-      // Backend may return a token after registration, but we
-      // intentionally ignore it on the frontend.
-      //
-      // Customer must login manually.
-      // -------------------------------------------------------
-
-      // Clear any old/legacy authentication data.
-      localStorage.removeItem(
-        TOKEN_KEY
-      );
-
-      sessionStorage.removeItem(
-        TOKEN_KEY
-      );
-
-      // Make sure customer is NOT authenticated.
-      setToken(null);
-      setUser(null);
-      setWallet(null);
-
-      return {
-        success: true,
-
-        user:
-          data.user || null,
-
-        wallet:
-          data.wallet || null,
-
-        message:
-          "Registration successful. Please login manually.",
-      };
-    } catch (error) {
-      console.error(
-        "REGISTRATION ERROR:",
-        error
-      );
-
-      return {
-        success: false,
-
-        message:
-          "Unable to connect to the server. Please try again.",
-      };
-    }
-  };
-
-  // ==========================================================
-  // REFRESH CURRENT CUSTOMER
-  // ==========================================================
-  //
-  // This function is intentionally available only for an
-  // already authenticated React session.
-  //
-  // Browser refresh will NOT call this automatically.
-  //
-  // ==========================================================
-
-  const refreshUser = async () => {
-    if (!token) {
-      setUser(null);
-      setWallet(null);
-
-      return false;
-    }
-
-    setLoading(true);
-
-    return fetchMe(token);
-  };
-
-  // ==========================================================
-  // LOCAL WALLET UPDATE
-  // ==========================================================
-
-  const updateWalletLocally = (
-    newBalance,
-    todaySolved
-  ) => {
-    setWallet(
-      (previous) => {
-        if (!previous) {
-          return previous;
-        }
+      } catch (error) {
+        console.error(
+          "LOGIN ERROR:",
+          error
+        );
 
         return {
-          ...previous,
-
-          currentBalance:
-            newBalance !==
-              undefined &&
-            newBalance !== null
-              ? Number(
-                  newBalance
-                )
-              : previous.currentBalance,
-
-          todayCaptchasSolved:
-            todaySolved !==
-              undefined &&
-            todaySolved !== null
-              ? Number(
-                  todaySolved
-                )
-              : previous.todayCaptchasSolved,
+          success: false,
+          message:
+            "Unable to connect to the server. Please try again.",
         };
       }
-    );
-  };
+    };
 
-  // ==========================================================
-  // CONTEXT VALUE
-  // ==========================================================
+  /* ==========================================================
+     OLD PUBLIC REGISTER
+  ========================================================== */
+
+  /*
+   * PUBLIC REGISTRATION IS DISABLED.
+   *
+   * Kept only so any old component importing `register`
+   * does not crash.
+   *
+   * This function NEVER calls the backend.
+   */
+
+  const register =
+    async () => {
+      return {
+        success: false,
+        message:
+          "Public registration is disabled. Please login and register new members from your dashboard.",
+      };
+    };
+
+  /* ==========================================================
+     REGISTER NEW MEMBER
+  ========================================================== */
+
+  /*
+   * POST /api/referral/register
+   *
+   * ONLY an authenticated customer can use this.
+   *
+   * The backend determines the sponsor from:
+   *
+   *   req.user.id
+   *
+   * Therefore frontend sponsorId / sponsorCode values
+   * are not trusted by the backend.
+   *
+   * New member:
+   * - status = inactive
+   * - wallet = ₹0
+   * - no automatic login
+   * - activation happens later using admin PIN
+   */
+
+  const registerMember =
+    async (formData) => {
+      try {
+        /* -----------------------------------------------
+           AUTH REQUIRED
+        ------------------------------------------------ */
+
+        if (!token) {
+          return {
+            success: false,
+            message:
+              "Please login again to register a new member.",
+          };
+        }
+
+        /* -----------------------------------------------
+           API REQUEST
+        ------------------------------------------------ */
+
+        const url =
+          `${API_BASE_URL}/referral/register`;
+
+        console.log(
+          "📝 MEMBER REGISTER REQUEST:",
+          url
+        );
+
+        const res =
+          await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+              Accept:
+                "application/json",
+              Authorization:
+                `Bearer ${token}`,
+            },
+            body: JSON.stringify(
+              formData || {}
+            ),
+          });
+
+        const data =
+          await parseResponse(res);
+
+        console.log(
+          "📝 MEMBER REGISTER RESPONSE:",
+          data
+        );
+
+        /* -----------------------------------------------
+           AUTHENTICATION FAILURE
+        ------------------------------------------------ */
+
+        if (
+          res.status === 401
+        ) {
+          setToken(null);
+          setUser(null);
+          setWallet(null);
+
+          return {
+            success: false,
+            message:
+              "Your session has expired. Please login again.",
+          };
+        }
+
+        /* -----------------------------------------------
+           BACKEND ERROR
+        ------------------------------------------------ */
+
+        if (
+          !res.ok ||
+          !data?.success
+        ) {
+          return {
+            success: false,
+            message:
+              data?.message ||
+              "Member registration failed.",
+          };
+        }
+
+        /* -----------------------------------------------
+           SUCCESS
+        ------------------------------------------------ */
+
+        /*
+         * Do NOT modify the currently logged-in customer's
+         * authentication session.
+         *
+         * The new member is a separate inactive account.
+         */
+
+        return data;
+      } catch (error) {
+        console.error(
+          "❌ REGISTER MEMBER ERROR:",
+          error
+        );
+
+        return {
+          success: false,
+          message:
+            "Network error. Please try again.",
+        };
+      }
+    };
+
+  /* ==========================================================
+     REFRESH CURRENT CUSTOMER
+  ========================================================== */
+
+  const refreshUser =
+    async () => {
+      if (!token) {
+        setUser(null);
+        setWallet(null);
+        return false;
+      }
+
+      setLoading(true);
+
+      return fetchMe(
+        token
+      );
+    };
+
+  /* ==========================================================
+     LOCAL WALLET UPDATE
+  ========================================================== */
+
+  const updateWalletLocally =
+    (
+      newBalance,
+      todaySolved
+    ) => {
+      setWallet(
+        (previous) => {
+          if (!previous) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+
+            currentBalance:
+              newBalance !==
+                undefined &&
+              newBalance !==
+                null
+                ? Number(
+                    newBalance
+                  )
+                : previous.currentBalance,
+
+            todayCaptchasSolved:
+              todaySolved !==
+                undefined &&
+              todaySolved !==
+                null
+                ? Number(
+                    todaySolved
+                  )
+                : previous.todayCaptchasSolved,
+          };
+        }
+      );
+    };
+
+  /* ==========================================================
+     CONTEXT VALUE
+  ========================================================== */
 
   const contextValue = {
     user,
@@ -736,7 +696,18 @@ export const AuthProvider = ({
     loading,
 
     login,
+
+    /*
+     * Backward-compatible stub.
+     * Public registration remains disabled.
+     */
     register,
+
+    /*
+     * Authenticated customer registration.
+     */
+    registerMember,
+
     logout,
 
     refreshUser,
@@ -747,9 +718,9 @@ export const AuthProvider = ({
     updateWalletLocally,
   };
 
-  // ==========================================================
-  // PROVIDER
-  // ==========================================================
+  /* ==========================================================
+     PROVIDER
+  ========================================================== */
 
   return (
     <AuthContext.Provider
@@ -760,22 +731,22 @@ export const AuthProvider = ({
   );
 };
 
-// ============================================================
-// USE AUTH HOOK
-// ============================================================
+/* ============================================================
+   USE AUTH HOOK
+============================================================ */
 
-export const useAuth = () => {
-  const context =
-    useContext(
-      AuthContext
-    );
+export const useAuth =
+  () => {
+    const context =
+      useContext(
+        AuthContext
+      );
 
-  if (!context) {
-    throw new Error(
-      "useAuth must be used inside an AuthProvider."
-    );
-  }
+    if (!context) {
+      throw new Error(
+        "useAuth must be used inside an AuthProvider."
+      );
+    }
 
-  return context;
-};
-
+    return context;
+  };

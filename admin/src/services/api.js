@@ -1,53 +1,142 @@
 import axios from "axios";
 
+// =====================================================
+// API BASE URL
+// =====================================================
+//
+// Local development:
+//   http://localhost:5000/api
+//
+// Production:
+//   Use VITE_API_BASE_URL when provided.
+//
+// IMPORTANT:
+// A relative "/api" in local Vite development points to
+// the frontend dev server unless Vite proxy is configured.
+// =====================================================
+
+const configuredApiUrl =
+  String(
+    import.meta.env.VITE_API_BASE_URL || ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+const isAbsoluteUrl =
+  /^https?:\/\//i.test(
+    configuredApiUrl
+  );
+
 const API_BASE_URL =
-import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+  import.meta.env.DEV
+    ? (
+        isAbsoluteUrl
+          ? configuredApiUrl
+          : "http://localhost:5000/api"
+      )
+    : (
+        configuredApiUrl ||
+        "/api"
+      );
+
+// =====================================================
+// AXIOS INSTANCE
+// =====================================================
 
 const api = axios.create({
-baseURL: API_BASE_URL,
-headers: {
-"Content-Type": "application/json",
-},
-timeout: 15000,
+  baseURL:
+    API_BASE_URL,
+
+  headers: {
+    "Content-Type":
+      "application/json",
+  },
+
+  timeout: 15000,
 });
 
-// Attach admin JWT to every request.
+// =====================================================
+// ATTACH ADMIN JWT
+// =====================================================
+
 api.interceptors.request.use(
-(config) => {
-const token = localStorage.getItem("adminToken");
+  (config) => {
+    const token =
+      localStorage.getItem(
+        "adminToken"
+      );
 
+    if (token) {
+      config.headers =
+        config.headers || {};
 
-if (token) {
-  config.headers = config.headers || {};
-  config.headers.Authorization = `Bearer ${token}`;
-}
+      config.headers.Authorization =
+        `Bearer ${token}`;
+    }
 
-return config;
-
-
-},
-(error) => Promise.reject(error)
+    return config;
+  },
+  (error) =>
+    Promise.reject(
+      error
+    )
 );
 
-// Handle authentication failures globally.
+// =====================================================
+// GLOBAL RESPONSE HANDLER
+// =====================================================
+
 api.interceptors.response.use(
-(response) => response,
-(error) => {
-if (error.response?.status === 401) {
-localStorage.removeItem("adminToken");
-localStorage.removeItem("adminUser");
+  (response) =>
+    response,
 
+  (error) => {
+    // ---------------------------------------------------
+    // AUTHENTICATION FAILURE
+    // ---------------------------------------------------
 
-  // Only redirect when the user is not already on login.
-  if (window.location.pathname !== "/login") {
-    window.location.href = "/login";
+    if (
+      error.response?.status ===
+      401
+    ) {
+      localStorage.removeItem(
+        "adminToken"
+      );
+
+      localStorage.removeItem(
+        "adminUser"
+      );
+
+      if (
+        window.location.pathname !==
+        "/login"
+      ) {
+        window.location.href =
+          "/login";
+      }
+    }
+
+    return Promise.reject(
+      error
+    );
   }
-}
-
-return Promise.reject(error);
-
-
-}
 );
+
+// =====================================================
+// DEVELOPMENT DEBUG
+// =====================================================
+
+if (
+  import.meta.env.DEV
+) {
+  console.log(
+    "🔗 Admin API Base URL:",
+    API_BASE_URL
+  );
+}
+
+// =====================================================
+// EXPORT
+// =====================================================
 
 export default api;

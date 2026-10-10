@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   UserCheck,
@@ -11,8 +10,8 @@ import {
 const DEFAULT_STEPS = [
   {
     step: '01',
-    title: 'Join with Sponsor ID',
-    desc: 'Register in under 60 seconds with your sponsor referral code and activate your digital member portal.',
+    title: 'Get Registered by Your Sponsor',
+    desc: 'Your sponsor registers you from their dashboard. Activate your account with the PIN sent to your email and login.',
     icon: UserCheck,
     color: 'from-violet-500 to-fuchsia-500',
   },

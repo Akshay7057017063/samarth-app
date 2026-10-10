@@ -43,6 +43,10 @@ export default function CaptchaWorkstation() {
   const captchaAndInputRef = useRef(null);
   const inputRef = useRef(null);
 
+  // CAPTCHA metadata used to stay aligned with backend verification.
+  const captchaReceivedAtRef = useRef(0);
+  const captchaIdRef = useRef("");
+
   // Used to avoid too many scroll calculations
   const scrollFrameRef = useRef(null);
 
@@ -320,6 +324,9 @@ export default function CaptchaWorkstation() {
       setCaptchaToken("");
       setUserInput("");
 
+      captchaReceivedAtRef.current = 0;
+      captchaIdRef.current = "";
+
       const res = await fetch(
         `${API_BASE_URL}/captcha/new`,
         {
@@ -349,6 +356,16 @@ export default function CaptchaWorkstation() {
       setCaptchaSvg(data.svg || "");
       setCaptchaToken(data.token || "");
 
+      captchaIdRef.current = String(
+        data.captchaId ||
+          data.id ||
+          ""
+      );
+
+      // The server rejects submissions that arrive too quickly.
+      // Start timing once the CAPTCHA has reached the browser.
+      captchaReceivedAtRef.current = Date.now();
+
       setMessage({
         text: "",
         type: "",
@@ -359,6 +376,9 @@ export default function CaptchaWorkstation() {
       setCaptchaSvg("");
       setCaptchaToken("");
       setUserInput("");
+
+      captchaReceivedAtRef.current = 0;
+      captchaIdRef.current = "";
 
       setMessage({
         text:
@@ -505,6 +525,41 @@ export default function CaptchaWorkstation() {
       return;
     }
 
+    // --------------------------------------------------------
+    // BACKEND MINIMUM CAPTCHA RESPONSE TIME
+    // --------------------------------------------------------
+    // The server requires a small minimum delay before solving.
+    // Wait 850ms on the client so fast clicks do not get HTTP 400.
+    const minimumClientViewMs = 850;
+
+    const elapsedMs =
+      captchaReceivedAtRef.current > 0
+        ? Date.now() - captchaReceivedAtRef.current
+        : minimumClientViewMs;
+
+    if (elapsedMs < minimumClientViewMs) {
+      setMessage({
+        text: "Please review the CAPTCHA for a moment before submitting.",
+        type: "info",
+      });
+
+      await new Promise((resolve) => {
+        setTimeout(
+          resolve,
+          minimumClientViewMs - elapsedMs
+        );
+      });
+    }
+
+    if (!captchaToken) {
+      setMessage({
+        text: "CAPTCHA is no longer available. Please refresh and try again.",
+        type: "error",
+      });
+
+      return;
+    }
+
     setLoading(true);
 
     setMessage({
@@ -513,6 +568,16 @@ export default function CaptchaWorkstation() {
     });
 
     try {
+      const requestBody = {
+        token: captchaToken,
+        answer: trimmedInput,
+      };
+
+      if (captchaIdRef.current) {
+        requestBody.captchaId =
+          captchaIdRef.current;
+      }
+
       const res = await fetch(
         `${API_BASE_URL}/captcha/solve`,
         {
@@ -522,27 +587,34 @@ export default function CaptchaWorkstation() {
             Accept: "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            token: captchaToken,
-            answer: trimmedInput,
-          }),
+          body: JSON.stringify(requestBody),
         }
       );
 
       const contentType =
         res.headers.get("content-type") || "";
 
-      const data = contentType.includes(
-        "application/json"
-      )
-        ? await res.json()
-        : {};
+      let data = {};
+
+      if (contentType.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch {
+          data = {};
+        }
+      }
+
+      console.log("CAPTCHA SOLVE RESPONSE:", {
+        status: res.status,
+        ok: res.ok,
+        data,
+      });
 
       // ======================================================
       // SUCCESS
       // ======================================================
 
-      if (data.success) {
+      if (res.ok && data.success) {
         confetti({
           particleCount: 50,
           spread: 60,
@@ -550,7 +622,8 @@ export default function CaptchaWorkstation() {
         });
 
         const solved = Number(
-          data.todayCaptchasSolved ?? todaySolved + 1
+          data.todayCaptchasSolved ??
+            todaySolved + 1
         );
 
         const reward = Number(
@@ -559,17 +632,32 @@ export default function CaptchaWorkstation() {
 
         setTodaySolved(solved);
 
-        if (data.dailyCaptchaLimit !== undefined) {
-          setDailyLimit(Number(data.dailyCaptchaLimit));
+        if (
+          data.dailyCaptchaLimit !==
+          undefined
+        ) {
+          setDailyLimit(
+            Number(
+              data.dailyCaptchaLimit
+            )
+          );
         }
 
-        if (data.currentBalance !== undefined) {
+        if (
+          data.currentBalance !==
+          undefined
+        ) {
           updateWalletLocally(
-            Number(data.currentBalance),
+            Number(
+              data.currentBalance
+            ),
             solved
           );
         } else {
-          updateWalletLocally(undefined, solved);
+          updateWalletLocally(
+            undefined,
+            solved
+          );
         }
 
         setMessage({
@@ -582,9 +670,21 @@ export default function CaptchaWorkstation() {
         });
 
         setUserInput("");
-        setCooldown(3);
+        setCaptchaSvg("");
+        setCaptchaToken("");
+        captchaReceivedAtRef.current = 0;
+        captchaIdRef.current = "";
+
+        setCooldown(
+          Number(
+            data.submitCooldownSeconds ??
+              data.cooldownSeconds ??
+              3
+          )
+        );
 
         await loadNewCaptcha();
+
         return;
       }
 
@@ -592,9 +692,15 @@ export default function CaptchaWorkstation() {
       // DAILY LIMIT
       // ======================================================
 
-      if (res.status === 429 || data.result === "limit") {
+      if (
+        res.status === 429 ||
+        data.result === "limit"
+      ) {
         setTodaySolved(
-          Number(data.todayCaptchasSolved ?? dailyLimit)
+          Number(
+            data.todayCaptchasSolved ??
+              dailyLimit
+          )
         );
 
         setMessage({
@@ -607,26 +713,36 @@ export default function CaptchaWorkstation() {
         setUserInput("");
         setCaptchaSvg("");
         setCaptchaToken("");
+        captchaReceivedAtRef.current = 0;
+        captchaIdRef.current = "";
 
         return;
       }
 
       // ======================================================
-      // INVALID / EXPIRED / TAMPERED
+      // INVALID / EXPIRED / TAMPERED / HTTP 400
       // ======================================================
 
-      if (data.counted === false) {
+      if (
+        data.counted === false ||
+        res.status === 400
+      ) {
         setMessage({
           text:
             data.message ||
             data.reason ||
-            "This CAPTCHA is invalid. Please try a new one.",
+            "This CAPTCHA could not be verified. A new CAPTCHA will be loaded.",
           type: "error",
         });
 
         setUserInput("");
+        setCaptchaSvg("");
+        setCaptchaToken("");
+        captchaReceivedAtRef.current = 0;
+        captchaIdRef.current = "";
 
         await loadNewCaptcha();
+
         return;
       }
 
@@ -646,8 +762,13 @@ export default function CaptchaWorkstation() {
         });
 
         setUserInput("");
+        setCaptchaSvg("");
+        setCaptchaToken("");
+        captchaReceivedAtRef.current = 0;
+        captchaIdRef.current = "";
 
         await loadNewCaptcha();
+
         return;
       }
 
@@ -659,18 +780,27 @@ export default function CaptchaWorkstation() {
         text:
           data.message ||
           data.reason ||
-          "Unable to verify CAPTCHA.",
+          `Unable to verify CAPTCHA (HTTP ${res.status}).`,
         type: "error",
       });
 
       setUserInput("");
+      setCaptchaSvg("");
+      setCaptchaToken("");
+      captchaReceivedAtRef.current = 0;
+      captchaIdRef.current = "";
 
       await loadNewCaptcha();
     } catch (error) {
-      console.error("CAPTCHA SUBMIT ERROR:", error);
+      console.error(
+        "CAPTCHA SUBMIT ERROR:",
+        error
+      );
 
       setMessage({
-        text: "Network error. Please check the server connection and try again.",
+        text:
+          error?.message ||
+          "Network error. Please check the server connection and try again.",
         type: "error",
       });
     } finally {
@@ -691,6 +821,9 @@ export default function CaptchaWorkstation() {
       text: "",
       type: "",
     });
+
+    captchaReceivedAtRef.current = 0;
+    captchaIdRef.current = "";
 
     await loadNewCaptcha();
 
@@ -1008,12 +1141,16 @@ export default function CaptchaWorkstation() {
               ${
                 message.type === "success"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : message.type === "info"
+                  ? "border-blue-200 bg-blue-50 text-blue-700"
                   : "border-red-200 bg-red-50 text-red-700"
               }
             `}
           >
             {message.type === "success" ? (
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 sm:h-5 sm:w-5" />
+            ) : message.type === "info" ? (
+              <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 sm:h-5 sm:w-5" />
             ) : (
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 sm:h-5 sm:w-5" />
             )}

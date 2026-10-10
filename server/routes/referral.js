@@ -5,6 +5,11 @@ import { User } from "../models/User.js";
 import { authenticateToken } from "../middleware/auth.js";
 
 import {
+  registerInactiveMember,
+  isDbReady,
+} from "../utils/memberRegistration.js";
+
+import {
   getMyBinaryTree,
   countBinaryTeam,
   getBinaryParent,
@@ -22,9 +27,9 @@ const router = express.Router();
 // - bank details
 // - KYC private information
 // - wallet financial information
-// - other sensitive fields
 //
-// These fields are only for public/customer-network data.
+// These fields are used for authenticated customer
+// referral / binary network data.
 // =====================================================
 
 const CUSTOMER_PUBLIC_FIELDS = [
@@ -74,7 +79,7 @@ const CUSTOMER_PUBLIC_FIELDS = [
   "leftBusiness",
   "rightBusiness",
 
-  // Referral counts
+  // Referral stats
   "totalReferral",
   "activeReferral",
 
@@ -103,15 +108,13 @@ const findAuthenticatedUser = async (req) => {
     return null;
   }
 
-  if (
-    !mongoose.Types.ObjectId.isValid(
-      String(req.user.id)
-    )
-  ) {
+  const userId = String(req.user.id);
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
     return null;
   }
 
-  return User.findById(req.user.id)
+  return User.findById(userId)
     .select(CUSTOMER_PUBLIC_FIELDS);
 };
 
@@ -186,13 +189,16 @@ const formatMember = (member) => {
     // -------------------------------------------------
 
     sponsorId:
-      member.sponsorId || null,
+      member.sponsorId ||
+      null,
 
     sponsorCode:
-      member.sponsorCode || "",
+      member.sponsorCode ||
+      "",
 
     sponsorMemberId:
-      member.sponsorMemberId || "",
+      member.sponsorMemberId ||
+      "",
 
     level:
       Number(
@@ -206,7 +212,8 @@ const formatMember = (member) => {
      * This is NOT binaryPosition.
      */
     position:
-      member.position || null,
+      member.position ||
+      null,
 
     // -------------------------------------------------
     // BINARY TREE
@@ -234,7 +241,8 @@ const formatMember = (member) => {
       ),
 
     binaryPath:
-      member.binaryPath || "/",
+      member.binaryPath ||
+      "/",
 
     // -------------------------------------------------
     // REFERRAL COUNTS
@@ -376,13 +384,15 @@ const sortMembersByCreatedAt = (
 ) => {
   return [...members].sort(
     (a, b) => {
-      const dateA = new Date(
-        a?.createdAt || 0
-      ).getTime();
+      const dateA =
+        new Date(
+          a?.createdAt || 0
+        ).getTime();
 
-      const dateB = new Date(
-        b?.createdAt || 0
-      ).getTime();
+      const dateB =
+        new Date(
+          b?.createdAt || 0
+        ).getTime();
 
       return (
         (dateA - dateB) *
@@ -396,21 +406,16 @@ const sortMembersByCreatedAt = (
 // GET /api/referral/tree
 // =====================================================
 //
-// IMPORTANT:
-//
-// This endpoint now returns the ACTUAL BINARY TREE.
+// Returns the ACTUAL BINARY TREE.
 //
 // Sponsor relationship:
-//     sponsorId
+//   sponsorId
 //
 // Binary relationship:
-//     binaryParentId
-//     binaryPosition
-//     binaryLeftId
-//     binaryRightId
-//
-// The binary tree is loaded from:
-//     server/utils/binaryTree.js
+//   binaryParentId
+//   binaryPosition
+//   binaryLeftId
+//   binaryRightId
 //
 // =====================================================
 
@@ -439,11 +444,9 @@ router.get(
       // -------------------------------------------------
 
       if (
-        user.status &&
         String(
-          user.status
-        ).toLowerCase() !==
-          "active"
+          user.status || ""
+        ).toLowerCase() !== "active"
       ) {
         return res.status(403).json({
           success: false,
@@ -454,15 +457,6 @@ router.get(
 
       // -------------------------------------------------
       // LOAD ACTUAL BINARY TREE
-      // -------------------------------------------------
-      //
-      // getMyBinaryTree() starts from the authenticated
-      // customer and follows:
-      //
-      // binaryLeftId
-      // binaryRightId
-      //
-      // It does NOT use sponsorId.
       // -------------------------------------------------
 
       const binaryTree =
@@ -482,20 +476,11 @@ router.get(
       // -------------------------------------------------
       // CALCULATE LIVE ROOT COUNTS
       // -------------------------------------------------
-      //
-      // This calculates actual descendants from binary
-      // child references instead of trusting potentially
-      // stale stored counts.
-      // -------------------------------------------------
 
       const binaryCounts =
         await countBinaryTeam(
           user._id
         );
-
-      // -------------------------------------------------
-      // OVERRIDE ROOT COUNTS WITH LIVE VALUES
-      // -------------------------------------------------
 
       binaryTree.leftCount =
         binaryCounts.leftCount;
@@ -519,7 +504,7 @@ router.get(
         null;
 
       // -------------------------------------------------
-      // OPTIONAL BINARY PARENT
+      // BINARY PARENT
       // -------------------------------------------------
 
       const binaryParent =
@@ -534,37 +519,20 @@ router.get(
       const binaryLevel =
         Number(
           binaryTree?.binaryLevel ||
-            user?.binaryLevel ||
-            1
+          user?.binaryLevel ||
+          1
         );
 
       // -------------------------------------------------
-      // RETURN RESPONSE
+      // RESPONSE
       // -------------------------------------------------
 
       return res.status(200).json({
         success: true,
 
-        // -----------------------------------------------
-        // Main binary tree
-        // -----------------------------------------------
-
         tree: binaryTree,
 
-        // -----------------------------------------------
-        // Explicit binary tree alias
-        //
-        // Frontend can use either:
-        // data.tree
-        // or
-        // data.binaryTree
-        // -----------------------------------------------
-
         binaryTree,
-
-        // -----------------------------------------------
-        // Binary direct children
-        // -----------------------------------------------
 
         left: binaryLeft,
 
@@ -578,10 +546,6 @@ router.get(
           ? [binaryRight]
           : [],
 
-        // -----------------------------------------------
-        // Binary parent
-        // -----------------------------------------------
-
         parent:
           binaryParent
             ? formatMember(
@@ -589,28 +553,20 @@ router.get(
               )
             : null,
 
-        // -----------------------------------------------
-        // Statistics
-        // -----------------------------------------------
-
         stats: {
-          // Sponsor/referral direct members
-          // are intentionally NOT mixed into
-          // binary counts.
           directCount:
             Number(
               user.directReferralsCount ||
-                user.totalReferral ||
-                0
+              user.totalReferral ||
+              0
             ),
 
           activeDirectCount:
             Number(
               user.activeReferral ||
-                0
+              0
             ),
 
-          // Actual binary descendants
           leftCount:
             binaryCounts.leftCount,
 
@@ -623,7 +579,6 @@ router.get(
           totalCount:
             binaryCounts.totalCount,
 
-          // Useful UI data
           binaryLevel,
 
           binaryPosition:
@@ -661,9 +616,7 @@ router.get(
 // GET /api/referral/directs
 // =====================================================
 //
-// This endpoint remains the SPONSOR / REFERRAL TREE.
-//
-// It is intentionally separate from binary placement.
+// SPONSOR / DIRECT REFERRALS
 //
 // sponsorId = direct referral relationship
 //
@@ -695,11 +648,9 @@ router.get(
       // -------------------------------------------------
 
       if (
-        user.status &&
         String(
-          user.status
-        ).toLowerCase() !==
-          "active"
+          user.status || ""
+        ).toLowerCase() !== "active"
       ) {
         return res.status(403).json({
           success: false,
@@ -710,7 +661,6 @@ router.get(
 
       // -------------------------------------------------
       // PRIMARY QUERY
-      // sponsorId
       // -------------------------------------------------
 
       let directMembers =
@@ -729,12 +679,6 @@ router.get(
       // -------------------------------------------------
       // LEGACY FALLBACK
       // -------------------------------------------------
-      //
-      // Older records may not have sponsorId populated.
-      // Use sponsorCode / sponsorMemberId as fallback.
-      //
-      // This does NOT affect binary tree placement.
-      // -------------------------------------------------
 
       if (
         directMembers.length === 0
@@ -749,7 +693,8 @@ router.get(
             user.memberId
           );
 
-        const fallbackCodes = [];
+        const fallbackCodes =
+          [];
 
         if (userCode) {
           fallbackCodes.push(
@@ -772,15 +717,18 @@ router.get(
           directMembers =
             await User.find({
               role: "user",
+
               $or: [
                 {
                   sponsorCode: {
-                    $in: fallbackCodes,
+                    $in:
+                      fallbackCodes,
                   },
                 },
                 {
                   sponsorMemberId: {
-                    $in: fallbackCodes,
+                    $in:
+                      fallbackCodes,
                   },
                 },
               ],
@@ -834,8 +782,6 @@ router.get(
             return {
               ...formatted,
 
-              // Direct referral endpoint
-              // does not return recursive children.
               children: {
                 left: null,
                 right: null,
@@ -894,5 +840,178 @@ router.get(
     }
   }
 );
+
+// =====================================================
+// POST /api/referral/register
+// =====================================================
+//
+// LOGGED-IN CUSTOMER REGISTERS NEW MEMBER
+//
+// IMPORTANT:
+//
+// Sponsor is ALWAYS the authenticated customer:
+//   req.user.id
+//
+// The frontend cannot choose another sponsor by sending:
+//   sponsorId
+//   sponsorCode
+//   sponsorMemberId
+//
+// New member:
+// - status = inactive
+// - wallet = Rs 0
+// - no automatic login
+// - binary position = selected Left/Right
+// - activation happens later using admin PIN
+// =====================================================
+
+
+/* =====================================================
+   POST /api/referral/register
+   LOGGED-IN CUSTOMER REGISTERS A NEW MEMBER
+===================================================== */
+
+router.post(
+  "/register",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      // -------------------------------------------------
+      // DATABASE CHECK
+      // -------------------------------------------------
+
+      if (!isDbReady()) {
+        return res.status(503).json({
+          success: false,
+          message:
+            "Database is currently unavailable. Please try again later.",
+        });
+      }
+
+      // -------------------------------------------------
+      // VALIDATE AUTHENTICATED USER ID
+      // -------------------------------------------------
+
+      const authenticatedId = String(req.user?.id || "");
+
+      if (
+        !authenticatedId ||
+        !mongoose.Types.ObjectId.isValid(authenticatedId)
+      ) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid user session.",
+        });
+      }
+
+      // -------------------------------------------------
+      // FETCH SPONSOR FROM DATABASE
+      // Never trust sponsor details sent by the frontend.
+      // -------------------------------------------------
+
+      const sponsor = await User.findById(authenticatedId);
+
+      if (!sponsor) {
+        return res.status(404).json({
+          success: false,
+          message: "Sponsor account not found.",
+        });
+      }
+
+      // -------------------------------------------------
+      // ROLE VALIDATION
+      // -------------------------------------------------
+
+      if (
+        String(sponsor.role || "")
+          .trim()
+          .toLowerCase() !== "user"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Only customer accounts can register new members.",
+        });
+      }
+
+      // -------------------------------------------------
+      // ACTIVE STATUS VALIDATION
+      // -------------------------------------------------
+
+      if (
+        String(sponsor.status || "")
+          .trim()
+          .toLowerCase() !== "active"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your account must be active to register a new referral.",
+        });
+      }
+
+      // -------------------------------------------------
+      // PAID ACCOUNT VALIDATION
+      // -------------------------------------------------
+
+      if (
+        String(sponsor.userType || "")
+          .trim()
+          .toUpperCase() !== "PAID"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Only a PAID sponsor can register a new referral. Please activate your account with a valid Paid PIN.",
+        });
+      }
+
+      // -------------------------------------------------
+      // REGISTER MEMBER
+      //
+      // New member remains inactive and UNPAID.
+      // Its wallet starts at ₹0.
+      // Direct referral income is NOT credited here.
+      // -------------------------------------------------
+
+      const result = await registerInactiveMember(
+        sponsor,
+        req.body || {}
+      );
+
+      return res.status(result.status).json(result.body);
+    } catch (error) {
+      console.error(
+        "Member registration route error:",
+        error
+      );
+
+      if (error?.code === 11000) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "A user with the same email, phone or member ID already exists.",
+        });
+      }
+
+      if (error?.name === "ValidationError") {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid member registration details.",
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        message: "Server error during member registration.",
+      });
+    }
+  }
+);
+
+
+// =====================================================
+// EXPORT
+// =====================================================
 
 export default router;

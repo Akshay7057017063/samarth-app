@@ -1,10 +1,6 @@
 import mongoose from "mongoose";
 import { User } from "../models/User.js";
 
-import {
-  processCompletedBinaryPairIncome,
-} from "./binaryIncome.js";
-
 /**
  * =========================================================
  * BINARY TREE UTILITY
@@ -18,8 +14,6 @@ import {
  *              /  \    /  \
  *             ... ...  ... ...
  *
- * Important:
- *
  * sponsorId       = Sponsor / Referral Tree
  * binaryParentId  = Binary Tree Parent
  * binaryPosition  = left / right
@@ -27,24 +21,22 @@ import {
  * binaryRightId   = Right Child
  *
  * Sponsor/Referral Tree and Binary Tree are independent.
+ *
+ * IMPORTANT BUSINESS RULE:
+ *
+ * Binary placement and binary income are separate operations.
+ *
+ * Placing a new member in the binary tree does NOT create
+ * binary income.
+ *
+ * Binary income is evaluated when an account becomes ACTIVE
+ * and the required ACTIVE downline conditions are met.
  * =========================================================
  */
 
 /* =========================================================
    SAFE BINARY PUBLIC FIELDS
 ========================================================= */
-
-/*
- * These fields are safe to return from binary APIs.
- *
- * DO NOT include:
- * - password
- * - PAN
- * - Aadhaar
- * - bankDetails
- * - KYC documents
- * - wallet financial data
- */
 
 const BINARY_PUBLIC_FIELDS = [
   "_id",
@@ -122,6 +114,8 @@ const BINARY_MEMBER_SUMMARY_FIELDS = [
   "rightCount",
   "totalTeam",
 
+  "activeTeam",
+
   "createdAt",
   "updatedAt",
 ].join(" ");
@@ -144,27 +138,38 @@ export const isValidObjectId = (id) => {
    GET USER
 ========================================================= */
 
+/**
+ * session is optional.
+ *
+ * Existing callers can continue using:
+ *
+ *   getUserById(userId)
+ *
+ * Transaction-aware callers can use:
+ *
+ *   getUserById(userId, session)
+ */
 export const getUserById = async (
-  userId
+  userId,
+  session = null
 ) => {
   if (
     !userId ||
     !isValidObjectId(userId)
   ) {
-    throw new Error(
-      "Invalid user ID"
-    );
+    throw new Error("Invalid user ID");
   }
 
-  const user =
-    await User.findById(
-      userId
-    );
+  let query = User.findById(userId);
+
+  if (session) {
+    query = query.session(session);
+  }
+
+  const user = await query;
 
   if (!user) {
-    throw new Error(
-      "User not found"
-    );
+    throw new Error("User not found");
   }
 
   return user;
@@ -183,62 +188,78 @@ export const getUserById = async (
  * exists because of legacy/manual data.
  */
 
-export const findBinaryRoot =
-  async () => {
-    const root =
-      await User.findOne({
-        role: "user",
-        binaryParentId: null,
-      }).sort({
-        createdAt: 1,
-      });
+export const findBinaryRoot = async (
+  session = null
+) => {
+  let query = User.findOne({
+    role: "user",
+    binaryParentId: null,
+  }).sort({
+    createdAt: 1,
+  });
 
-    return root;
-  };
+  if (session) {
+    query = query.session(session);
+  }
+
+  const root = await query;
+
+  return root;
+};
 
 /* =========================================================
    GET BINARY CHILDREN
 ========================================================= */
 
-export const getBinaryChildren =
-  async (
-    userId
-  ) => {
-    const user =
-      await getUserById(
-        userId
-      );
+export const getBinaryChildren = async (
+  userId,
+  session = null
+) => {
+  const user = await getUserById(
+    userId,
+    session
+  );
 
-    let left = null;
-    let right = null;
+  let left = null;
+  let right = null;
 
-    if (
+  if (user.binaryLeftId) {
+    let leftQuery = User.findById(
       user.binaryLeftId
-    ) {
-      left =
-        await User.findById(
-          user.binaryLeftId
-        ).select(
-          BINARY_MEMBER_SUMMARY_FIELDS
-        );
+    ).select(
+      BINARY_MEMBER_SUMMARY_FIELDS
+    );
+
+    if (session) {
+      leftQuery = leftQuery.session(
+        session
+      );
     }
 
-    if (
+    left = await leftQuery;
+  }
+
+  if (user.binaryRightId) {
+    let rightQuery = User.findById(
       user.binaryRightId
-    ) {
-      right =
-        await User.findById(
-          user.binaryRightId
-        ).select(
-          BINARY_MEMBER_SUMMARY_FIELDS
-        );
+    ).select(
+      BINARY_MEMBER_SUMMARY_FIELDS
+    );
+
+    if (session) {
+      rightQuery = rightQuery.session(
+        session
+      );
     }
 
-    return {
-      left,
-      right,
-    };
+    right = await rightQuery;
+  }
+
+  return {
+    left,
+    right,
   };
+};
 
 /* =========================================================
    CHECK POSITION AVAILABILITY
@@ -247,7 +268,8 @@ export const getBinaryChildren =
 export const isBinaryPositionAvailable =
   async (
     parentId,
-    position
+    position,
+    session = null
   ) => {
     if (
       !["left", "right"].includes(
@@ -259,22 +281,18 @@ export const isBinaryPositionAvailable =
       );
     }
 
-    const parent =
-      await getUserById(
-        parentId
-      );
+    const parent = await getUserById(
+      parentId,
+      session
+    );
 
-    if (
-      parent.role !== "user"
-    ) {
+    if (parent.role !== "user") {
       throw new Error(
         "Binary parent must be a customer/user account"
       );
     }
 
-    if (
-      position === "left"
-    ) {
+    if (position === "left") {
       return !parent.binaryLeftId;
     }
 
@@ -287,30 +305,25 @@ export const isBinaryPositionAvailable =
 
 export const getAvailablePosition =
   async (
-    parentId
+    parentId,
+    session = null
   ) => {
-    const parent =
-      await getUserById(
-        parentId
-      );
+    const parent = await getUserById(
+      parentId,
+      session
+    );
 
-    if (
-      parent.role !== "user"
-    ) {
+    if (parent.role !== "user") {
       throw new Error(
         "Binary parent must be a customer/user account"
       );
     }
 
-    if (
-      !parent.binaryLeftId
-    ) {
+    if (!parent.binaryLeftId) {
       return "left";
     }
 
-    if (
-      !parent.binaryRightId
-    ) {
+    if (!parent.binaryRightId) {
       return "right";
     }
 
@@ -324,36 +337,22 @@ export const getAvailablePosition =
 /*
  * Breadth First Search.
  *
- * Example:
- *
- *             A
- *            / \
- *           B   C
- *          / \
- *         D   E
- *
- * Search:
- *
- * A
- * B
- * C
- * D
- * E
- *
  * LEFT is always checked before RIGHT.
  *
- * This function searches the subtree starting from rootId.
+ * This remains available for legacy/admin auto-placement.
+ *
+ * Customer dashboard registration does NOT use this as a
+ * fallback placement method.
  */
 
 export const findFirstAvailableSlot =
   async (
-    rootId
+    rootId,
+    session = null
   ) => {
     if (
       !rootId ||
-      !isValidObjectId(
-        rootId
-      )
+      !isValidObjectId(rootId)
     ) {
       throw new Error(
         "Invalid root ID"
@@ -366,83 +365,69 @@ export const findFirstAvailableSlot =
 
     let queueIndex = 0;
 
-    const visited =
-      new Set();
+    const visited = new Set();
 
     while (
-      queueIndex <
-      queue.length
+      queueIndex < queue.length
     ) {
       const currentId =
-        queue[
-          queueIndex++
-        ];
+        queue[queueIndex++];
 
       if (
         !currentId ||
-        visited.has(
-          currentId
-        )
+        visited.has(currentId)
       ) {
         continue;
       }
 
-      visited.add(
-        currentId
-      );
+      visited.add(currentId);
+
+      let currentQuery =
+        User.findById(currentId);
+
+      if (session) {
+        currentQuery =
+          currentQuery.session(
+            session
+          );
+      }
 
       const currentUser =
-        await User.findById(
-          currentId
-        );
+        await currentQuery;
 
       if (!currentUser) {
         continue;
       }
 
-      // Only customers can participate
-      // in binary tree.
-      if (
-        currentUser.role !==
-        "user"
-      ) {
+      if (currentUser.role !== "user") {
         continue;
       }
 
-      // ====================================================
-      // LEFT FIRST
-      // ====================================================
+      /* -----------------------------------------------
+         LEFT FIRST
+      ------------------------------------------------ */
 
-      if (
-        !currentUser.binaryLeftId
-      ) {
+      if (!currentUser.binaryLeftId) {
         return {
-          parent:
-            currentUser,
-          position:
-            "left",
+          parent: currentUser,
+          position: "left",
         };
       }
 
-      // ====================================================
-      // RIGHT SECOND
-      // ====================================================
+      /* -----------------------------------------------
+         RIGHT SECOND
+      ------------------------------------------------ */
 
-      if (
-        !currentUser.binaryRightId
-      ) {
+      if (!currentUser.binaryRightId) {
         return {
-          parent:
-            currentUser,
-          position:
-            "right",
+          parent: currentUser,
+          position: "right",
         };
       }
 
-      // ====================================================
-      // BOTH OCCUPIED
-      // Continue BFS.
-      // ====================================================
+      /* -----------------------------------------------
+         BOTH OCCUPIED
+      ------------------------------------------------ */
 
       const leftId =
         currentUser.binaryLeftId
@@ -460,24 +445,16 @@ export const findFirstAvailableSlot =
 
       if (
         leftId &&
-        !visited.has(
-          leftId
-        )
+        !visited.has(leftId)
       ) {
-        queue.push(
-          leftId
-        );
+        queue.push(leftId);
       }
 
       if (
         rightId &&
-        !visited.has(
-          rightId
-        )
+        !visited.has(rightId)
       ) {
-        queue.push(
-          rightId
-        );
+        queue.push(rightId);
       }
     }
 
@@ -488,113 +465,80 @@ export const findFirstAvailableSlot =
    CALCULATE BINARY PATH
 ========================================================= */
 
-/*
- * ROOT
- *  |
- *  L
- *  |
- *  R
- *  |
- *  L
- *
- * Path:
- *
- * /L/R/L
- */
+export const buildBinaryPath = (
+  parentPath,
+  position
+) => {
+  if (
+    !["left", "right"].includes(
+      position
+    )
+  ) {
+    throw new Error(
+      "Position must be left or right"
+    );
+  }
 
-export const buildBinaryPath =
-  (
-    parentPath,
-    position
-  ) => {
-    if (
-      !["left", "right"].includes(
-        position
-      )
-    ) {
-      throw new Error(
-        "Position must be left or right"
-      );
-    }
+  const basePath =
+    typeof parentPath === "string" &&
+    parentPath.trim()
+      ? parentPath.trim()
+      : "/";
 
-    const basePath =
-      typeof parentPath ===
-        "string" &&
-      parentPath.trim()
-        ? parentPath.trim()
-        : "/";
+  let cleanPath = basePath;
 
-    let cleanPath =
-      basePath;
+  if (
+    cleanPath !== "/" &&
+    cleanPath.endsWith("/")
+  ) {
+    cleanPath = cleanPath.slice(
+      0,
+      -1
+    );
+  }
 
-    if (
-      cleanPath !== "/" &&
-      cleanPath.endsWith(
-        "/"
-      )
-    ) {
-      cleanPath =
-        cleanPath.slice(
-          0,
-          -1
-        );
-    }
+  if (cleanPath === "/") {
+    cleanPath = "";
+  }
 
-    if (
-      cleanPath === "/"
-    ) {
-      cleanPath = "";
-    }
+  const direction =
+    position === "left" ? "L" : "R";
 
-    const direction =
-      position === "left"
-        ? "L"
-        : "R";
+  if (!cleanPath) {
+    return `/${direction}`;
+  }
 
-    if (!cleanPath) {
-      return `/${direction}`;
-    }
-
-    return `${cleanPath}/${direction}`;
-  };
+  return `${cleanPath}/${direction}`;
+};
 
 /* =========================================================
    CALCULATE BINARY LEVEL
 ========================================================= */
 
-export const calculateBinaryLevel =
-  (
-    parent
-  ) => {
-    if (!parent) {
-      return 1;
-    }
+export const calculateBinaryLevel = (
+  parent
+) => {
+  if (!parent) {
+    return 1;
+  }
 
-    const parentLevel =
-      Number(
-        parent.binaryLevel
-      );
+  const parentLevel = Number(
+    parent.binaryLevel
+  );
 
-    if (
-      !Number.isFinite(
-        parentLevel
-      ) ||
-      parentLevel < 1
-    ) {
-      return 2;
-    }
+  if (
+    !Number.isFinite(parentLevel) ||
+    parentLevel < 1
+  ) {
+    return 2;
+  }
 
-    return parentLevel + 1;
-  };
+  return parentLevel + 1;
+};
 
 /* =========================================================
    UPDATE PARENT CHILD REFERENCE
 ========================================================= */
-
-/*
- * session is optional so this helper remains compatible
- * with existing code.
- */
 
 export const attachChildToParent =
   async (
@@ -625,11 +569,9 @@ export const attachChildToParent =
       );
     }
 
-    if (
-      parent.role !== "user"
-    ) {
+    if (parent.role !== "user") {
       throw new Error(
-        "Only customer/user accounts can be binary parents"
+        "Binary parent must be a customer/user account"
       );
     }
 
@@ -651,9 +593,9 @@ export const attachChildToParent =
       );
     }
 
-    // ====================================================
-    // PREVENT OVERWRITE
-    // ====================================================
+    /* -----------------------------------------------
+       PREVENT OVERWRITE
+    ------------------------------------------------ */
 
     if (
       position === "left" &&
@@ -673,13 +615,11 @@ export const attachChildToParent =
       );
     }
 
-    // ====================================================
-    // ATTACH CHILD
-    // ====================================================
+    /* -----------------------------------------------
+       ATTACH CHILD
+    ------------------------------------------------ */
 
-    if (
-      position === "left"
-    ) {
+    if (position === "left") {
       parent.binaryLeftId =
         child._id;
     } else {
@@ -703,22 +643,11 @@ export const attachChildToParent =
 ========================================================= */
 
 /*
- * IMPORTANT:
+ * ONLY binary placement happens here.
  *
- * Binary placement + binary pair income are processed
- * inside ONE MongoDB transaction.
+ * NO binary income is created here.
  *
- * Therefore:
- *
- * Placement successful
- *       +
- * ₹450 income successful
- *       ↓
- * COMMIT
- *
- * Any failure
- *       ↓
- * ROLLBACK
+ * Inactive members remain structurally visible.
  */
 
 export const setBinaryPlacement =
@@ -749,17 +678,13 @@ export const setBinaryPlacement =
       );
     }
 
-    if (
-      user.role !== "user"
-    ) {
+    if (user.role !== "user") {
       throw new Error(
         "Only customer/user accounts can be placed in binary tree"
       );
     }
 
-    if (
-      parent.role !== "user"
-    ) {
+    if (parent.role !== "user") {
       throw new Error(
         "Binary parent must be a customer/user account"
       );
@@ -774,276 +699,174 @@ export const setBinaryPlacement =
       );
     }
 
-    // =====================================================
-    // START MONGODB SESSION
-    // =====================================================
-
     const session =
       await mongoose.startSession();
 
     try {
-      // ===================================================
-      // START TRANSACTION
-      // ===================================================
+      await session.withTransaction(
+        async () => {
+          /* =============================================
+             RELOAD USER
+          ============================================== */
 
-      session.startTransaction();
+          const freshUser =
+            await User.findById(
+              user._id
+            ).session(
+              session
+            );
 
-      // ===================================================
-      // RELOAD USER INSIDE TRANSACTION
-      // ===================================================
-      //
-      // This prevents stale data issues.
-      // ===================================================
+          if (!freshUser) {
+            throw new Error(
+              "User not found"
+            );
+          }
 
-      const freshUser =
-        await User.findById(
-          user._id
-        ).session(
-          session
-        );
+          if (
+            freshUser.role !== "user"
+          ) {
+            throw new Error(
+              "Only customer/user accounts can be placed in binary tree"
+            );
+          }
 
-      if (!freshUser) {
-        throw new Error(
-          "User not found"
-        );
-      }
+          if (
+            freshUser.binaryParentId
+          ) {
+            throw new Error(
+              "User is already placed in the binary tree"
+            );
+          }
 
-      if (
-        freshUser.role !==
-        "user"
-      ) {
-        throw new Error(
-          "Only customer/user accounts can be placed in binary tree"
-        );
-      }
+          /* =============================================
+             RELOAD PARENT
+          ============================================== */
 
-      // ===================================================
-      // PREVENT DOUBLE PLACEMENT
-      // ===================================================
+          const freshParent =
+            await User.findById(
+              parent._id
+            ).session(
+              session
+            );
 
-      if (
-        freshUser.binaryParentId
-      ) {
-        throw new Error(
-          "User is already placed in the binary tree"
-        );
-      }
+          if (!freshParent) {
+            throw new Error(
+              "Binary parent not found"
+            );
+          }
 
-      // ===================================================
-      // RELOAD PARENT INSIDE TRANSACTION
-      // ===================================================
+          if (
+            freshParent.role !== "user"
+          ) {
+            throw new Error(
+              "Binary parent must be a customer/user account"
+            );
+          }
 
-      const freshParent =
-        await User.findById(
-          parent._id
-        ).session(
-          session
-        );
+          if (
+            String(
+              freshUser._id
+            ) ===
+            String(
+              freshParent._id
+            )
+          ) {
+            throw new Error(
+              "User cannot be placed under itself"
+            );
+          }
 
-      if (!freshParent) {
-        throw new Error(
-          "Binary parent not found"
-        );
-      }
+          /* =============================================
+             CHECK LIVE SLOT
+          ============================================== */
 
-      if (
-        freshParent.role !==
-        "user"
-      ) {
-        throw new Error(
-          "Binary parent must be a customer/user account"
-        );
-      }
+          if (
+            position === "left" &&
+            freshParent.binaryLeftId
+          ) {
+            throw new Error(
+              "LEFT position is already occupied"
+            );
+          }
 
-      // ===================================================
-      // PREVENT SELF PLACEMENT
-      // ===================================================
+          if (
+            position === "right" &&
+            freshParent.binaryRightId
+          ) {
+            throw new Error(
+              "RIGHT position is already occupied"
+            );
+          }
 
-      if (
-        String(
-          freshUser._id
-        ) ===
-        String(
-          freshParent._id
-        )
-      ) {
-        throw new Error(
-          "User cannot be placed under itself"
-        );
-      }
+          /* =============================================
+             CALCULATE BINARY INFORMATION
+          ============================================== */
 
-      // ===================================================
-      // CHECK LIVE SLOT
-      // ===================================================
-      //
-      // Important because another request could have
-      // occupied the slot after the original read.
-      // ===================================================
+          freshUser.binaryParentId =
+            freshParent._id;
 
-      if (
-        position === "left" &&
-        freshParent.binaryLeftId
-      ) {
-        throw new Error(
-          "LEFT position is already occupied"
-        );
-      }
+          freshUser.binaryPosition =
+            position;
 
-      if (
-        position === "right" &&
-        freshParent.binaryRightId
-      ) {
-        throw new Error(
-          "RIGHT position is already occupied"
-        );
-      }
+          freshUser.binaryLevel =
+            calculateBinaryLevel(
+              freshParent
+            );
 
-      // ===================================================
-      // CALCULATE USER BINARY INFORMATION
-      // ===================================================
+          freshUser.binaryPath =
+            buildBinaryPath(
+              freshParent.binaryPath,
+              position
+            );
 
-      freshUser.binaryParentId =
-        freshParent._id;
+          /* =============================================
+             SAVE USER
+          ============================================== */
 
-      freshUser.binaryPosition =
-        position;
+          await freshUser.save({
+            session,
+          });
 
-      freshUser.binaryLevel =
-        calculateBinaryLevel(
-          freshParent
-        );
+          /* =============================================
+             ATTACH CHILD
+          ============================================== */
 
-      freshUser.binaryPath =
-        buildBinaryPath(
-          freshParent.binaryPath,
-          position
-        );
+          await attachChildToParent(
+            freshParent,
+            freshUser,
+            position,
+            session
+          );
 
-      // ===================================================
-      // SAVE USER PLACEMENT
-      // ===================================================
-
-      await freshUser.save({
-        session,
-      });
-
-      // ===================================================
-      // ATTACH USER TO PARENT
-      // ===================================================
-
-      await attachChildToParent(
-        freshParent,
-        freshUser,
-        position,
-        session
+          /*
+           * NO binary income here.
+           *
+           * Activation + binary-income evaluation happen
+           * separately.
+           */
+        }
       );
 
-      // ===================================================
-      // PROCESS BINARY PAIR INCOME
-      // ===================================================
-      //
-      // Rule:
-      //
-      // Parent
-      //    ├── LEFT
-      //    └── RIGHT
-      //
-      // BOTH EXIST
-      //     ↓
-      //   ₹450
-      //
-      // Duplicate protection is handled by
-      // Transaction.referenceKey.
-      // ===================================================
-
-      const binaryIncome =
-        await processCompletedBinaryPairIncome(
-          {
-            parentId:
-              freshParent._id,
-
-            session,
-          }
+      const savedUser =
+        await User.findById(
+          user._id
         );
 
-      // ===================================================
-      // LOG RESULT
-      // ===================================================
-
-      if (
-        binaryIncome?.paid
-      ) {
-        console.log(
-          "💰 BINARY INCOME CREDITED",
-          {
-            memberId:
-              binaryIncome.memberId,
-
-            amount:
-              binaryIncome.amount,
-
-            leftId:
-              binaryIncome.leftId,
-
-            rightId:
-              binaryIncome.rightId,
-
-            transactionId:
-              binaryIncome.transactionId,
-
-            referenceKey:
-              binaryIncome.referenceKey,
-          }
-        );
-      } else if (
-        binaryIncome?.duplicate
-      ) {
-        console.log(
-          "ℹ️ BINARY INCOME ALREADY PROCESSED",
-          {
-            memberId:
-              binaryIncome.memberId,
-
-            referenceKey:
-              binaryIncome.referenceKey,
-          }
-        );
-      } else {
-        console.log(
-          "ℹ️ BINARY PAIR NOT COMPLETE",
-          {
-            memberId:
-              freshParent.memberId,
-
-            reason:
-              binaryIncome?.reason ||
-              "Pair not complete.",
-          }
+      if (!savedUser) {
+        throw new Error(
+          "Placed user could not be loaded after binary placement."
         );
       }
 
-      // ===================================================
-      // COMMIT EVERYTHING
-      // ===================================================
-
-      await session.commitTransaction();
-
-      // ===================================================
-      // RETURN FRESHLY PLACED USER
-      // ===================================================
-
-      return freshUser;
-
+      return savedUser;
     } catch (error) {
-      // ===================================================
-      // ROLLBACK TRANSACTION
-      // ===================================================
-
       try {
-        await session.abortTransaction();
-      } catch (
-        rollbackError
-      ) {
+        if (
+          session.inTransaction()
+        ) {
+          await session.abortTransaction();
+        }
+      } catch (rollbackError) {
         console.error(
           "❌ Binary transaction rollback error:",
           rollbackError?.message ||
@@ -1052,12 +875,7 @@ export const setBinaryPlacement =
       }
 
       throw error;
-
     } finally {
-      // ===================================================
-      // END SESSION
-      // ===================================================
-
       await session.endSession();
     }
   };
@@ -1085,26 +903,18 @@ export const placeUserUnderParent =
     }
 
     const user =
-      await getUserById(
-        userId
-      );
+      await getUserById(userId);
 
     const parent =
-      await getUserById(
-        parentId
-      );
+      await getUserById(parentId);
 
-    if (
-      user.role !== "user"
-    ) {
+    if (user.role !== "user") {
       throw new Error(
         "Only customer/user accounts can be placed in binary tree"
       );
     }
 
-    if (
-      parent.role !== "user"
-    ) {
+    if (parent.role !== "user") {
       throw new Error(
         "Binary parent must be a customer/user account"
       );
@@ -1119,9 +929,7 @@ export const placeUserUnderParent =
       );
     }
 
-    if (
-      user.binaryParentId
-    ) {
+    if (user.binaryParentId) {
       throw new Error(
         "User is already placed in the binary tree"
       );
@@ -1148,220 +956,148 @@ export const placeUserUnderParent =
    AUTO PLACE USER
 ========================================================= */
 
-/*
- * Supports BOTH:
- *
- * 1. autoPlaceUser(userId, parentId)
- *
- * 2. autoPlaceUser({
- *      userId,
- *      parentId
- *    })
- *
- * Behavior:
- *
- * parentId supplied:
- *     Search starts inside supplied parent's subtree.
- *
- * parentId not supplied:
- *     Search starts from global binary root.
- *
- * BFS:
- *     LEFT first
- *     RIGHT second
- *     Next level afterwards
- */
+export const autoPlaceUser = async (
+  userOrOptions,
+  parentIdArg = null
+) => {
+  let userId;
+  let parentId;
 
-export const autoPlaceUser =
-  async (
-    userOrOptions,
-    parentIdArg = null
-  ) => {
-    let userId;
-    let parentId;
+  /* ====================================================
+     OBJECT STYLE
+  ==================================================== */
 
-    // ====================================================
-    // OBJECT STYLE
-    //
-    // autoPlaceUser({
-    //   userId,
-    //   parentId
-    // })
-    // ====================================================
+  if (
+    userOrOptions &&
+    typeof userOrOptions === "object" &&
+    Object.prototype.hasOwnProperty.call(
+      userOrOptions,
+      "userId"
+    )
+  ) {
+    userId =
+      userOrOptions.userId;
 
-    if (
-      userOrOptions &&
-      typeof userOrOptions ===
-        "object" &&
-      Object.prototype.hasOwnProperty.call(
-        userOrOptions,
-        "userId"
-      )
-    ) {
-      userId =
-        userOrOptions.userId;
+    parentId =
+      userOrOptions.parentId ||
+      null;
+  } else {
+    /* ==================================================
+       POSITIONAL STYLE
+    ================================================== */
 
-      parentId =
-        userOrOptions.parentId ||
-        null;
-    } else {
-      // ==================================================
-      // POSITIONAL STYLE
-      //
-      // autoPlaceUser(
-      //   userId,
-      //   parentId
-      // )
-      // ==================================================
+    userId = userOrOptions;
+    parentId =
+      parentIdArg || null;
+  }
 
-      userId =
-        userOrOptions;
+  /* ====================================================
+     GET NEW USER
+  ==================================================== */
 
-      parentId =
-        parentIdArg ||
-        null;
-    }
+  const user =
+    await getUserById(userId);
 
-    // ====================================================
-    // GET NEW USER
-    // ====================================================
+  if (user.role !== "user") {
+    throw new Error(
+      "Only customer/user accounts can be placed in binary tree"
+    );
+  }
 
-    const user =
-      await getUserById(
-        userId
-      );
+  if (user.binaryParentId) {
+    throw new Error(
+      "User is already placed in the binary tree"
+    );
+  }
+
+  let searchRoot;
+
+  /* ====================================================
+     SEARCH FROM SPECIFIC PARENT
+  ==================================================== */
+
+  if (parentId) {
+    searchRoot =
+      await getUserById(parentId);
 
     if (
-      user.role !== "user"
+      searchRoot.role !== "user"
     ) {
       throw new Error(
-        "Only customer/user accounts can be placed in binary tree"
+        "Binary placement parent must be a customer/user account"
       );
     }
 
     if (
-      user.binaryParentId
+      String(searchRoot._id) ===
+      String(user._id)
     ) {
       throw new Error(
-        "User is already placed in the binary tree"
+        "User cannot be its own binary parent"
       );
     }
+  } else {
+    /* ==================================================
+       SEARCH FROM GLOBAL ROOT
+    ================================================== */
 
-    let searchRoot;
+    searchRoot =
+      await findBinaryRoot();
+  }
 
-    // ====================================================
-    // SEARCH FROM SPECIFIC PARENT
-    // ====================================================
+  /* ====================================================
+     NO ROOT EXISTS
+  ==================================================== */
 
-    if (parentId) {
-      searchRoot =
-        await getUserById(
-          parentId
-        );
+  if (!searchRoot) {
+    user.binaryParentId = null;
+    user.binaryPosition = null;
+    user.binaryLevel = 1;
+    user.binaryPath = "/";
 
-      if (
-        searchRoot.role !==
-        "user"
-      ) {
-        throw new Error(
-          "Binary placement parent must be a customer/user account"
-        );
-      }
-
-      if (
-        String(
-          searchRoot._id
-        ) ===
-        String(
-          user._id
-        )
-      ) {
-        throw new Error(
-          "User cannot be its own binary parent"
-        );
-      }
-    } else {
-      // ==================================================
-      // SEARCH FROM GLOBAL ROOT
-      // ==================================================
-
-      searchRoot =
-        await findBinaryRoot();
-    }
-
-    // ====================================================
-    // NO ROOT EXISTS
-    // ====================================================
-
-    if (!searchRoot) {
-      user.binaryParentId =
-        null;
-
-      user.binaryPosition =
-        null;
-
-      user.binaryLevel =
-        1;
-
-      user.binaryPath =
-        "/";
-
-      await user.save();
-
-      return {
-        user,
-
-        isRoot: true,
-
-        parent: null,
-
-        position: null,
-      };
-    }
-
-    // ====================================================
-    // FIND FIRST AVAILABLE SLOT
-    // ====================================================
-
-    const slot =
-      await findFirstAvailableSlot(
-        searchRoot._id
-      );
-
-    if (!slot) {
-      throw new Error(
-        "No available binary placement slot found"
-      );
-    }
-
-    // ====================================================
-    // PLACE USER
-    // ====================================================
-
-    const placedUser =
-      await setBinaryPlacement({
-        user,
-
-        parent:
-          slot.parent,
-
-        position:
-          slot.position,
-      });
+    await user.save();
 
     return {
-      user:
-        placedUser,
-
-      isRoot: false,
-
-      parent:
-        slot.parent,
-
-      position:
-        slot.position,
+      user,
+      isRoot: true,
+      parent: null,
+      position: null,
     };
+  }
+
+  /* ====================================================
+     FIND FIRST AVAILABLE SLOT
+  ==================================================== */
+
+  const slot =
+    await findFirstAvailableSlot(
+      searchRoot._id
+    );
+
+  if (!slot) {
+    throw new Error(
+      "No available binary placement slot found"
+    );
+  }
+
+  /* ====================================================
+     PLACE USER
+  ==================================================== */
+
+  const placedUser =
+    await setBinaryPlacement({
+      user,
+      parent: slot.parent,
+      position: slot.position,
+    });
+
+  return {
+    user: placedUser,
+    isRoot: false,
+    parent: slot.parent,
+    position: slot.position,
   };
+};
 
 /* =========================================================
    GET USER'S BINARY PARENT
@@ -1369,49 +1105,49 @@ export const autoPlaceUser =
 
 export const getBinaryParent =
   async (
-    userId
+    userId,
+    session = null
   ) => {
     const user =
       await getUserById(
-        userId
+        userId,
+        session
       );
 
-    if (
-      !user.binaryParentId
-    ) {
+    if (!user.binaryParentId) {
       return null;
     }
 
-    return User.findById(
-      user.binaryParentId
-    ).select(
-      BINARY_MEMBER_SUMMARY_FIELDS
-    );
+    let query =
+      User.findById(
+        user.binaryParentId
+      ).select(
+        BINARY_MEMBER_SUMMARY_FIELDS
+      );
+
+    if (session) {
+      query =
+        query.session(
+          session
+        );
+    }
+
+    return query;
   };
 
 /* =========================================================
    GET BINARY TREE
 ========================================================= */
 
-/*
- * maxDepth prevents unlimited recursive loading.
- *
- * Allowed depth:
- *     1 -> 10
- *
- * Frontend normally uses 5.
- */
-
 export const getBinaryTree =
   async (
     rootId,
-    maxDepth = 5
+    maxDepth = 5,
+    session = null
   ) => {
     if (
       !rootId ||
-      !isValidObjectId(
-        rootId
-      )
+      !isValidObjectId(rootId)
     ) {
       throw new Error(
         "Invalid root ID"
@@ -1419,29 +1155,31 @@ export const getBinaryTree =
     }
 
     const parsedDepth =
-      Number(
-        maxDepth
-      );
+      Number(maxDepth);
 
-    const depth =
-      Math.max(
-        1,
-        Math.min(
-          Number.isFinite(
-            parsedDepth
-          )
-            ? parsedDepth
-            : 5,
-          10
-        )
-      );
+    const depth = Math.max(
+      1,
+      Math.min(
+        Number.isFinite(parsedDepth)
+          ? parsedDepth
+          : 5,
+        10
+      )
+    );
 
-    const root =
-      await User.findById(
-        rootId
-      ).select(
+    let rootQuery =
+      User.findById(rootId).select(
         BINARY_PUBLIC_FIELDS
       );
+
+    if (session) {
+      rootQuery =
+        rootQuery.session(
+          session
+        );
+    }
+
+    const root = await rootQuery;
 
     if (!root) {
       throw new Error(
@@ -1458,50 +1196,52 @@ export const getBinaryTree =
       );
     }
 
-    // ====================================================
-    // RECURSIVE NODE BUILDER
-    // ====================================================
+    /* ====================================================
+       RECURSIVE NODE BUILDER
+    ==================================================== */
 
     const buildNode =
       async (
         userId,
         currentDepth,
-        visited =
-          new Set()
+        visited = new Set()
       ) => {
         if (!userId) {
           return null;
         }
 
         const currentId =
-          String(
-            userId
-          );
+          String(userId);
 
-        // Prevent malformed cyclic references.
         if (
-          visited.has(
-            currentId
-          )
+          visited.has(currentId)
         ) {
           return null;
         }
 
         const nextVisited =
-          new Set(
-            visited
-          );
+          new Set(visited);
 
         nextVisited.add(
           currentId
         );
 
-        const user =
-          await User.findById(
+        let userQuery =
+          User.findById(
             userId
           ).select(
             BINARY_PUBLIC_FIELDS
           );
+
+        if (session) {
+          userQuery =
+            userQuery.session(
+              session
+            );
+        }
+
+        const user =
+          await userQuery;
 
         if (!user) {
           return null;
@@ -1514,13 +1254,12 @@ export const getBinaryTree =
           return null;
         }
 
-        // ==================================================
-        // NODE DATA
-        // ==================================================
+        /* ==================================================
+           NODE DATA
+        ================================================== */
 
         const node = {
-          _id:
-            user._id,
+          _id: user._id,
 
           memberId:
             user.memberId ||
@@ -1556,10 +1295,6 @@ export const getBinaryTree =
             user.rank ||
             "Distributor",
 
-          // ------------------------------------------------
-          // BINARY RELATIONSHIP
-          // ------------------------------------------------
-
           binaryParentId:
             user.binaryParentId ||
             null,
@@ -1570,71 +1305,52 @@ export const getBinaryTree =
 
           binaryLevel:
             Number(
-              user.binaryLevel ||
-                1
+              user.binaryLevel || 1
             ),
 
           binaryPath:
             user.binaryPath ||
             "/",
 
-          // ------------------------------------------------
-          // BINARY COUNTS
-          // ------------------------------------------------
-
           leftCount:
             Number(
-              user.leftCount ||
-                0
+              user.leftCount || 0
             ),
 
           rightCount:
             Number(
-              user.rightCount ||
-                0
+              user.rightCount || 0
             ),
 
           totalTeam:
             Number(
-              user.totalTeam ||
-                0
+              user.totalTeam || 0
             ),
 
-          // ------------------------------------------------
-          // BUSINESS
-          // ------------------------------------------------
+          activeTeam:
+            Number(
+              user.activeTeam || 0
+            ),
 
           leftBusiness:
             Number(
-              user.leftBusiness ||
-                0
+              user.leftBusiness || 0
             ),
 
           rightBusiness:
             Number(
-              user.rightBusiness ||
-                0
+              user.rightBusiness || 0
             ),
-
-          // ------------------------------------------------
-          // PV
-          // ------------------------------------------------
 
           leftPv:
             Number(
-              user.leftPv ||
-                0
+              user.leftPv || 0
             ),
 
           rightPv:
             Number(
-              user.rightPv ||
-                0
+              user.rightPv || 0
             ),
-
-          // ------------------------------------------------
-          // CHILDREN
-          // ------------------------------------------------
 
           children: {
             left: null,
@@ -1642,20 +1358,19 @@ export const getBinaryTree =
           },
         };
 
-        // ==================================================
-        // STOP AT MAX DEPTH
-        // ==================================================
+        /* ==================================================
+           STOP AT MAX DEPTH
+        ================================================== */
 
         if (
-          currentDepth >=
-          depth
+          currentDepth >= depth
         ) {
           return node;
         }
 
-        // ==================================================
-        // LEFT CHILD
-        // ==================================================
+        /* ==================================================
+           LEFT CHILD
+        ================================================== */
 
         if (
           user.binaryLeftId
@@ -1663,15 +1378,14 @@ export const getBinaryTree =
           node.children.left =
             await buildNode(
               user.binaryLeftId,
-              currentDepth +
-                1,
+              currentDepth + 1,
               nextVisited
             );
         }
 
-        // ==================================================
-        // RIGHT CHILD
-        // ==================================================
+        /* ==================================================
+           RIGHT CHILD
+        ================================================== */
 
         if (
           user.binaryRightId
@@ -1679,8 +1393,7 @@ export const getBinaryTree =
           node.children.right =
             await buildNode(
               user.binaryRightId,
-              currentDepth +
-                1,
+              currentDepth + 1,
               nextVisited
             );
         }
@@ -1702,58 +1415,50 @@ export const getBinaryTree =
 export const getMyBinaryTree =
   async (
     userId,
-    maxDepth = 5
+    maxDepth = 5,
+    session = null
   ) => {
     return getBinaryTree(
       userId,
-      maxDepth
+      maxDepth,
+      session
     );
   };
 
 /* =========================================================
-   COUNT BINARY CHILDREN
+   COUNT ALL BINARY DESCENDANTS
 ========================================================= */
 
 /*
- * Counts all descendants below the requested root.
+ * STRUCTURAL COUNT.
  *
- * Example:
+ * Includes inactive members.
  *
- *              ROOT
- *             /    \
- *            A      B
- *           / \    / \
- *          C   D  E   F
+ * This is for tree structure/display only.
  *
- * Result:
- *
- * leftCount  = 3
- * rightCount = 3
- * totalCount = 6
- *
- * Side is determined by the first branch under root.
+ * DO NOT use this for binary income qualification.
  */
 
 export const countBinaryTeam =
   async (
-    userId
+    userId,
+    session = null
   ) => {
     const root =
       await getUserById(
-        userId
+        userId,
+        session
       );
 
     let leftCount = 0;
     let rightCount = 0;
 
     const queue = [];
+    const visited = new Set();
 
-    const visited =
-      new Set();
-
-    // ====================================================
-    // ROOT LEFT
-    // ====================================================
+    /* ====================================================
+       ROOT LEFT
+    ==================================================== */
 
     if (
       root.binaryLeftId
@@ -1762,14 +1467,13 @@ export const countBinaryTeam =
         id: String(
           root.binaryLeftId
         ),
-
         side: "left",
       });
     }
 
-    // ====================================================
-    // ROOT RIGHT
-    // ====================================================
+    /* ====================================================
+       ROOT RIGHT
+    ==================================================== */
 
     if (
       root.binaryRightId
@@ -1778,31 +1482,25 @@ export const countBinaryTeam =
         id: String(
           root.binaryRightId
         ),
-
         side: "right",
       });
     }
 
     let queueIndex = 0;
 
-    // ====================================================
-    // BFS
-    // ====================================================
+    /* ====================================================
+       BFS
+    ==================================================== */
 
     while (
-      queueIndex <
-      queue.length
+      queueIndex < queue.length
     ) {
       const item =
-        queue[
-          queueIndex++
-        ];
+        queue[queueIndex++];
 
       if (
         !item?.id ||
-        !isValidObjectId(
-          item.id
-        )
+        !isValidObjectId(item.id)
       ) {
         continue;
       }
@@ -1811,23 +1509,29 @@ export const countBinaryTeam =
         `${item.id}:${item.side}`;
 
       if (
-        visited.has(
-          key
-        )
+        visited.has(key)
       ) {
         continue;
       }
 
-      visited.add(
-        key
-      );
+      visited.add(key);
 
-      const user =
-        await User.findById(
+      let userQuery =
+        User.findById(
           item.id
         ).select(
           "_id role binaryLeftId binaryRightId"
         );
+
+      if (session) {
+        userQuery =
+          userQuery.session(
+            session
+          );
+      }
+
+      const user =
+        await userQuery;
 
       if (
         !user ||
@@ -1836,24 +1540,21 @@ export const countBinaryTeam =
         continue;
       }
 
-      // ==================================================
-      // COUNT CURRENT NODE
-      // ==================================================
+      /* ==================================================
+         COUNT CURRENT NODE
+      ================================================== */
 
       if (
-        item.side ===
-        "left"
+        item.side === "left"
       ) {
         leftCount++;
       } else {
         rightCount++;
       }
 
-      // ==================================================
-      // ADD LEFT DESCENDANT
-      //
-      // Keep original root side.
-      // ==================================================
+      /* ==================================================
+         LEFT DESCENDANT
+      ================================================== */
 
       if (
         user.binaryLeftId
@@ -1862,15 +1563,13 @@ export const countBinaryTeam =
           id: String(
             user.binaryLeftId
           ),
-
-          side:
-            item.side,
+          side: item.side,
         });
       }
 
-      // ==================================================
-      // ADD RIGHT DESCENDANT
-      // ==================================================
+      /* ==================================================
+         RIGHT DESCENDANT
+      ================================================== */
 
       if (
         user.binaryRightId
@@ -1879,21 +1578,224 @@ export const countBinaryTeam =
           id: String(
             user.binaryRightId
           ),
-
-          side:
-            item.side,
+          side: item.side,
         });
       }
     }
 
     return {
       leftCount,
-
       rightCount,
+      totalCount:
+        leftCount + rightCount,
+    };
+  };
+
+/* =========================================================
+   COUNT ACTIVE BINARY DESCENDANTS
+========================================================= */
+
+/*
+ * IMPORTANT BUSINESS RULE:
+ *
+ * ONLY ACTIVE members count for binary income.
+ *
+ * Inactive members:
+ *   - remain visible in tree
+ *   - remain part of structural count
+ *   - DO NOT count toward active qualification
+ *
+ * However, we still traverse through inactive members,
+ * because an active descendant below an inactive member
+ * still belongs to the same LEFT / RIGHT side of the root.
+ *
+ * Example:
+ *
+ *                  ROOT
+ *                 /    \
+ *            ACTIVE   INACTIVE
+ *              |
+ *           INACTIVE
+ *              |
+ *           ACTIVE
+ *
+ * Root's left active count = 2
+ * Root's right active count = 0
+ */
+
+export const countActiveBinaryTeam =
+  async (
+    userId,
+    options = {}
+  ) => {
+    const session =
+      options?.session || null;
+
+    const root =
+      await getUserById(
+        userId,
+        session
+      );
+
+    let leftActiveCount = 0;
+    let rightActiveCount = 0;
+
+    const queue = [];
+    const visited = new Set();
+
+    /* ====================================================
+       ROOT LEFT
+    ==================================================== */
+
+    if (
+      root.binaryLeftId
+    ) {
+      queue.push({
+        id: String(
+          root.binaryLeftId
+        ),
+        side: "left",
+      });
+    }
+
+    /* ====================================================
+       ROOT RIGHT
+    ==================================================== */
+
+    if (
+      root.binaryRightId
+    ) {
+      queue.push({
+        id: String(
+          root.binaryRightId
+        ),
+        side: "right",
+      });
+    }
+
+    let queueIndex = 0;
+
+    /* ====================================================
+       BFS
+    ==================================================== */
+
+    while (
+      queueIndex < queue.length
+    ) {
+      const item =
+        queue[queueIndex++];
+
+      if (
+        !item?.id ||
+        !isValidObjectId(item.id)
+      ) {
+        continue;
+      }
+
+      const key =
+        `${item.id}:${item.side}`;
+
+      if (
+        visited.has(key)
+      ) {
+        continue;
+      }
+
+      visited.add(key);
+
+      let userQuery =
+        User.findById(
+          item.id
+        ).select(
+          "_id role status binaryLeftId binaryRightId"
+        );
+
+      if (session) {
+        userQuery =
+          userQuery.session(
+            session
+          );
+      }
+
+      const user =
+        await userQuery;
+
+      if (
+        !user ||
+        user.role !== "user"
+      ) {
+        continue;
+      }
+
+      /* ==================================================
+         ONLY ACTIVE MEMBERS COUNT
+      ================================================== */
+
+      const isActive =
+        String(
+          user.status || ""
+        ).toLowerCase() ===
+        "active";
+
+      if (isActive) {
+        if (
+          item.side === "left"
+        ) {
+          leftActiveCount++;
+        } else {
+          rightActiveCount++;
+        }
+      }
+
+      /* ==================================================
+         CONTINUE THROUGH INACTIVE USERS
+      ================================================== */
+
+      if (
+        user.binaryLeftId
+      ) {
+        queue.push({
+          id: String(
+            user.binaryLeftId
+          ),
+          side: item.side,
+        });
+      }
+
+      if (
+        user.binaryRightId
+      ) {
+        queue.push({
+          id: String(
+            user.binaryRightId
+          ),
+          side: item.side,
+        });
+      }
+    }
+
+    return {
+      leftActiveCount,
+
+      rightActiveCount,
+
+      totalActiveCount:
+        leftActiveCount +
+        rightActiveCount,
+
+      /* ---------------------------------------------
+         Compatibility aliases
+      --------------------------------------------- */
+
+      leftCount:
+        leftActiveCount,
+
+      rightCount:
+        rightActiveCount,
 
       totalCount:
-        leftCount +
-        rightCount,
+        leftActiveCount +
+        rightActiveCount,
     };
   };
 
@@ -1902,113 +1804,213 @@ export const countBinaryTeam =
 ========================================================= */
 
 /*
- * Recalculates actual binary descendants and stores:
+ * Structural:
+ *   leftCount
+ *   rightCount
+ *   totalTeam
  *
- * leftCount
- * rightCount
- * totalTeam
+ * Active:
+ *   activeTeam
+ *
+ * Structural counts include inactive members.
+ * activeTeam includes only ACTIVE descendants.
  */
 
 export const syncBinaryTeamCounts =
   async (
-    userId
+    userId,
+    session = null
   ) => {
     const user =
       await getUserById(
-        userId
+        userId,
+        session
       );
 
-    if (
-      user.role !== "user"
-    ) {
+    if (user.role !== "user") {
       throw new Error(
         "Only customer/user accounts can have binary team counts"
       );
     }
 
-    const counts =
-      await countBinaryTeam(
-        user._id
-      );
+    const [
+      structuralCounts,
+      activeCounts,
+    ] = await Promise.all([
+      countBinaryTeam(
+        user._id,
+        session
+      ),
+
+      countActiveBinaryTeam(
+        user._id,
+        { session }
+      ),
+    ]);
+
+    /* ====================================================
+       STRUCTURAL COUNTS
+    ==================================================== */
 
     user.leftCount =
-      counts.leftCount;
+      structuralCounts.leftCount;
 
     user.rightCount =
-      counts.rightCount;
+      structuralCounts.rightCount;
 
     user.totalTeam =
-      counts.totalCount;
+      structuralCounts.totalCount;
 
-    await user.save();
+    /* ====================================================
+       ACTIVE COUNTS
+    ==================================================== */
+
+    user.activeTeam =
+      activeCounts.totalActiveCount;
+
+    if (session) {
+      await user.save({
+        session,
+      });
+    } else {
+      await user.save();
+    }
 
     return {
       user,
 
-      counts,
+      counts: {
+        leftCount:
+          structuralCounts.leftCount,
+
+        rightCount:
+          structuralCounts.rightCount,
+
+        totalCount:
+          structuralCounts.totalCount,
+
+        activeTeam:
+          activeCounts.totalActiveCount,
+
+        leftActiveCount:
+          activeCounts.leftActiveCount,
+
+        rightActiveCount:
+          activeCounts.rightActiveCount,
+
+        totalActiveCount:
+          activeCounts.totalActiveCount,
+      },
     };
   };
 
 /* =========================================================
-   CHECK BINARY TREE STATUS
+   GET BINARY TREE STATUS
 ========================================================= */
 
 export const getBinaryStatus =
   async (
-    userId
+    userId,
+    session = null
   ) => {
     const user =
       await getUserById(
-        userId
+        userId,
+        session
       );
 
-    // ====================================================
-    // LEFT CHILD
-    // ====================================================
+    /* ====================================================
+       LEFT CHILD
+    ==================================================== */
 
     const leftUser =
       user.binaryLeftId
-        ? await User.findById(
-            user.binaryLeftId
-          ).select(
-            BINARY_MEMBER_SUMMARY_FIELDS
-          )
+        ? await (async () => {
+            let query =
+              User.findById(
+                user.binaryLeftId
+              ).select(
+                BINARY_MEMBER_SUMMARY_FIELDS
+              );
+
+            if (session) {
+              query =
+                query.session(
+                  session
+                );
+            }
+
+            return query;
+          })()
         : null;
 
-    // ====================================================
-    // RIGHT CHILD
-    // ====================================================
+    /* ====================================================
+       RIGHT CHILD
+    ==================================================== */
 
     const rightUser =
       user.binaryRightId
-        ? await User.findById(
-            user.binaryRightId
-          ).select(
-            BINARY_MEMBER_SUMMARY_FIELDS
-          )
+        ? await (async () => {
+            let query =
+              User.findById(
+                user.binaryRightId
+              ).select(
+                BINARY_MEMBER_SUMMARY_FIELDS
+              );
+
+            if (session) {
+              query =
+                query.session(
+                  session
+                );
+            }
+
+            return query;
+          })()
         : null;
 
-    // ====================================================
-    // BINARY PARENT
-    // ====================================================
+    /* ====================================================
+       BINARY PARENT
+    ==================================================== */
 
     const parent =
       user.binaryParentId
-        ? await User.findById(
-            user.binaryParentId
-          ).select(
-            BINARY_MEMBER_SUMMARY_FIELDS
-          )
+        ? await (async () => {
+            let query =
+              User.findById(
+                user.binaryParentId
+              ).select(
+                BINARY_MEMBER_SUMMARY_FIELDS
+              );
+
+            if (session) {
+              query =
+                query.session(
+                  session
+                );
+            }
+
+            return query;
+          })()
         : null;
 
-    // ====================================================
-    // RETURN
-    // ====================================================
+    /* ====================================================
+       ACTIVE COUNTS
+    ==================================================== */
+
+    const activeCounts =
+      await countActiveBinaryTeam(
+        user._id,
+        { session }
+      );
+
+    /* ====================================================
+       RETURN
+    ==================================================== */
 
     return {
       user: {
-        _id:
-          user._id,
+        _id: user._id,
 
         memberId:
           user.memberId ||
@@ -2024,10 +2026,13 @@ export const getBinaryStatus =
           user.name ||
           "Unknown Member",
 
+        status:
+          user.status ||
+          "inactive",
+
         binaryLevel:
           Number(
-            user.binaryLevel ||
-              1
+            user.binaryLevel || 1
           ),
 
         binaryPath:
@@ -2041,11 +2046,9 @@ export const getBinaryStatus =
 
       parent,
 
-      left:
-        leftUser,
+      left: leftUser,
 
-      right:
-        rightUser,
+      right: rightUser,
 
       availablePositions: {
         left:
@@ -2056,23 +2059,135 @@ export const getBinaryStatus =
       },
 
       counts: {
+        /* ---------------------------------------------
+           STRUCTURAL
+        --------------------------------------------- */
+
         left:
           Number(
-            user.leftCount ||
-              0
+            user.leftCount || 0
           ),
 
         right:
           Number(
-            user.rightCount ||
-              0
+            user.rightCount || 0
           ),
 
         total:
           Number(
-            user.totalTeam ||
-              0
+            user.totalTeam || 0
           ),
+
+        /* ---------------------------------------------
+           ACTIVE
+        --------------------------------------------- */
+
+        activeTeam:
+          activeCounts.totalActiveCount,
+
+        leftActive:
+          activeCounts.leftActiveCount,
+
+        rightActive:
+          activeCounts.rightActiveCount,
+
+        totalActive:
+          activeCounts.totalActiveCount,
       },
     };
+  };
+
+/* =========================================================
+   GET BINARY ANCESTORS
+========================================================= */
+
+/*
+ * Returns ancestors starting from direct binary parent:
+ *
+ *   member
+ *      ↑
+ *   parent
+ *      ↑
+ *   grandparent
+ *      ↑
+ *   ...
+ *
+ * This is useful for activation-time binary calculations.
+ *
+ * Inactive ancestors are returned too, because traversal
+ * must continue upward. The caller decides whether an
+ * ancestor should receive income.
+ */
+
+export const getBinaryAncestors =
+  async (
+    userId,
+    session = null
+  ) => {
+    if (
+      !userId ||
+      !isValidObjectId(userId)
+    ) {
+      throw new Error(
+        "Invalid user ID"
+      );
+    }
+
+    const ancestors = [];
+    const visited = new Set();
+
+    let current =
+      await getUserById(
+        userId,
+        session
+      );
+
+    while (
+      current?.binaryParentId
+    ) {
+      const parentId =
+        String(
+          current.binaryParentId
+        );
+
+      if (
+        visited.has(parentId)
+      ) {
+        console.warn(
+          `⚠️ Binary ancestor loop detected for user ${userId}`
+        );
+
+        break;
+      }
+
+      visited.add(parentId);
+
+      let parentQuery =
+        User.findById(
+          current.binaryParentId
+        ).select(
+          BINARY_MEMBER_SUMMARY_FIELDS +
+            " status binaryParentId"
+        );
+
+      if (session) {
+        parentQuery =
+          parentQuery.session(
+            session
+          );
+      }
+
+      const parent =
+        await parentQuery;
+
+      if (!parent) {
+        break;
+      }
+
+      ancestors.push(parent);
+
+      current = parent;
+    }
+
+    return ancestors;
   };

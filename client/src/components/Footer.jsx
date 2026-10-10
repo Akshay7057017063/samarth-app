@@ -18,10 +18,13 @@ export default function Footer() {
     cmsContent?.officeAddress ||
     "Ganga Shopping Mall, 2nd Floor, Main Agra Road, Dausa, Rajasthan 303303";
 
-  const phone = cmsContent?.supportPhone || "+91 8459949190";
+  const phone =
+    cmsContent?.supportPhone ||
+    "+91 8459949190";
 
   const email =
-    cmsContent?.supportEmail || "contact@digital-lyf LYF.com";
+    cmsContent?.supportEmail ||
+    "contact@digital-lyf LYF.com";
 
   return (
     <footer className="relative overflow-hidden border-t border-violet-100 bg-gradient-to-br from-violet-50 via-white to-orange-50 text-slate-600">
@@ -198,10 +201,10 @@ export default function Footer() {
 
               <li>
                 <Link
-                  to="/register"
+                  to="/login"
                   className="group flex items-center justify-between bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text font-bold text-transparent transition-opacity hover:opacity-75"
                 >
-                  Register with Sponsor ID
+                  Existing Member Login
 
                   <ArrowUpRight className="h-3.5 w-3.5 text-pink-500 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </Link>
@@ -395,7 +398,7 @@ export default function Footer() {
 
             <p className="text-slate-500">
               © {new Date().getFullYear()}{" "}
-              <span className="font-bold bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text font-bold text-transparent">
                 DIGITAL LYF PVT. LTD.
               </span>
               . All Rights Reserved.

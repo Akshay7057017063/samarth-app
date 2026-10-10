@@ -26,9 +26,22 @@ import {
   getTdsReport,
   getSiteContent,
   updateSiteContent,
+
+  // CAPTCHA
   getCaptchaStats,
   getCustomerCaptchaStats,
+  getCaptchaSettings,
+  updateCaptchaSettings,
 } from "../controllers/adminController.js";
+
+// =====================================================
+// CUSTOMER ACTIVATION PIN CONTROLLERS
+// =====================================================
+
+import {
+  generateActivationPin,
+  resendActivationPin,
+} from "../controllers/admin/customer.controller.js";
 
 // =====================================================
 // BINARY TREE CONTROLLERS
@@ -84,6 +97,43 @@ router.get(
 );
 
 // =====================================================
+// CAPTCHA SETTINGS
+// =====================================================
+//
+// GET /api/admin/captcha/settings
+// PUT /api/admin/captcha/settings
+//
+// These routes are protected by:
+// authenticateToken
+// requireSuperOrAdmin
+//
+// Admin controls:
+// - enabled
+// - CAPTCHA type
+// - length
+// - character sets
+// - symbols
+// - case sensitivity
+// - expiry
+// - submit cooldown
+// - daily limit
+// - reward amount
+// - max attempts
+// - refresh behaviour
+// - image settings
+// =====================================================
+
+router.get(
+  "/captcha/settings",
+  getCaptchaSettings
+);
+
+router.put(
+  "/captcha/settings",
+  updateCaptchaSettings
+);
+
+// =====================================================
 // CUSTOMER MANAGEMENT
 // =====================================================
 
@@ -127,6 +177,36 @@ router.delete(
 router.put(
   "/users/:id/toggle-status",
   toggleCustomerStatus
+);
+
+// =====================================================
+// CUSTOMER ACTIVATION PIN
+// =====================================================
+
+// Send new activation PIN
+// POST /api/admin/users/:id/send-activation-pin
+//
+// Body:
+// {
+//   "pinType": "paid" | "unpaid"
+// }
+
+router.post(
+  "/users/:id/send-activation-pin",
+  generateActivationPin
+);
+
+// Resend activation PIN
+// POST /api/admin/users/:id/resend-activation-pin
+//
+// Body:
+// {
+//   "pinType": "paid" | "unpaid"
+// }
+
+router.post(
+  "/users/:id/resend-activation-pin",
+  resendActivationPin
 );
 
 // =====================================================
@@ -188,16 +268,16 @@ router.get(
 );
 
 // =====================================================
-// SITE CONTENT / CAPTCHA SETTINGS
+// SITE CONTENT
 // =====================================================
 
-// Get website + CAPTCHA settings
+// Get website + legacy settings
 router.get(
   "/site-content",
   getSiteContent
 );
 
-// Update website + CAPTCHA settings
+// Update website + legacy settings
 router.put(
   "/site-content",
   updateSiteContent

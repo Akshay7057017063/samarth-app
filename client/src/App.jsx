@@ -13,7 +13,7 @@ import Footer from "./components/Footer";
 // Public Pages
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
+import ActivateAccountPage from "./pages/ActivateAccountPage";
 
 // Customer Portal Pages
 import UserDashboard from "./pages/user/UserDashboard";
@@ -21,6 +21,7 @@ import CaptchaEarnPage from "./pages/user/CaptchaEarnPage";
 import ReferralTreePage from "./pages/user/ReferralTreePage";
 import WithdrawalPage from "./pages/user/WithdrawalPage";
 import ProfileKycPage from "./pages/user/ProfileKycPage";
+import RegisterMemberPage from "./pages/user/RegisterMemberPage";
 
 // =====================================================
 // CUSTOMER PROTECTED ROUTE
@@ -60,12 +61,7 @@ const ProtectedUserRoute = ({ children }) => {
   // NOT AUTHENTICATED
   // ---------------------------------------------------
   if (!user) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
 
   // ---------------------------------------------------
@@ -76,16 +72,8 @@ const ProtectedUserRoute = ({ children }) => {
     .trim()
     .toLowerCase();
 
-  if (
-    role === "admin" ||
-    role === "superadmin"
-  ) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+  if (role === "admin" || role === "superadmin") {
+    return <Navigate to="/login" replace />;
   }
 
   // ---------------------------------------------------
@@ -126,9 +114,15 @@ export default function App() {
             element={<LoginPage />}
           />
 
+          {/* =================================================
+              ACCOUNT ACTIVATION
+              Inactive customers can activate their account
+              using the activation PIN sent by admin.
+          ================================================= */}
+
           <Route
-            path="/register"
-            element={<RegisterPage />}
+            path="/activate-account"
+            element={<ActivateAccountPage />}
           />
 
           {/* =================================================
@@ -140,6 +134,17 @@ export default function App() {
             element={
               <ProtectedUserRoute>
                 <UserDashboard />
+              </ProtectedUserRoute>
+            }
+          />
+
+          {/* Existing logged-in customer can register
+              a new member from inside the dashboard. */}
+          <Route
+            path="/dashboard/register"
+            element={
+              <ProtectedUserRoute>
+                <RegisterMemberPage />
               </ProtectedUserRoute>
             }
           />

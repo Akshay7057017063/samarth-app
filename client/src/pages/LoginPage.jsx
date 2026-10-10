@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -339,13 +338,13 @@ export default function LoginPage() {
 
             <div className="mt-7 text-center text-xs text-slate-500">
 
-              New Distributor?{' '}
+              Have an activation PIN?{' '}
 
               <Link
-                to="/register"
+                to="/activate-account"
                 className="font-bold bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
               >
-                Register with Sponsor Code
+                Activate your account
               </Link>
 
             </div>
@@ -380,4 +379,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

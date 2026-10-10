@@ -706,7 +706,7 @@ class DataStore {
         'Mon - Sat: 9:00 AM - 6:00 PM',
 
       officeAddress:
-        'Ganga Shopping Mall, 2nd Floor, Main Agra Road, Dausa, Rajasthan 303303',
+        'Sangamner ,city centar mall',
 
       heroBadge:
         "India's #1 Smart Wellness & Direct Reward Community",

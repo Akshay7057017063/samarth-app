@@ -13,7 +13,6 @@ import {
   IndianRupee,
   Users,
   Layers,
-  Copy,
   CreditCard,
   KeyRound,
   Sparkles,
@@ -27,6 +26,7 @@ import {
   Activity,
   Network,
   GitBranch,
+  UserPlus,
 } from "lucide-react";
 
 /* ============================================================
@@ -90,9 +90,6 @@ export default function UserDashboard() {
 
   const [pageError, setPageError] =
     useState("");
-
-  const [copiedReferral, setCopiedReferral] =
-    useState(false);
 
   /* ==========================================================
      SYNC AUTH CONTEXT DATA
@@ -629,69 +626,6 @@ export default function UserDashboard() {
   };
 
   /* ==========================================================
-     COPY REFERRAL LINK
-  ========================================================== */
-
-  const copyLink = async () => {
-    const text =
-      referralLink;
-
-    if (!text) {
-      return;
-    }
-
-    try {
-      if (
-        navigator?.clipboard
-          ?.writeText
-      ) {
-        await navigator.clipboard.writeText(
-          text
-        );
-      } else {
-        const textarea =
-          document.createElement(
-            "textarea"
-          );
-
-        textarea.value =
-          text;
-
-        textarea.style.position =
-          "fixed";
-
-        textarea.style.opacity =
-          "0";
-
-        document.body.appendChild(
-          textarea
-        );
-
-        textarea.select();
-
-        document.execCommand(
-          "copy"
-        );
-
-        document.body.removeChild(
-          textarea
-        );
-      }
-
-      setCopiedReferral(true);
-
-      setTimeout(() => {
-        setCopiedReferral(false);
-      }, 2000);
-    } catch (error) {
-      console.error(
-        "COPY REFERRAL LINK ERROR:",
-        error
-      );
-    }
-  };
-
-  /* ==========================================================
      CUSTOMER DATA
   ========================================================== */
 
@@ -903,6 +837,9 @@ export default function UserDashboard() {
    * Example:
    * 1 completed pair = ₹450
    * 2 completed pairs = ₹900
+   *
+   * The backend binary calculation will be updated separately
+   * to follow the required active-member pair rules.
    */
 
   const calculatedBinaryIncome =
@@ -932,10 +869,8 @@ export default function UserDashboard() {
   /*
    * Fallback to matchingIncome when the transaction
    * endpoint is temporarily unavailable or empty.
-   *
-   * Backend currently credits:
-   * matchingIncome += ₹450
    */
+
   const binaryIncome =
     calculatedBinaryIncome > 0
       ? calculatedBinaryIncome
@@ -956,30 +891,6 @@ export default function UserDashboard() {
           100
       )
     );
-
-  /* ==========================================================
-     PERSONAL REFERRAL LINK
-  ========================================================== */
-
-  const origin =
-    typeof window !==
-    "undefined"
-      ? window.location.origin
-      : "";
-
-  /*
-   * Current backend automatically decides the binary slot using
-   * autoPlaceUser() + BFS.
-   *
-   * Therefore we should NOT claim that `pos=1` means forced LEFT
-   * and `pos=2` means forced RIGHT.
-   */
-
-  const referralLink = origin
-    ? `${origin}/register?ref=${encodeURIComponent(
-        userCode
-      )}`
-    : "";
 
   /* ==========================================================
      PERSONAL STAT CARDS
@@ -1382,6 +1293,14 @@ export default function UserDashboard() {
             className="shrink-0 rounded-xl px-3 py-2.5 text-slate-600 transition-all hover:bg-violet-50 hover:text-violet-700"
           >
             Profile
+          </Link>
+
+          <Link
+            to="/dashboard/register"
+            className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2.5 text-slate-600 transition-all hover:bg-pink-50 hover:text-pink-700"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Register Member
           </Link>
 
           <Link
@@ -2048,9 +1967,9 @@ export default function UserDashboard() {
             </div>
           </div>
 
-          {/* ==================================================
+          {/* =================================================
               RIGHT SIDE
-          ================================================== */}
+          ================================================= */}
 
           <div className="space-y-5 xl:col-span-4">
 
@@ -2075,21 +1994,16 @@ export default function UserDashboard() {
                   </h3>
 
                   <p className="mt-2 text-xs leading-5 text-white/80">
-                    Manage your account and access your available customer portal features.
+                    Register new members under your account and manage your available customer portal features.
                   </p>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      alert(
-                        "Upgrade options will be available here."
-                      )
-                    }
+                  <Link
+                    to="/dashboard/register"
                     className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-extrabold text-violet-700 shadow-lg transition-all hover:-translate-y-0.5 hover:bg-slate-50"
                   >
-                    Explore Upgrade
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                  </button>
+                    Register New Member
+                    <UserPlus className="h-3.5 w-3.5" />
+                  </Link>
 
                 </div>
               </div>
@@ -2587,6 +2501,27 @@ export default function UserDashboard() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
             <Link
+              to="/dashboard/register"
+              className="group rounded-2xl border border-pink-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-pink-200 hover:shadow-lg"
+            >
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-pink-100 text-pink-600 transition-transform group-hover:scale-105">
+
+                <UserPlus className="h-5 w-5" />
+
+              </div>
+
+              <h3 className="mt-4 text-sm font-black text-slate-900">
+                Register New Member
+              </h3>
+
+              <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                Add a new member under you. Sponsor: {userCode}
+              </p>
+
+            </Link>
+
+            <Link
               to="/dashboard/captcha"
               className="group rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg"
             >
@@ -2675,7 +2610,7 @@ export default function UserDashboard() {
         </section>
 
         {/* ==================================================
-            REFERRAL LINK
+            REGISTER MEMBER
         ================================================== */}
 
         <section className="mt-6">
@@ -2683,11 +2618,11 @@ export default function UserDashboard() {
           <div className="mb-4">
 
             <h2 className="text-lg font-black text-slate-900">
-              Referral Link
+              Register New Member
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              Share your member link. New customers are automatically placed in the binary tree according to the configured placement logic.
+              New customers must be registered from inside your logged-in member dashboard.
             </p>
 
           </div>
@@ -2696,81 +2631,44 @@ export default function UserDashboard() {
 
             <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-violet-100/50 blur-2xl" />
 
-            <div className="relative">
+            <div className="relative grid grid-cols-1 gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
 
-              <div className="flex items-center justify-between gap-3">
+              <div>
 
-                <div>
+                <div className="flex items-center gap-3">
 
-                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-violet-600">
-                    Personal Invite
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-100 to-pink-100 text-violet-600">
+
+                    <UserPlus className="h-5 w-5" />
+
                   </div>
 
-                  <h3 className="mt-1 text-base font-black text-slate-900">
-                    Your Referral Link
-                  </h3>
+                  <div>
 
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-violet-600">
+                      Sponsor Account
+                    </div>
+
+                    <h3 className="mt-1 text-base font-black text-slate-900">
+                      {userCode}
+                    </h3>
+
+                  </div>
                 </div>
 
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
-
-                  <Copy className="h-5 w-5" />
-
-                </div>
-
-              </div>
-
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-
-                <input
-                  type="text"
-                  readOnly
-                  value={
-                    referralLink
-                  }
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-mono text-slate-600 outline-none"
-                />
-
-                <button
-                  type="button"
-                  onClick={
-                    copyLink
-                  }
-                  disabled={
-                    !referralLink
-                  }
-                  className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                    copiedReferral
-                      ? "bg-emerald-500"
-                      : "bg-gradient-to-r from-violet-600 to-pink-500 hover:-translate-y-0.5 hover:shadow-md"
-                  }`}
-                >
-
-                  {copiedReferral ? (
-                    <>
-                      <CircleCheck className="h-4 w-4" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4" />
-                      Copy
-                    </>
-                  )}
-
-                </button>
-
-              </div>
-
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-3 py-2">
-
-                <Network className="h-3.5 w-3.5 shrink-0 text-violet-600" />
-
-                <p className="text-[10px] font-semibold text-violet-700">
-                  Binary placement is handled automatically by the server.
+                <p className="mt-4 max-w-2xl text-xs leading-6 text-slate-500">
+                  You are the authenticated sponsor. New members registered here will be created as inactive members, placed in the selected left or right position, and will wait for account activation through the activation PIN process.
                 </p>
 
               </div>
+
+              <Link
+                to="/dashboard/register"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 px-5 py-3 text-xs font-extrabold text-white shadow-md shadow-violet-100 transition-all hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                Register New Member
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
 
             </div>
           </div>

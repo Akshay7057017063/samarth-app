@@ -1,4 +1,3 @@
-
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -8,9 +7,19 @@ import crypto from "crypto";
 import { User } from "../models/User.js";
 import { Wallet } from "../models/Wallet.js";
 import { LoginCode } from "../models/LoginCode.js";
+import {
+  ActivationPin,
+  ACTIVATION_PIN_MAX_ATTEMPTS,
+} from "../models/ActivationPin.js";
+
 import { authenticateToken } from "../middleware/auth.js";
+
 import { sendPasswordResetCodeEmail } from "../utils/mailer.js";
-import { autoPlaceUser, syncBinaryTeamCounts } from "../utils/binaryTree.js";
+
+import {
+  processCompletedBinaryPairIncome,
+  processDirectReferralIncome,
+} from "../utils/binaryIncome.js";
 
 const router = express.Router();
 
@@ -51,24 +60,10 @@ const createToken = (user) => {
   return jwt.sign(
     {
       id: String(user._id),
-
-      memberId:
-        user.memberId ||
-        user.userCode ||
-        "",
-
-      userCode:
-        user.userCode ||
-        user.memberId ||
-        "",
-
-      role:
-        user.role ||
-        "user",
-
-      name:
-        user.name ||
-        "",
+      memberId: user.memberId || user.userCode || "",
+      userCode: user.userCode || user.memberId || "",
+      role: user.role || "user",
+      name: user.name || "",
     },
     JWT_SECRET,
     {
@@ -158,9 +153,109 @@ const findUserByLoginId = async (loginId) => {
 // =====================================================
 
 const generatePasswordResetCode = () => {
-  return String(
-    crypto.randomInt(100000, 1000000)
-  );
+  return String(crypto.randomInt(100000, 1000000));
+};
+
+// =====================================================
+// HELPER: PROCESS BINARY INCOME FOR ALL ANCESTORS
+// =====================================================
+//
+// When a new member becomes ACTIVE:
+//
+// New member may complete a pair for:
+// - direct binary parent
+// - grandparent
+// - great-grandparent
+// - etc.
+//
+// Therefore we walk upward through binaryParentId.
+//
+// Only ACTIVE ancestors are processed.
+// Inactive members do not receive binary income.
+//
+// =====================================================
+
+const processBinaryIncomeForAncestors = async (activatedUser) => {
+  if (!activatedUser?._id) {
+    return {
+      processedAncestors: [],
+      totalPaid: 0,
+    };
+  }
+
+  let ancestorId = activatedUser.binaryParentId || null;
+
+  const visited = new Set();
+
+  const processedAncestors = [];
+  let totalPaid = 0;
+
+  while (ancestorId) {
+    const ancestorIdString = String(ancestorId);
+
+    if (visited.has(ancestorIdString)) {
+      console.warn(
+        `⚠️ Binary ancestor loop detected for user ${activatedUser._id}`
+      );
+      break;
+    }
+
+    visited.add(ancestorIdString);
+
+    const ancestor = await User.findById(ancestorId).select(
+      "_id memberId name status binaryParentId"
+    );
+
+    if (!ancestor) {
+      break;
+    }
+
+    if (
+      String(ancestor.status || "").toLowerCase() ===
+      "active"
+    ) {
+      try {
+        const result =
+          await processCompletedBinaryPairIncome({
+            parentId: ancestor._id,
+          });
+
+        processedAncestors.push({
+          userId: ancestor._id,
+          memberId: ancestor.memberId,
+          leftActiveCount:
+            Number(result.leftActiveCount || 0),
+          rightActiveCount:
+            Number(result.rightActiveCount || 0),
+          totalActiveDownline:
+            Number(result.totalActiveDownline || 0),
+          eligiblePairCount:
+            Number(result.eligiblePairCount || 0),
+          totalPaid:
+            Number(result.totalPaid || 0),
+        });
+
+        totalPaid += Number(result.totalPaid || 0);
+      } catch (incomeError) {
+        console.error(
+          `❌ Binary income processing failed for ancestor ${ancestor._id}:`,
+          incomeError
+        );
+
+        // Do not fail the customer's activation because of
+        // a secondary binary-income processing error.
+        //
+        // The activation itself has already succeeded.
+      }
+    }
+
+    ancestorId = ancestor.binaryParentId || null;
+  }
+
+  return {
+    processedAncestors,
+    totalPaid,
+  };
 };
 
 // =====================================================
@@ -177,10 +272,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const {
-      loginId,
-      password,
-    } = req.body;
+    const { loginId, password } = req.body;
 
     // -------------------------------------------------
     // VALIDATION
@@ -209,8 +301,7 @@ router.post("/login", async (req, res) => {
     // FIND USER
     // -------------------------------------------------
 
-    const user =
-      await findUserByLoginId(cleanId);
+    const user = await findUserByLoginId(cleanId);
 
     if (!user) {
       return res.status(401).json({
@@ -228,10 +319,16 @@ router.post("/login", async (req, res) => {
       String(user.status || "active").toLowerCase() !==
       "active"
     ) {
+      const notYetActivated =
+        String(user.status || "").toLowerCase() ===
+          "inactive" &&
+        !user.activationDate;
+
       return res.status(403).json({
         success: false,
-        message:
-          "Your account is inactive. Please contact admin.",
+        message: notYetActivated
+          ? "Your account is not activated yet. Please activate it with the PIN sent by admin, or contact admin."
+          : "Your account is inactive. Please contact admin.",
       });
     }
 
@@ -247,11 +344,10 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const passwordMatch =
-      await bcrypt.compare(
-        cleanPassword,
-        user.password
-      );
+    const passwordMatch = await bcrypt.compare(
+      cleanPassword,
+      user.password
+    );
 
     if (!passwordMatch) {
       return res.status(401).json({
@@ -264,8 +360,7 @@ router.post("/login", async (req, res) => {
     // CREATE JWT
     // -------------------------------------------------
 
-    const token =
-      createToken(user);
+    const token = createToken(user);
 
     // -------------------------------------------------
     // RESPONSE
@@ -273,25 +368,16 @@ router.post("/login", async (req, res) => {
 
     return res.json({
       success: true,
-
-      message:
-        "Login successful.",
-
+      message: "Login successful.",
       token,
-
-      user:
-        formatUserResponse(user),
+      user: formatUserResponse(user),
     });
   } catch (error) {
-    console.error(
-      "❌ Login error:",
-      error
-    );
+    console.error("❌ Login error:", error);
 
     return res.status(500).json({
       success: false,
-      message:
-        "Server error during login.",
+      message: "Server error during login.",
     });
   }
 });
@@ -299,11 +385,13 @@ router.post("/login", async (req, res) => {
 // =====================================================
 // POST /api/auth/forgot-password
 // =====================================================
+//
 // ADMIN / SUPERADMIN PASSWORD RESET
 //
 // Flow:
 // Email → Generate OTP → Hash OTP → Save MongoDB
 // → Send OTP by email
+//
 // =====================================================
 
 router.post(
@@ -318,10 +406,11 @@ router.post(
         });
       }
 
-      const cleanEmail =
-        String(req.body?.email || "")
-          .trim()
-          .toLowerCase();
+      const cleanEmail = String(
+        req.body?.email || ""
+      )
+        .trim()
+        .toLowerCase();
 
       // -------------------------------------------------
       // EMAIL VALIDATION
@@ -350,24 +439,15 @@ router.post(
       // FIND ADMIN ACCOUNT
       // -------------------------------------------------
 
-      const user =
-        await User.findOne({
-          email: cleanEmail,
-          role: {
-            $in: [
-              "admin",
-              "superadmin",
-            ],
-          },
-        });
+      const user = await User.findOne({
+        email: cleanEmail,
+        role: {
+          $in: ["admin", "superadmin"],
+        },
+      });
 
       // -------------------------------------------------
       // GENERIC RESPONSE
-      // -------------------------------------------------
-      //
-      // We don't reveal whether an email belongs
-      // to an administrator account.
-      // This prevents email/account enumeration.
       // -------------------------------------------------
 
       const genericResponse = {
@@ -377,9 +457,7 @@ router.post(
       };
 
       if (!user) {
-        return res.json(
-          genericResponse
-        );
+        return res.json(genericResponse);
       }
 
       // -------------------------------------------------
@@ -389,10 +467,7 @@ router.post(
       await LoginCode.updateMany(
         {
           userId: user._id,
-
-          purpose:
-            "password_reset",
-
+          purpose: "password_reset",
           used: false,
         },
         {
@@ -414,23 +489,21 @@ router.post(
       // HASH OTP
       // -------------------------------------------------
 
-      const codeHash =
-        await bcrypt.hash(
-          resetCode,
-          10
-        );
+      const codeHash = await bcrypt.hash(
+        resetCode,
+        10
+      );
 
       // -------------------------------------------------
       // EXPIRY
       // -------------------------------------------------
 
-      const expiresAt =
-        new Date(
-          Date.now() +
-            PASSWORD_RESET_CODE_EXPIRY_MINUTES *
-              60 *
-              1000
-        );
+      const expiresAt = new Date(
+        Date.now() +
+          PASSWORD_RESET_CODE_EXPIRY_MINUTES *
+            60 *
+            1000
+      );
 
       // -------------------------------------------------
       // SAVE RESET CODE
@@ -438,24 +511,13 @@ router.post(
 
       const resetCodeRecord =
         await LoginCode.create({
-          userId:
-            user._id,
-
-          email:
-            cleanEmail,
-
+          userId: user._id,
+          email: cleanEmail,
           codeHash,
-
-          purpose:
-            "password_reset",
-
+          purpose: "password_reset",
           expiresAt,
-
-          attempts:
-            0,
-
-          used:
-            false,
+          attempts: 0,
+          used: false,
         });
 
       // -------------------------------------------------
@@ -464,13 +526,9 @@ router.post(
 
       try {
         await sendPasswordResetCodeEmail({
-          email:
-            cleanEmail,
-
+          email: cleanEmail,
           name:
-            user.name ||
-            "Administrator",
-
+            user.name || "Administrator",
           resetCode,
         });
       } catch (mailError) {
@@ -479,10 +537,8 @@ router.post(
           mailError.message
         );
 
-        // Remove the unusable reset code
         await LoginCode.deleteOne({
-          _id:
-            resetCodeRecord._id,
+          _id: resetCodeRecord._id,
         });
 
         return res.status(500).json({
@@ -496,9 +552,7 @@ router.post(
         `📧 Password reset code sent to ${cleanEmail}`
       );
 
-      return res.json(
-        genericResponse
-      );
+      return res.json(genericResponse);
     } catch (error) {
       console.error(
         "❌ Forgot password error:",
@@ -517,7 +571,9 @@ router.post(
 // =====================================================
 // POST /api/auth/reset-password
 // =====================================================
+//
 // OTP + NEW PASSWORD
+//
 // =====================================================
 
 router.post(
@@ -532,18 +588,19 @@ router.post(
         });
       }
 
-      const cleanEmail =
-        String(req.body?.email || "")
-          .trim()
-          .toLowerCase();
+      const cleanEmail = String(
+        req.body?.email || ""
+      )
+        .trim()
+        .toLowerCase();
 
-      const resetCode =
-        String(req.body?.otp || "").trim();
+      const resetCode = String(
+        req.body?.otp || ""
+      ).trim();
 
-      const newPassword =
-        String(
-          req.body?.newPassword || ""
-        );
+      const newPassword = String(
+        req.body?.newPassword || ""
+      );
 
       // -------------------------------------------------
       // VALIDATION
@@ -581,18 +638,12 @@ router.post(
       // FIND ADMIN
       // -------------------------------------------------
 
-      const user =
-        await User.findOne({
-          email:
-            cleanEmail,
-
-          role: {
-            $in: [
-              "admin",
-              "superadmin",
-            ],
-          },
-        });
+      const user = await User.findOne({
+        email: cleanEmail,
+        role: {
+          $in: ["admin", "superadmin"],
+        },
+      });
 
       if (!user) {
         return res.status(400).json({
@@ -608,17 +659,10 @@ router.post(
 
       const resetCodeRecord =
         await LoginCode.findOne({
-          userId:
-            user._id,
-
-          email:
-            cleanEmail,
-
-          purpose:
-            "password_reset",
-
+          userId: user._id,
+          email: cleanEmail,
+          purpose: "password_reset",
           used: false,
-
           expiresAt: {
             $gt: new Date(),
           },
@@ -639,16 +683,11 @@ router.post(
       // -------------------------------------------------
 
       if (
-        Number(
-          resetCodeRecord.attempts || 0
-        ) >=
+        Number(resetCodeRecord.attempts || 0) >=
         PASSWORD_RESET_MAX_ATTEMPTS
       ) {
-        resetCodeRecord.used =
-          true;
-
-        resetCodeRecord.usedAt =
-          new Date();
+        resetCodeRecord.used = true;
+        resetCodeRecord.usedAt = new Date();
 
         await resetCodeRecord.save();
 
@@ -663,11 +702,10 @@ router.post(
       // VERIFY OTP
       // -------------------------------------------------
 
-      const codeMatches =
-        await bcrypt.compare(
-          resetCode,
-          resetCodeRecord.codeHash
-        );
+      const codeMatches = await bcrypt.compare(
+        resetCode,
+        resetCodeRecord.codeHash
+      );
 
       if (!codeMatches) {
         resetCodeRecord.attempts =
@@ -679,21 +717,17 @@ router.post(
           resetCodeRecord.attempts >=
           PASSWORD_RESET_MAX_ATTEMPTS
         ) {
-          resetCodeRecord.used =
-            true;
-
-          resetCodeRecord.usedAt =
-            new Date();
+          resetCodeRecord.used = true;
+          resetCodeRecord.usedAt = new Date();
         }
 
         await resetCodeRecord.save();
 
-        const attemptsLeft =
-          Math.max(
-            0,
-            PASSWORD_RESET_MAX_ATTEMPTS -
-              resetCodeRecord.attempts
-          );
+        const attemptsLeft = Math.max(
+          0,
+          PASSWORD_RESET_MAX_ATTEMPTS -
+            resetCodeRecord.attempts
+        );
 
         return res.status(400).json({
           success: false,
@@ -708,14 +742,12 @@ router.post(
       // HASH NEW PASSWORD
       // -------------------------------------------------
 
-      const passwordHash =
-        await bcrypt.hash(
-          newPassword,
-          10
-        );
+      const passwordHash = await bcrypt.hash(
+        newPassword,
+        10
+      );
 
-      user.password =
-        passwordHash;
+      user.password = passwordHash;
 
       await user.save();
 
@@ -723,26 +755,19 @@ router.post(
       // MARK CODE AS USED
       // -------------------------------------------------
 
-      resetCodeRecord.used =
-        true;
-
-      resetCodeRecord.usedAt =
-        new Date();
+      resetCodeRecord.used = true;
+      resetCodeRecord.usedAt = new Date();
 
       await resetCodeRecord.save();
 
       // -------------------------------------------------
-      // INVALIDATE ANY OTHER RESET CODES
+      // INVALIDATE OTHER RESET CODES
       // -------------------------------------------------
 
       await LoginCode.updateMany(
         {
-          userId:
-            user._id,
-
-          purpose:
-            "password_reset",
-
+          userId: user._id,
+          purpose: "password_reset",
           used: false,
         },
         {
@@ -783,28 +808,143 @@ router.post(
 
 // =====================================================
 // POST /api/auth/register
+// DISABLED
+// =====================================================
+
+router.post("/register", (req, res) => {
+  return res.status(403).json({
+    success: false,
+    message:
+      "Public registration is disabled. Please login and register new members from your dashboard.",
+  });
+});
+
+// =====================================================
+// GET /api/auth/referrer/:code
+// PUBLIC
 // =====================================================
 //
-// CUSTOMER REGISTRATION FLOW
+// This endpoint only looks up the sponsor.
+// It does NOT create an account.
 //
-// 1. Customer enters Referral / Upline ID
-// 2. Backend finds active USER sponsor
-// 3. New customer account is created
-// 4. Customer is automatically placed in Binary Tree
-// 5. Sponsor referral/team counters are updated
-// 6. ₹50 welcome wallet is created
-// 7. JWT token returned
-//
-// Superadmin/Admin is NOT required for normal registration.
+// Sponsor must be:
+// - role: user
+// - status: active
+// - userType: PAID
 //
 // =====================================================
 
-router.post("/register", async (req, res) => {
+router.get(
+  "/referrer/:code",
+  async (req, res) => {
+    try {
+      if (!isMongoActive()) {
+        return res.status(503).json({
+          success: false,
+          message:
+            "Database is currently unavailable.",
+        });
+      }
+
+      const code = String(
+        req.params.code || ""
+      )
+        .trim()
+        .toUpperCase();
+
+      if (!code) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Invalid or inactive referral link.",
+        });
+      }
+
+      const sponsor = await User.findOne({
+        role: "user",
+        status: "active",
+        userType: "PAID",
+        $or: [
+          {
+            memberId: code,
+          },
+          {
+            userCode: code,
+          },
+        ],
+      }).select("memberId name");
+
+      if (!sponsor) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Invalid or inactive referral link.",
+        });
+      }
+
+      return res.json({
+        success: true,
+        sponsor: {
+          memberId: sponsor.memberId,
+          name: sponsor.name,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "❌ Referrer lookup error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message: "Server error.",
+      });
+    }
+  }
+);
+
+// =====================================================
+// POST /api/auth/register-by-link
+// DISABLED
+// =====================================================
+
+router.post(
+  "/register-by-link",
+  (req, res) => {
+    return res.status(403).json({
+      success: false,
+      message:
+        "Public registration is disabled. Please login and register the new member from your dashboard.",
+    });
+  }
+);
+
+// =====================================================
+// POST /api/auth/activate
+// =====================================================
+//
+// Activation rules:
+//
+// 1. Paid PIN:
+//    - Account becomes PAID and active.
+//    - Sponsor can receive ₹100 direct referral income
+//      only when sponsor is active and PAID.
+//
+// 2. Unpaid PIN:
+//    - Account becomes UNPAID and active.
+//    - Direct referral income = ₹0.
+//
+// 3. No welcome bonus is credited.
+//
+// 4. Activation and direct referral income are handled
+//    inside the same MongoDB transaction.
+//
+// 5. Binary income is processed after activation commits.
+//
+// =====================================================
+
+router.post("/activate", async (req, res) => {
   try {
-    // -------------------------------------------------
-    // CHECK MONGODB
-    // -------------------------------------------------
-
     if (!isMongoActive()) {
       return res.status(503).json({
         success: false,
@@ -813,645 +953,415 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const {
-      name,
-      email,
-      phone,
-      password,
-      sponsorCode,
-    } = req.body;
+    const identifier = String(
+      req.body?.identifier ||
+        req.body?.memberId ||
+        req.body?.email ||
+        ""
+    ).trim();
+
+    const pin = String(req.body?.pin || "").trim();
 
     // -------------------------------------------------
-    // REQUIRED FIELD VALIDATION
+    // VALIDATION
     // -------------------------------------------------
 
-    if (
-      !name ||
-      !email ||
-      !phone ||
-      !password
-    ) {
+    if (!identifier || !pin) {
       return res.status(400).json({
         success: false,
         message:
-          "Name, email, phone, password and Referral/Upline ID are required.",
+          "Member ID / Email and Activation PIN are required.",
+      });
+    }
+
+    if (!/^\d{6}$/.test(pin)) {
+      return res.status(400).json({
+        success: false,
+        message: "Activation PIN must be 6 digits.",
       });
     }
 
     // -------------------------------------------------
-    // CLEAN INPUT
+    // FIND CUSTOMER
     // -------------------------------------------------
 
-    const cleanName = String(name).trim();
-
-    const cleanEmail = String(email)
-      .trim()
-      .toLowerCase();
-
-    const cleanPhone = String(phone).trim();
-
-    const cleanPassword = String(password);
-
-    const cleanSponsorCode = String(
-      sponsorCode || ""
-    )
-      .trim()
-      .toUpperCase();
-
-    // -------------------------------------------------
-    // BASIC VALIDATION
-    // -------------------------------------------------
-
-    if (cleanName.length < 2) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Name must contain at least 2 characters.",
-      });
-    }
-
-    if (cleanEmail.length < 5) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Please provide a valid email address.",
-      });
-    }
-
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(cleanEmail)) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Please provide a valid email address.",
-      });
-    }
-
-    if (cleanPhone.length < 5) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Please provide a valid phone number.",
-      });
-    }
-
-    if (cleanPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Password must contain at least 6 characters.",
-      });
-    }
-
-    // -------------------------------------------------
-    // REFERRAL / UPLINE IS REQUIRED
-    // -------------------------------------------------
-
-    if (!cleanSponsorCode) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Referral / Upline ID is required for registration.",
-      });
-    }
-
-    // -------------------------------------------------
-    // DUPLICATE EMAIL
-    // -------------------------------------------------
-
-    const existingEmail = await User.findOne({
-      email: cleanEmail,
-    });
-
-    if (existingEmail) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Email already registered.",
-      });
-    }
-
-    // -------------------------------------------------
-    // DUPLICATE PHONE
-    // -------------------------------------------------
-
-    const existingPhone = await User.findOne({
-      phone: cleanPhone,
-    });
-
-    if (existingPhone) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Phone number already registered.",
-      });
-    }
-
-    // -------------------------------------------------
-    // FIND SPONSOR / UPLINE
-    // -------------------------------------------------
-    //
-    // Referral ID can be:
-    // - Member ID
-    // - User Code
-    //
-    // Only ACTIVE USER accounts can become sponsors.
-    // Admin/Superadmin cannot be used as normal
-    // customer upline.
-    //
-    // -------------------------------------------------
-
-    const sponsor = await User.findOne({
-      role: "user",
-      status: "active",
-      $or: [
-        {
-          memberId: cleanSponsorCode,
-        },
-        {
-          userCode: cleanSponsorCode,
-        },
-      ],
-    });
-
-    if (!sponsor) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid Referral / Upline ID. Please enter a valid active member ID.",
-      });
-    }
-
-    // -------------------------------------------------
-    // PASSWORD HASH
-    // -------------------------------------------------
-
-    const passwordHash = await bcrypt.hash(
-      cleanPassword,
-      10
-    );
-
-    // -------------------------------------------------
-    // GENERATE UNIQUE MEMBER ID
-    // -------------------------------------------------
-
-    let memberCode = "";
-    let attempts = 0;
-
-    while (
-      !memberCode &&
-      attempts < 20
-    ) {
-      attempts++;
-
-      const randomNumber =
-        Math.floor(
-          100000 +
-            Math.random() * 900000
-        );
-
-      const candidate = `SI${randomNumber}`;
-
-      const existing =
-        await User.findOne({
+    const user = identifier.includes("@")
+      ? await User.findOne({
+          email: identifier.toLowerCase(),
+        })
+      : await User.findOne({
           $or: [
             {
-              memberId: candidate,
+              memberId: identifier.toUpperCase(),
             },
             {
-              userCode: candidate,
+              userCode: identifier.toUpperCase(),
             },
           ],
         });
 
-      if (!existing) {
-        memberCode = candidate;
-      }
-    }
-
-    if (!memberCode) {
-      return res.status(500).json({
+    if (!user || user.role !== "user") {
+      return res.status(404).json({
         success: false,
-        message:
-          "Unable to generate a unique member ID. Please try again.",
+        message: "Account not found.",
       });
     }
 
     // -------------------------------------------------
-    // CREATE USER
-    // -------------------------------------------------
-    //
-    // Referral tree information is stored immediately.
-    //
-    // Binary placement is done automatically AFTER
-    // saving the user.
-    //
+    // CHECK ACCOUNT STATUS
     // -------------------------------------------------
 
-    const newUser = new User({
-      memberId: memberCode,
+    if (user.status === "active") {
+      return res.status(400).json({
+        success: false,
+        message: "Account is already active.",
+      });
+    }
 
-      userCode: memberCode,
+    if (user.status !== "inactive") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "This account cannot be activated. Please contact admin.",
+      });
+    }
 
-      name: cleanName,
+    // -------------------------------------------------
+    // FIND LATEST UNUSED PIN
+    // -------------------------------------------------
 
-      email: cleanEmail,
-
-      phone: cleanPhone,
-
-      password: passwordHash,
-
-      role: "user",
-
-      status: "active",
-
-      // -------------------------------
-      // REFERRAL / SPONSOR
-      // -------------------------------
-
-      sponsorId: sponsor._id,
-
-      sponsorCode:
-        sponsor.userCode ||
-        sponsor.memberId ||
-        "",
-
-      sponsorMemberId:
-        sponsor.memberId || "",
-
-      treePath:
-        `${sponsor.treePath || "/"}/${memberCode}/`,
-
-      level:
-        Number(sponsor.level || 1) + 1,
-
-      position: "left",
-
-      // -------------------------------
-      // BINARY DEFAULTS
-      // -------------------------------
-
-      binaryParentId: null,
-
-      binaryPosition: null,
-
-      binaryLeftId: null,
-
-      binaryRightId: null,
-
-      binaryLevel: 1,
-
-      binaryPath: "/",
-
-      // -------------------------------
-      // USER TYPE / PACKAGE
-      // -------------------------------
-
-      userType: "UNPAID",
-
-      activationDate: null,
-
-      joiningPackage: "",
-
-      rank: "Distributor",
-
-      // -------------------------------
-      // REFERRAL COUNTS
-      // -------------------------------
-
-      directReferralsCount: 0,
-
-      teamCount: 0,
-
-      totalReferral: 0,
-
-      activeReferral: 0,
-
-      // -------------------------------
-      // TEAM COUNTS
-      // -------------------------------
-
-      leftCount: 0,
-
-      rightCount: 0,
-
-      leftBusiness: 0,
-
-      rightBusiness: 0,
-
-      totalTeam: 0,
-
-      activeTeam: 0,
-
-      teamPercent: 0,
-
-      // -------------------------------
-      // PV
-      // -------------------------------
-
-      leftPv: 0,
-
-      rightPv: 0,
-
-      leftCarryForwardPv: 0,
-
-      rightCarryForwardPv: 0,
-
-      // -------------------------------
-      // INCOME
-      // -------------------------------
-
-      matchingIncome: 0,
-
-      todayMatchingIncome: 0,
-
-      franchiseReferralIncome: 0,
-
-      franchiseMatchingIncome: 0,
-
-      totalIncome: 0,
-
-      // -------------------------------
-      // KYC
-      // -------------------------------
-
-      panNumber: "",
-
-      panVerified: false,
-
-      bankDetails: {
-        accountHolderName: cleanName,
-        accountNumber: "",
-        ifscCode: "",
-        bankName: "",
-        upiId: "",
-      },
-
-      dateOfEntry: new Date(),
+    const pinRecord = await ActivationPin.findOne({
+      userId: user._id,
+      used: false,
+    }).sort({
+      createdAt: -1,
     });
 
-    // -------------------------------------------------
-    // SAVE USER FIRST
-    // -------------------------------------------------
-
-    await newUser.save();
-
-    // -------------------------------------------------
-    // AUTOMATIC BINARY PLACEMENT
-    // -------------------------------------------------
-    //
-    // Sponsor is used as the starting placement point.
-    //
-    // The backend automatically finds:
-    //
-    // Sponsor Left
-    //       ↓
-    // Sponsor Right
-    //       ↓
-    // Next available slot
-    //
-    // So frontend does NOT need to manually decide
-    // where the customer goes.
-    //
-    // -------------------------------------------------
-
-    try {
-      await autoPlaceUser(
-        newUser._id,
-        sponsor._id
-      );
-    } catch (binaryError) {
-      console.error(
-        "❌ Binary placement error:",
-        binaryError
-      );
-
-      // User was created but could not be placed.
-      // Remove incomplete registration.
-      await User.deleteOne({
-        _id: newUser._id,
-      });
-
-      return res.status(500).json({
+    if (!pinRecord) {
+      return res.status(404).json({
         success: false,
         message:
-          "Account could not be placed in the Binary Tree. Registration was cancelled.",
+          "Activation PIN not found. Please contact admin.",
       });
     }
 
     // -------------------------------------------------
-    // GET UPDATED USER AFTER BINARY PLACEMENT
+    // CHECK EXPIRY
     // -------------------------------------------------
 
-    const placedUser =
-      await User.findById(
-        newUser._id
-      );
-
-    if (!placedUser) {
-      return res.status(500).json({
-        success: false,
-        message:
-          "Registered user could not be loaded after binary placement.",
-      });
-    }
-
-    // -------------------------------------------------
-    // VERIFY BINARY PLACEMENT
-    // -------------------------------------------------
-
-    if (
-      !placedUser.binaryParentId ||
-      !placedUser.binaryPosition
-    ) {
-      console.error(
-        "❌ Binary placement missing after registration:",
-        placedUser._id
-      );
-
-      await User.deleteOne({
-        _id: placedUser._id,
-      });
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Binary placement failed. Registration was cancelled.",
-      });
-    }
-
-    // -------------------------------------------------
-    // UPDATE SPONSOR REFERRAL COUNTS
-    // -------------------------------------------------
-
-    sponsor.directReferralsCount =
-      Number(
-        sponsor.directReferralsCount || 0
-      ) + 1;
-
-    sponsor.totalReferral =
-      Number(
-        sponsor.totalReferral || 0
-      ) + 1;
-
-    sponsor.activeReferral =
-      Number(
-        sponsor.activeReferral || 0
-      ) + 1;
-
-    // Existing application behavior
-    sponsor.teamCount =
-      Number(
-        sponsor.teamCount || 0
-      ) + 1;
-
-    sponsor.activeTeam =
-      Number(
-        sponsor.activeTeam || 0
-      ) + 1;
-
-    await sponsor.save();
-
-    // -------------------------------------------------
-    // SYNC BINARY COUNTS
-    // -------------------------------------------------
-    //
-    // This updates sponsor:
-    //
-    // leftCount
-    // rightCount
-    // totalTeam
-    //
-    // based on actual Binary Tree data.
-    //
-    // -------------------------------------------------
-
-    try {
-      await syncBinaryTeamCounts(
-        sponsor._id
-      );
-    } catch (countError) {
-      console.error(
-        "⚠️ Binary count sync warning:",
-        countError
-      );
-    }
-
-    // -------------------------------------------------
-    // CREATE ₹50 WELCOME WALLET
-    // -------------------------------------------------
-
-    const newWallet = new Wallet({
-      userId: placedUser._id,
-
-      memberId: placedUser.memberId,
-
-      currentBalance: 50,
-
-      totalEarnings: 50,
-
-      captchaEarnings: 0,
-
-      referralCommissions: 0,
-
-      totalWithdrawn: 0,
-
-      todayCaptchasSolved: 0,
-
-      lastCaptchaDate:
-        new Date().toISOString(),
-    });
-
-    await newWallet.save();
-
-    // -------------------------------------------------
-    // CREATE JWT
-    // -------------------------------------------------
-
-    const token =
-      createToken(placedUser);
-
-    // -------------------------------------------------
-    // RESPONSE
-    // -------------------------------------------------
-
-    return res.status(201).json({
-      success: true,
-
-      message:
-        "Account registered successfully! ₹50 welcome bonus credited.",
-
-      token,
-
-      user:
-        formatUserResponse(
-          placedUser
-        ),
-
-      wallet: {
-        currentBalance: 50,
-        totalEarnings: 50,
-        captchaEarnings: 0,
-        referralCommissions: 0,
-      },
-
-      // ------------------------------------------------
-      // BINARY PLACEMENT INFORMATION
-      // ------------------------------------------------
-
-      binaryPlacement: {
-        parentId:
-          placedUser.binaryParentId,
-
-        position:
-          placedUser.binaryPosition,
-
-        level:
-          placedUser.binaryLevel,
-
-        path:
-          placedUser.binaryPath,
-      },
-
-      sponsor: {
-        memberId:
-          sponsor.memberId,
-
-        userCode:
-          sponsor.userCode ||
-          sponsor.memberId,
-
-        name:
-          sponsor.name,
-      },
-    });
-  } catch (error) {
-    console.error(
-      "❌ Register error:",
-      error
-    );
-
-    // -------------------------------------------------
-    // MONGOOSE DUPLICATE KEY
-    // -------------------------------------------------
-
-    if (error.code === 11000) {
+    if (pinRecord.isExpired()) {
       return res.status(400).json({
         success: false,
         message:
-          "A user with the same email, phone, member ID or user code already exists.",
+          "PIN expired. Please ask admin to send a new PIN.",
       });
     }
 
+    // -------------------------------------------------
+    // CHECK PIN LOCK
+    // -------------------------------------------------
+
+    if (pinRecord.isLocked()) {
+      return res.status(429).json({
+        success: false,
+        message:
+          "Too many attempts. Please ask admin to send a new PIN.",
+      });
+    }
+
+    // -------------------------------------------------
+    // VERIFY PIN
+    // -------------------------------------------------
+
+    const pinMatches = await bcrypt.compare(
+      pin,
+      pinRecord.pinHash
+    );
+
+    if (!pinMatches) {
+      const now = new Date();
+
+      const updated = await ActivationPin.findOneAndUpdate(
+        {
+          _id: pinRecord._id,
+          used: false,
+          expiresAt: {
+            $gt: now,
+          },
+          attempts: {
+            $lt: ACTIVATION_PIN_MAX_ATTEMPTS,
+          },
+        },
+        {
+          $inc: {
+            attempts: 1,
+          },
+        },
+        {
+          new: true,
+        }
+      );
+
+      const currentAttempts = Number(
+        updated?.attempts ?? pinRecord.attempts ?? 0
+      );
+
+      const remaining = Math.max(
+        0,
+        ACTIVATION_PIN_MAX_ATTEMPTS - currentAttempts
+      );
+
+      return res.status(400).json({
+        success: false,
+        message:
+          remaining > 0
+            ? `Invalid PIN. ${remaining} attempt(s) remaining.`
+            : "Too many attempts. Please ask admin to send a new PIN.",
+      });
+    }
+
+    // -------------------------------------------------
+    // ACTIVATE ACCOUNT
+    // MONGODB TRANSACTION
+    // -------------------------------------------------
+
+    const session = await mongoose.startSession();
+
+    let alreadyUsed = false;
+    let activatedUser = null;
+    let directReferralIncomeProcessed = false;
+
+    try {
+      await session.withTransaction(async () => {
+        // Reset values if the transaction callback retries.
+        alreadyUsed = false;
+        activatedUser = null;
+        directReferralIncomeProcessed = false;
+
+        // -----------------------------------------------
+        // MARK PIN AS USED ATOMICALLY
+        // -----------------------------------------------
+
+        const consumed =
+          await ActivationPin.findOneAndUpdate(
+            {
+              _id: pinRecord._id,
+              used: false,
+              expiresAt: {
+                $gt: new Date(),
+              },
+              attempts: {
+                $lt: ACTIVATION_PIN_MAX_ATTEMPTS,
+              },
+            },
+            {
+              $set: {
+                used: true,
+                usedAt: new Date(),
+              },
+            },
+            {
+              new: true,
+              session,
+            }
+          );
+
+        if (!consumed) {
+          alreadyUsed = true;
+          return;
+        }
+
+       const pinType = String(consumed.pinType || "")
+  .trim()
+  .toLowerCase();
+
+if (!["paid", "unpaid"].includes(pinType)) {
+  throw new Error("INVALID_PIN_TYPE");
+}
+
+const activatedWithPaidPin = pinType === "paid";
+
+        // -----------------------------------------------
+        // ACTIVATE USER
+        // -----------------------------------------------
+
+        activatedUser = await User.findOneAndUpdate(
+          {
+            _id: user._id,
+            status: "inactive",
+          },
+          {
+            $set: {
+              status: "active",
+              activationDate: new Date(),
+              userType: activatedWithPaidPin
+                ? "PAID"
+                : "UNPAID",
+            },
+          },
+          {
+            new: true,
+            session,
+          }
+        );
+
+        if (!activatedUser) {
+          alreadyUsed = true;
+          throw new Error("ALREADY_ACTIVATED");
+        }
+
+        // -----------------------------------------------
+        // DIRECT REFERRAL INCOME (₹100)
+        //
+        // Paid PIN   -> sponsor may get ₹100.
+        // Unpaid PIN -> no direct referral income.
+        //
+        // Sponsor must exist, be active and PAID.
+        // Any failure here aborts the whole transaction.
+        // -----------------------------------------------
+
+        if (activatedWithPaidPin && activatedUser.sponsorId) {
+          const sponsor = await User.findById(
+            activatedUser.sponsorId
+          )
+            .select("_id status userType")
+            .session(session);
+
+          const sponsorIsActive =
+            String(sponsor?.status || "").toLowerCase() ===
+            "active";
+
+          const sponsorIsPaid =
+            String(sponsor?.userType || "")
+              .trim()
+              .toUpperCase() === "PAID";
+
+          if (sponsor && sponsorIsActive && sponsorIsPaid) {
+            const referralResult =
+              await processDirectReferralIncome({
+                sponsorId: sponsor._id,
+                referredUserId: activatedUser._id,
+                session,
+              });
+
+            if (!referralResult?.success) {
+              throw new Error(
+                referralResult?.message ||
+                  "Direct referral income processing failed."
+              );
+            }
+
+            directReferralIncomeProcessed = true;
+          }
+        }
+
+        // -----------------------------------------------
+        // SPONSOR ACTIVE COUNTS
+        //
+        // These count updates happen for either PIN type.
+        // They do not credit referral income.
+        // -----------------------------------------------
+
+        if (activatedUser.sponsorId) {
+          await User.updateOne(
+            {
+              _id: activatedUser.sponsorId,
+            },
+            {
+              $inc: {
+                activeReferral: 1,
+                activeTeam: 1,
+              },
+            },
+            {
+              session,
+            }
+          );
+        }
+
+        // -----------------------------------------------
+        // NO WELCOME BONUS
+        // -----------------------------------------------
+      });
+    } catch (txError) {
+      if (txError?.message === "ALREADY_ACTIVATED") {
+        return res.status(400).json({
+          success: false,
+          message: "Account is already active.",
+        });
+      }
+
+      throw txError;
+    } finally {
+      await session.endSession();
+    }
+
+    // -------------------------------------------------
+    // PIN WAS ALREADY CONSUMED
+    // -------------------------------------------------
+
+    if (alreadyUsed || !activatedUser) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This PIN has already been used or the account has already been activated.",
+      });
+    }
+
+    // -------------------------------------------------
+    // BINARY INCOME TRIGGER
+    //
+    // Runs after activation transaction commits.
+    // Existing ₹450 binary pair calculation is unchanged.
+    // -------------------------------------------------
+
+    let binaryIncomeResult = {
+      processedAncestors: [],
+      totalPaid: 0,
+    };
+
+    try {
+      binaryIncomeResult =
+        await processBinaryIncomeForAncestors(
+          activatedUser
+        );
+    } catch (binaryError) {
+      console.error(
+        "Binary income trigger error:",
+        binaryError
+      );
+
+      // Activation has already succeeded.
+      // Do not reject activation due to a binary processing error.
+    }
+
+    // -------------------------------------------------
+    // SUCCESS
+    // -------------------------------------------------
+
+    return res.json({
+      success: true,
+      message:
+        "Account activated successfully. You can now login.",
+      memberId: activatedUser.memberId,
+      userType: activatedUser.userType,
+      directReferralIncomeProcessed,
+      binaryIncomeProcessed:
+        binaryIncomeResult.processedAncestors.length,
+      binaryIncomePaid: Number(
+        binaryIncomeResult.totalPaid || 0
+      ),
+    });
+  } catch (error) {
+    console.error("Activation error:", error);
+
     return res.status(500).json({
       success: false,
-      message:
-        "Server error during registration.",
+      message: "Server error during activation.",
     });
   }
 });
+
 // =====================================================
 // GET /api/auth/me
 // =====================================================
@@ -1509,8 +1419,7 @@ router.get(
 
       if (
         String(user.status || "active")
-          .toLowerCase() !==
-        "active"
+          .toLowerCase() !== "active"
       ) {
         return res.status(403).json({
           success: false,
@@ -1525,8 +1434,7 @@ router.get(
 
       let wallet =
         await Wallet.findOne({
-          userId:
-            user._id,
+          userId: user._id,
         });
 
       // -------------------------------------------------
@@ -1536,33 +1444,16 @@ router.get(
       if (!wallet) {
         wallet =
           await Wallet.create({
-            userId:
-              user._id,
-
-            memberId:
-              user.memberId,
-
-            currentBalance:
-              0,
-
-            totalEarnings:
-              0,
-
-            captchaEarnings:
-              0,
-
-            referralCommissions:
-              0,
-
-            totalWithdrawn:
-              0,
-
-            todayCaptchasSolved:
-              0,
-
+            userId: user._id,
+            memberId: user.memberId,
+            currentBalance: 0,
+            totalEarnings: 0,
+            captchaEarnings: 0,
+            referralCommissions: 0,
+            totalWithdrawn: 0,
+            todayCaptchasSolved: 0,
             lastCaptchaDate:
-              new Date()
-                .toISOString(),
+              new Date().toISOString(),
           });
       }
 
@@ -1572,14 +1463,8 @@ router.get(
 
       return res.json({
         success: true,
-
-        user:
-          formatUserResponse(
-            user
-          ),
-
-        wallet:
-          wallet.toObject(),
+        user: formatUserResponse(user),
+        wallet: wallet.toObject(),
       });
     } catch (error) {
       console.error(
@@ -1651,8 +1536,7 @@ router.put(
       if (!user) {
         return res.status(404).json({
           success: false,
-          message:
-            "User not found.",
+          message: "User not found.",
         });
       }
 
@@ -1670,13 +1554,7 @@ router.put(
             .trim()
             .toUpperCase();
 
-        // Existing application behavior:
-        // PAN submitted = verified.
-        //
-        // A real PAN verification service can be
-        // integrated later.
-        user.panVerified =
-          true;
+        user.panVerified = true;
       }
 
       // -------------------------------------------------
@@ -1705,9 +1583,7 @@ router.put(
 
         ifscCode:
           ifscCode !== undefined
-            ? String(
-                ifscCode
-              )
+            ? String(ifscCode)
                 .trim()
                 .toUpperCase()
             : existingBank.ifscCode ||
@@ -1742,14 +1618,9 @@ router.put(
 
       return res.json({
         success: true,
-
         message:
           "KYC and Bank details updated successfully!",
-
-        user:
-          formatUserResponse(
-            user
-          ),
+        user: formatUserResponse(user),
       });
     } catch (error) {
       console.error(
@@ -1771,4 +1642,3 @@ router.put(
 // =====================================================
 
 export default router;
-

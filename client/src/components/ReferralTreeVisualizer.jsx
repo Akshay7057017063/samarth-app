@@ -1,37 +1,25 @@
+
 import React, { useMemo, useState } from "react";
+
 import {
-  Network,
-  Users,
   ChevronDown,
   ChevronRight,
-  Copy,
   Check,
-  Sparkles,
-  UserCheck,
-  ShieldCheck,
-  TrendingUp,
-  Crown,
-  GitBranch,
   Circle,
+  GitBranch,
+  Network,
+  ShieldCheck,
+  Users,
 } from "lucide-react";
 
-/* ============================================================
-   HELPERS
-============================================================ */
+// ============================================================
+// HELPERS
+// ============================================================
 
 const getChildren = (node) => {
   if (!node?.children) {
-    return {
-      left: null,
-      right: null,
-    };
+    return { left: null, right: null };
   }
-
-  // Backend binaryTree.js returns:
-  // children: {
-  //   left: {...} | null,
-  //   right: {...} | null
-  // }
 
   if (
     typeof node.children === "object" &&
@@ -43,8 +31,6 @@ const getChildren = (node) => {
     };
   }
 
-  // Backward compatibility if old frontend/backend
-  // returns an array.
   if (Array.isArray(node.children)) {
     return {
       left: node.children[0] || null,
@@ -52,88 +38,261 @@ const getChildren = (node) => {
     };
   }
 
-  return {
-    left: null,
-    right: null,
-  };
+  return { left: null, right: null };
 };
 
-const getDirectCount = (node) => {
-  return Number(
-    node?.directReferralsCount ??
-      node?.totalReferral ??
-      0
-  );
+const getMemberName = (node) =>
+  node?.name ||
+  node?.fullName ||
+  node?.memberName ||
+  node?.username ||
+  "Member";
+
+const getInitials = (name) => {
+  const parts = String(name || "Member")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) return "M";
+
+  if (parts.length === 1) {
+    return parts[0].charAt(0).toUpperCase();
+  }
+
+  return (
+    parts[0].charAt(0) +
+    parts[parts.length - 1].charAt(0)
+  ).toUpperCase();
 };
 
-const getTeamCount = (node) => {
-  return Number(
-    node?.totalTeam ??
-      node?.teamCount ??
-      0
-  );
-};
+const getMemberId = (node) =>
+  node?.memberId ||
+  node?.userCode ||
+  node?.username ||
+  "";
 
-const getLeftCount = (node) => {
-  return Number(node?.leftCount ?? 0);
-};
+const getStatus = (node) =>
+  String(node?.status || "inactive")
+    .trim()
+    .toLowerCase();
 
-const getRightCount = (node) => {
-  return Number(node?.rightCount ?? 0);
-};
+const getLevel = (node) =>
+  Number(node?.binaryLevel ?? node?.level ?? 1);
 
-/* ============================================================
-   EMPTY BINARY SLOT
-============================================================ */
+const getDirectCount = (node) =>
+  Number(node?.directReferralsCount ?? node?.totalReferral ?? 0);
+
+const getTeamCount = (node) =>
+  Number(node?.totalTeam ?? node?.teamCount ?? 0);
+
+const getLeftCount = (node) =>
+  Number(node?.leftCount ?? 0);
+
+const getRightCount = (node) =>
+  Number(node?.rightCount ?? 0);
+
+// ============================================================
+// EMPTY SLOT
+// ============================================================
 
 function EmptySlot({ position }) {
   const isLeft = position === "left";
 
   return (
-    <div className="flex min-w-[240px] flex-col items-center">
+    <div className="flex w-[108px] flex-col items-center sm:w-[140px]">
       <div
-        className={`flex w-[240px] flex-col items-center rounded-3xl border-2 border-dashed p-5 ${
+        className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed sm:h-16 sm:w-16 ${
           isLeft
-            ? "border-violet-200 bg-violet-50/60"
-            : "border-orange-200 bg-orange-50/60"
+            ? "border-violet-300 bg-violet-50 text-violet-400"
+            : "border-orange-300 bg-orange-50 text-orange-400"
         }`}
       >
-        <div
-          className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-            isLeft
-              ? "bg-violet-100 text-violet-500"
-              : "bg-orange-100 text-orange-500"
-          }`}
-        >
-          <GitBranch className="h-5 w-5" />
-        </div>
-
-        <div
-          className={`mt-3 text-[10px] font-black uppercase tracking-[0.16em] ${
-            isLeft
-              ? "text-violet-600"
-              : "text-orange-600"
-          }`}
-        >
-          {isLeft ? "Left Position" : "Right Position"}
-        </div>
-
-        <div className="mt-1 text-xs font-bold text-slate-500">
-          Available
-        </div>
-
-        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[9px] font-extrabold uppercase text-slate-400">
-          <Circle className="h-2.5 w-2.5" />
-          Empty Slot
-        </div>
+        <Circle className="h-4 w-4 sm:h-5 sm:w-5" />
       </div>
+
+      <span
+        className={`mt-1.5 text-[9px] font-black uppercase sm:text-[10px] ${
+          isLeft ? "text-violet-600" : "text-orange-600"
+        }`}
+      >
+        {isLeft ? "Left" : "Right"}
+      </span>
+
+      <span className="mt-0.5 text-[9px] text-slate-400">
+        Empty slot
+      </span>
     </div>
   );
 }
 
-/* ============================================================
-   RECURSIVE TREE NODE
-============================================================ */
+// ============================================================
+// MEMBER NODE
+// ============================================================
+
+function MemberNode({
+  node,
+  isRoot = false,
+  position = null,
+  expanded,
+  hasChildren,
+  onToggle,
+}) {
+  const name = getMemberName(node);
+  const memberId = getMemberId(node);
+  const isActive = getStatus(node) === "active";
+  const initials = getInitials(name);
+  const level = getLevel(node);
+  const directCount = getDirectCount(node);
+  const teamCount = getTeamCount(node);
+  const leftCount = getLeftCount(node);
+  const rightCount = getRightCount(node);
+
+  return (
+    <div
+      className={`flex w-[108px] flex-col items-center rounded-2xl px-1.5 py-2 transition sm:w-[140px] sm:px-2 sm:py-3 ${
+        isRoot
+          ? "border border-violet-200 bg-white shadow-md shadow-violet-100"
+          : "border border-slate-100 bg-white/90 shadow-sm"
+      }`}
+    >
+      {/* MEMBER AVATAR */}
+
+      <div className="relative">
+        {isRoot && (
+          <div className="absolute -inset-1 rounded-full bg-violet-300/30 blur-md" />
+        )}
+
+        <div
+          className={`relative flex h-12 w-12 items-center justify-center rounded-full border-2 text-white shadow-sm sm:h-[62px] sm:w-[62px] sm:border-[3px] ${
+            isRoot
+              ? "border-white bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500"
+              : isActive
+              ? "border-emerald-100 bg-gradient-to-br from-emerald-500 to-violet-600"
+              : "border-slate-200 bg-gradient-to-br from-slate-400 to-slate-500"
+          }`}
+        >
+          <span className="text-sm font-black sm:text-base">
+            {initials}
+          </span>
+
+          {isActive && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-emerald-500 sm:h-5 sm:w-5">
+              <Check className="h-2.5 w-2.5 text-white" />
+            </span>
+          )}
+
+          {isRoot && (
+            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full border border-white bg-slate-900 px-1.5 py-0.5 text-[7px] font-black uppercase text-white sm:px-2">
+              You
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* NAME */}
+
+      <div
+        className="mt-2 w-full truncate text-center text-[10px] font-black text-slate-800 sm:text-xs"
+        title={name}
+      >
+        {name}
+      </div>
+
+      {/* MEMBER ID */}
+
+      <div
+        className="mt-0.5 w-full truncate text-center font-mono text-[8px] font-bold text-slate-400 sm:text-[9px]"
+        title={memberId || "No ID"}
+      >
+        {memberId || "No ID"}
+      </div>
+
+      {/* POSITION AND LEVEL */}
+
+      <div className="mt-1.5 flex items-center justify-center gap-1">
+        {!isRoot && position && (
+          <span
+            className={`rounded-full px-1.5 py-0.5 text-[7px] font-black uppercase sm:text-[8px] ${
+              position === "left"
+                ? "bg-violet-50 text-violet-600"
+                : "bg-orange-50 text-orange-600"
+            }`}
+          >
+            {position}
+          </span>
+        )}
+
+        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[7px] font-black text-slate-500 sm:text-[8px]">
+          L{level}
+        </span>
+
+        <span
+          className={`rounded-full px-1.5 py-0.5 text-[7px] font-black sm:text-[8px] ${
+            isActive
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          {isActive ? "Active" : "Inactive"}
+        </span>
+      </div>
+
+      {/* TEAM COUNTS */}
+
+      <div className="mt-2 flex items-center justify-center gap-1.5 text-[8px] font-bold text-slate-500 sm:gap-2 sm:text-[9px]">
+        <span className="inline-flex items-center gap-0.5">
+          <Users className="h-3 w-3" />
+          {teamCount}
+        </span>
+
+        <span className="text-slate-300">|</span>
+
+        <span>D {directCount}</span>
+      </div>
+
+      {/* BINARY COUNTS */}
+
+      <div className="mt-1.5 flex w-full items-center justify-center gap-1">
+        <span className="rounded-md bg-violet-50 px-1.5 py-1 text-[8px] font-black text-violet-600 sm:text-[9px]">
+          L: {leftCount}
+        </span>
+
+        <span className="rounded-md bg-orange-50 px-1.5 py-1 text-[8px] font-black text-orange-600 sm:text-[9px]">
+          R: {rightCount}
+        </span>
+      </div>
+
+      {/* EXPAND / COLLAPSE */}
+
+      {hasChildren && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Collapse" : "Expand"} ${name}'s team`}
+          className="mt-2 flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 active:scale-95 sm:h-8 sm:w-8"
+        >
+          {expanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </button>
+      )}
+
+      {!hasChildren && (
+        <span className="mt-2 text-[8px] text-slate-400">
+          End of branch
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// RECURSIVE TREE NODE
+// ============================================================
 
 function TreeNode({
   node,
@@ -149,721 +308,209 @@ function TreeNode({
 
   const leftChild = children.left;
   const rightChild = children.right;
-
   const hasLeft = Boolean(leftChild);
   const hasRight = Boolean(rightChild);
   const hasChildren = hasLeft || hasRight;
 
-  const directCount = getDirectCount(node);
-  const teamCount = getTeamCount(node);
-
-  const leftCount = getLeftCount(node);
-  const rightCount = getRightCount(node);
-
-  const status = String(
-    node?.status || "active"
-  ).toLowerCase();
-
-  const isActive = status === "active";
-
-  const binaryPosition = String(
-    node?.binaryPosition || ""
-  ).toLowerCase();
-
-  const level = Number(
-    node?.binaryLevel ??
-      node?.level ??
-      1
-  );
-
   return (
-    <div className="flex min-w-0 flex-col items-center">
-
-      {/* ======================================================
-          POSITION LABEL
-      ====================================================== */}
-
-      {!isRoot && position && (
-        <div
-          className={`mb-2 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${
-            position === "left"
-              ? "border border-violet-200 bg-violet-50 text-violet-600"
-              : "border border-orange-200 bg-orange-50 text-orange-600"
-          }`}
-        >
-          {position} side
-        </div>
-      )}
-
-      {/* ======================================================
-          NODE CARD
-      ====================================================== */}
-
-      <div
-        className={`relative z-10 w-[280px] overflow-hidden rounded-3xl p-[1px] shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
-          isRoot
-            ? "bg-gradient-to-br from-violet-500 via-pink-500 to-orange-500 shadow-violet-200/60"
-            : "bg-gradient-to-br from-slate-200 via-violet-100 to-pink-100 shadow-slate-200/60"
-        }`}
-      >
-        <div
-          className={`relative overflow-hidden rounded-[23px] p-4 ${
-            isRoot
-              ? "bg-gradient-to-br from-violet-50 via-white to-pink-50"
-              : "bg-white"
-          }`}
-        >
-
-          {/* Ambient Glow */}
-
-          <div
-            className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl ${
-              isRoot
-                ? "bg-pink-200/40"
-                : "bg-violet-200/30"
-            }`}
-          />
-
-          {/* ==================================================
-              TOP ROW
-          ================================================== */}
-
-          <div className="relative flex items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
-
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide ${
-                isRoot
-                  ? "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 text-white shadow-sm"
-                  : "border border-violet-100 bg-violet-50 text-violet-700"
-              }`}
-            >
-              {isRoot
-                ? "You • Root"
-                : `Level ${level}`}
-            </span>
-
-            <span className="max-w-[120px] truncate rounded-lg bg-white/80 px-2 py-1 font-mono text-[10px] font-black text-violet-600 shadow-sm ring-1 ring-violet-100">
-              {node?.memberId ||
-                node?.userCode ||
-                "—"}
-            </span>
-
-          </div>
-
-          {/* ==================================================
-              MEMBER INFO
-          ================================================== */}
-
-          <div className="relative mt-4 flex items-center gap-3">
-
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md ${
-                isRoot
-                  ? "bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500"
-                  : "bg-gradient-to-br from-violet-500 to-pink-500"
-              }`}
-            >
-              <span className="text-sm font-black">
-                {String(node?.name || "U")
-                  .trim()
-                  .charAt(0)
-                  .toUpperCase()}
-              </span>
-            </div>
-
-            <div className="min-w-0">
-              <div className="truncate text-sm font-black text-slate-900">
-                {node?.name || "Unknown Member"}
-              </div>
-
-              <div className="mt-0.5 truncate text-[10px] text-slate-500">
-                {node?.email || "No email available"}
-              </div>
-            </div>
-
-          </div>
-
-          {/* ==================================================
-              STATUS + POSITION
-          ================================================== */}
-
-          <div className="relative mt-3 flex flex-wrap gap-2">
-
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide ${
-                isActive
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-slate-200 bg-slate-50 text-slate-500"
-              }`}
-            >
-              {isActive && (
-                <ShieldCheck className="h-3 w-3" />
-              )}
-
-              {status}
-            </span>
-
-            {!isRoot && binaryPosition && (
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-extrabold uppercase ${
-                  binaryPosition === "left"
-                    ? "border-violet-200 bg-violet-50 text-violet-700"
-                    : "border-orange-200 bg-orange-50 text-orange-700"
-                }`}
-              >
-                <GitBranch className="h-3 w-3" />
-                {binaryPosition}
-              </span>
-            )}
-
-          </div>
-
-          {/* ==================================================
-              BINARY PATH
-          ================================================== */}
-
-          <div className="relative mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-
-            <div className="text-[8px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
-              Binary Path
-            </div>
-
-            <div className="mt-0.5 truncate font-mono text-[10px] font-bold text-slate-600">
-              {node?.binaryPath || "/"}
-            </div>
-
-          </div>
-
-          {/* ==================================================
-              STATS
-          ================================================== */}
-
-          <div className="relative mt-4 grid grid-cols-2 gap-2 border-t border-slate-200/80 pt-3">
-
-            {/* Directs */}
-
-            <div className="rounded-xl border border-pink-100 bg-gradient-to-br from-pink-50 to-white p-2.5 text-center">
-
-              <div className="flex items-center justify-center gap-1 text-[9px] font-extrabold uppercase tracking-wide text-pink-600">
-                <UserCheck className="h-3 w-3" />
-                Directs
-              </div>
-
-              <div className="mt-1 text-sm font-black text-slate-900">
-                {directCount}
-              </div>
-
-            </div>
-
-            {/* Total Team */}
-
-            <div className="rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-2.5 text-center">
-
-              <div className="flex items-center justify-center gap-1 text-[9px] font-extrabold uppercase tracking-wide text-violet-600">
-                <Users className="h-3 w-3" />
-                Team
-              </div>
-
-              <div className="mt-1 text-sm font-black text-slate-900">
-                {teamCount}
-              </div>
-
-            </div>
-
-          </div>
-
-          {/* ==================================================
-              LEFT / RIGHT COUNTS
-          ================================================== */}
-
-          <div className="relative mt-2 grid grid-cols-2 gap-2">
-
-            <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-2.5 py-2 text-center">
-
-              <div className="text-[8px] font-extrabold uppercase tracking-wide text-violet-500">
-                Left Team
-              </div>
-
-              <div className="mt-0.5 text-xs font-black text-violet-700">
-                {leftCount}
-              </div>
-
-            </div>
-
-            <div className="rounded-xl border border-orange-100 bg-orange-50/60 px-2.5 py-2 text-center">
-
-              <div className="text-[8px] font-extrabold uppercase tracking-wide text-orange-500">
-                Right Team
-              </div>
-
-              <div className="mt-0.5 text-xs font-black text-orange-700">
-                {rightCount}
-              </div>
-
-            </div>
-
-          </div>
-
-          {/* ==================================================
-              EXPAND / COLLAPSE
-          ================================================== */}
-
-          {hasChildren && (
-            <button
-              type="button"
-              onClick={() =>
-                setExpanded(
-                  (previous) => !previous
-                )
-              }
-              className={`mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[10px] font-extrabold transition-all ${
-                expanded
-                  ? "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
-                  : "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
-              }`}
-            >
-
-              {expanded ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-
-              <span>
-                {expanded
-                  ? "Collapse Downline"
-                  : `View ${
-                      Number(hasLeft) +
-                      Number(hasRight)
-                    } Downline`}
-              </span>
-
-            </button>
-          )}
-
-        </div>
-      </div>
-
-      {/* ======================================================
-          CHILDREN
-      ====================================================== */}
+    <div className="flex flex-col items-center">
+      <MemberNode
+        node={node}
+        isRoot={isRoot}
+        position={position}
+        expanded={expanded}
+        hasChildren={hasChildren}
+        onToggle={() => setExpanded((prev) => !prev)}
+      />
 
       {hasChildren && expanded && (
-        <div className="flex flex-col items-center">
+        <div className="relative mt-4 sm:mt-6">
+          {/* Parent connector */}
 
-          {/* Vertical connector from parent */}
+          <div className="absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 bg-slate-300 sm:h-6" />
 
-          <div className="h-8 w-px bg-gradient-to-b from-violet-400 via-pink-400 to-orange-400" />
+          {/* Children grid */}
 
-          {/* ==================================================
-              CHILDREN AREA
-          ================================================== */}
-
-          <div className="relative flex justify-center gap-8 pt-8">
-
+          <div
+            className={`relative grid grid-cols-2 pt-4 sm:pt-6 ${
+              hasLeft && hasRight
+                ? "gap-x-1 sm:gap-x-6"
+                : "gap-x-0"
+            }`}
+          >
             {/* Horizontal connector */}
 
-            <div className="absolute left-[120px] right-[120px] top-0 h-px rounded-full bg-gradient-to-r from-violet-300 via-pink-300 to-orange-300" />
+            {hasLeft && hasRight && (
+              <div className="absolute left-1/4 right-1/4 top-0 h-px bg-slate-300" />
+            )}
 
-            {/* ==================================================
-                LEFT
-            ================================================== */}
+            {/* Left branch connector */}
 
-            <div className="relative flex min-w-0 flex-col items-center">
+            {hasLeft && (
+              <div className="absolute left-1/4 top-0 h-4 w-px bg-violet-300 sm:h-6" />
+            )}
 
-              {/* Left vertical connector */}
+            {/* Right branch connector */}
 
-              <div className="absolute -top-8 h-8 w-px bg-gradient-to-b from-violet-300 to-slate-200" />
+            {hasRight && (
+              <div className="absolute right-1/4 top-0 h-4 w-px bg-orange-300 sm:h-6" />
+            )}
 
+            {/* Left child */}
+
+            <div className="flex min-w-0 justify-center">
               {leftChild ? (
                 <TreeNode
                   node={leftChild}
-                  isRoot={false}
                   position="left"
                 />
               ) : (
                 <EmptySlot position="left" />
               )}
-
             </div>
 
-            {/* ==================================================
-                RIGHT
-            ================================================== */}
+            {/* Right child */}
 
-            <div className="relative flex min-w-0 flex-col items-center">
-
-              {/* Right vertical connector */}
-
-              <div className="absolute -top-8 h-8 w-px bg-gradient-to-b from-orange-300 to-slate-200" />
-
+            <div className="flex min-w-0 justify-center">
               {rightChild ? (
                 <TreeNode
                   node={rightChild}
-                  isRoot={false}
                   position="right"
                 />
               ) : (
                 <EmptySlot position="right" />
               )}
-
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }
 
-/* ============================================================
-   BINARY TREE VISUALIZER
-============================================================ */
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
 export default function ReferralTreeVisualizer({
   tree,
   userMemberId,
 }) {
-  const [copied, setCopied] = useState(false);
-
-  const referralLink =
-    typeof window !== "undefined" &&
-    userMemberId
-      ? `${window.location.origin}/register?ref=${encodeURIComponent(
-          userMemberId
-        )}`
-      : "";
-
-  /* ==========================================================
-     COPY REFERRAL LINK
-  ========================================================== */
-
-  const handleCopyLink = async () => {
-    if (!referralLink) {
-      return;
-    }
-
-    try {
-      if (
-        navigator?.clipboard?.writeText
-      ) {
-        await navigator.clipboard.writeText(
-          referralLink
-        );
-      } else {
-        const textarea =
-          document.createElement("textarea");
-
-        textarea.value = referralLink;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-
-        document.body.appendChild(textarea);
-
-        textarea.select();
-
-        document.execCommand("copy");
-
-        document.body.removeChild(
-          textarea
-        );
-      }
-
-      setCopied(true);
-
-      setTimeout(() => {
-        setCopied(false);
-      }, 2500);
-    } catch (error) {
-      console.error(
-        "COPY REFERRAL LINK ERROR:",
-        error
-      );
-    }
-  };
-
-  /* ==========================================================
-     EMPTY / LOADING STATE
-  ========================================================== */
+  // Reserved for identifying the logged-in member if needed.
+  void userMemberId;
 
   if (!tree) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white/95 p-10 text-center shadow-sm">
-
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 via-pink-100 to-orange-100 text-violet-600 shadow-sm">
-
+      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center shadow-sm sm:rounded-3xl sm:p-10">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-500">
           <Network className="h-7 w-7 animate-pulse" />
-
         </div>
 
-        <h3 className="mt-5 text-sm font-black text-slate-800">
-          Loading Your Binary Tree
+        <h3 className="mt-4 text-sm font-black text-slate-800">
+          Loading Binary Tree
         </h3>
 
-        <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-400">
-          Preparing your binary network and member
-          placement...
+        <p className="mt-1 text-xs text-slate-400">
+          Preparing your member network...
         </p>
-
       </div>
     );
   }
 
-  /* ==========================================================
-     MAIN UI
-  ========================================================== */
-
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 space-y-4 sm:space-y-5">
+      {/* HEADER */}
 
-      {/* ======================================================
-          PERSONAL REFERRAL LINK
-      ====================================================== */}
-
-      <section className="relative overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-orange-50 p-[1px] shadow-sm">
-
-        <div className="relative overflow-hidden rounded-[23px] p-5 sm:p-6">
-
-          {/* Glows */}
-
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-pink-300/20 blur-3xl" />
-
-          <div className="pointer-events-none absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-violet-300/20 blur-3xl" />
-
-          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-
-            <div className="min-w-0 flex-1">
-
-              <div className="mb-3 flex items-center gap-2">
-
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-pink-500 text-white shadow-md shadow-violet-200">
-
-                  <Sparkles className="h-4 w-4" />
-
-                </div>
-
-                <div>
-
-                  <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-600">
-                    Referral Invitation
-                  </div>
-
-                  <h3 className="mt-0.5 text-sm font-black text-slate-900">
-                    Your Personal Referral Link
-                  </h3>
-
-                </div>
-
-              </div>
-
-              <div className="break-all rounded-xl border border-white/80 bg-white/80 px-3.5 py-3 font-mono text-[11px] leading-5 text-slate-600 shadow-sm ring-1 ring-slate-100">
-
-                {referralLink ||
-                  "Referral link unavailable"}
-
-              </div>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              disabled={!referralLink}
-              className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-3 text-xs font-extrabold text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 ${
-                copied
-                  ? "bg-emerald-500 shadow-emerald-200"
-                  : "bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 shadow-violet-200 hover:shadow-xl"
-              }`}
-            >
-
-              {copied ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-
-              <span>
-                {copied
-                  ? "Link Copied!"
-                  : "Copy Invite Link"}
-              </span>
-
-            </button>
-
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+            <Network className="h-5 w-5" />
           </div>
 
-        </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-900 sm:text-base">
+              Binary Network
+            </h3>
 
-      </section>
-
-      {/* ======================================================
-          TREE SUMMARY
-      ====================================================== */}
-
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-
-        {/* Binary Tree */}
-
-        <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-4 shadow-sm">
-
-          <div className="flex items-center gap-2 text-xs font-extrabold text-violet-700">
-
-            <Network className="h-4 w-4" />
-
-            Binary Tree
-
+            <p className="mt-0.5 text-[10px] text-slate-500 sm:text-xs">
+              Explore your left and right teams
+            </p>
           </div>
-
-          <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
-            Your binary placement is shown through
-            left and right positions.
-          </p>
-
         </div>
 
-        {/* Left / Right */}
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-[9px] font-bold text-emerald-700">
+            <ShieldCheck className="h-3 w-3" />
+            Active
+          </span>
 
-        <div className="rounded-2xl border border-pink-100 bg-gradient-to-br from-pink-50 to-white p-4 shadow-sm">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[9px] font-bold text-slate-600">
+            <Circle className="h-3 w-3" />
+            Inactive
+          </span>
 
-          <div className="flex items-center gap-2 text-xs font-extrabold text-pink-700">
-
-            <GitBranch className="h-4 w-4" />
-
-            Left & Right Teams
-
-          </div>
-
-          <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
-            Every member is placed on either the
-            left or right side.
-          </p>
-
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1.5 text-[9px] font-bold text-violet-700">
+            <GitBranch className="h-3 w-3" />
+            Binary Position
+          </span>
         </div>
+      </div>
 
-        {/* Team */}
+      {/* MOBILE TREE INSTRUCTIONS */}
 
-        <div className="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-white p-4 shadow-sm">
+      <div className="rounded-xl border border-violet-100 bg-violet-50/70 px-3 py-2.5 text-[10px] leading-4 text-violet-700 sm:hidden">
+        <strong>Tip:</strong> Tap the arrow below a member to expand or
+        collapse their team. Swipe horizontally to view wider branches.
+      </div>
 
-          <div className="flex items-center gap-2 text-xs font-extrabold text-orange-700">
+      {/* TREE CANVAS */}
 
-            <TrendingUp className="h-4 w-4" />
-
-            Team Structure
-
-          </div>
-
-          <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
-            Explore your binary downline level by
-            level.
-          </p>
-
-        </div>
-
-      </section>
-
-      {/* ======================================================
-          TREE CANVAS
-      ====================================================== */}
-
-      <section className="relative overflow-x-auto overflow-y-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-violet-50/50 p-4 shadow-inner sm:p-7">
-
-        {/* Decorative background */}
-
+      <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-violet-50/50 shadow-inner sm:rounded-3xl">
         <div
-          className="pointer-events-none absolute inset-0 opacity-50"
+          className="flex w-max min-w-full justify-center px-2 py-5 sm:px-6 sm:py-8"
           style={{
             backgroundImage:
-              "radial-gradient(rgba(139,92,246,0.10) 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
+              "radial-gradient(rgba(139,92,246,0.09) 1px, transparent 1px)",
+            backgroundSize: "18px 18px",
           }}
-        />
+        >
+          <TreeNode node={tree} isRoot />
+        </div>
+      </div>
 
-        {/* Soft gradient wash */}
+      {/* LEGEND */}
 
-        <div className="pointer-events-none absolute left-1/4 top-0 h-40 w-40 rounded-full bg-violet-200/20 blur-3xl" />
-
-        <div className="pointer-events-none absolute bottom-0 right-1/4 h-40 w-40 rounded-full bg-orange-200/20 blur-3xl" />
-
-        <div className="relative flex min-w-max justify-center py-6 sm:py-8">
-
-          <TreeNode
-            node={tree}
-            isRoot={true}
-          />
-
+      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-4 sm:p-4">
+        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600">
+          <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500" />
+          You
         </div>
 
-      </section>
-
-      {/* ======================================================
-          LEGEND
-      ====================================================== */}
-
-      <section className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[10px] font-bold text-slate-500">
-
-          <div className="flex items-center gap-2">
-
-            <span className="h-3 w-3 rounded-full bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 shadow-sm" />
-
-            <span>Your Account</span>
-
-          </div>
-
-          <div className="flex items-center gap-2">
-
-            <span className="h-3 w-3 rounded-full bg-violet-200" />
-
-            <span>Binary Member</span>
-
-          </div>
-
-          <div className="flex items-center gap-2">
-
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-
-            <span>Active Member</span>
-
-          </div>
-
-          <div className="flex items-center gap-2">
-
-            <Crown className="h-3.5 w-3.5 text-orange-500" />
-
-            <span>Root Account</span>
-
-          </div>
-
-          <div className="flex items-center gap-2">
-
-            <GitBranch className="h-3.5 w-3.5 text-violet-500" />
-
-            <span>Left / Right Position</span>
-
-          </div>
-
-          <div className="flex items-center gap-2">
-
-            <ChevronDown className="h-3.5 w-3.5 text-violet-500" />
-
-            <span>Expanded</span>
-
-          </div>
-
-          <div className="flex items-center gap-2">
-
-            <ChevronRight className="h-3.5 w-3.5 text-orange-500" />
-
-            <span>Collapsed</span>
-
-          </div>
-
+        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600">
+          <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-gradient-to-br from-emerald-500 to-violet-600" />
+          Active Member
         </div>
 
-      </section>
+        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600">
+          <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-gradient-to-br from-slate-400 to-slate-500" />
+          Inactive Member
+        </div>
 
+        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600">
+          <span className="h-px w-5 shrink-0 bg-slate-400" />
+          Connected Node
+        </div>
+      </div>
+
+      {/* DESCRIPTION */}
+
+      <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-3 text-center sm:rounded-2xl sm:px-4">
+        <p className="text-[10px] leading-5 text-violet-700 sm:text-xs">
+          Each circle represents one member. Connecting lines show the
+          parent-to-child binary placement. Use the arrow buttons to
+          navigate through your network.
+        </p>
+      </div>
     </div>
   );
 }

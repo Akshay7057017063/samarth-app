@@ -7,7 +7,6 @@ import {
   Mail,
   Clock,
   Wallet,
-  User as UserIcon,
   LogOut,
   LayoutDashboard,
   KeyRound,
@@ -21,8 +20,7 @@ export default function Navbar() {
   const { user, wallet, logout, cmsContent } = useAuth();
   const location = useLocation();
 
-  const [mobileMenuOpen, setMobileMenuOpen] =
-    useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // ==========================================================
   // CMS DATA
@@ -34,7 +32,7 @@ export default function Navbar() {
 
   const email =
     cmsContent?.supportEmail ||
-    "contact@digital-lyf LYF.com";
+    "contact@digital-lyf.com";
 
   const hours =
     cmsContent?.workingHours ||
@@ -57,6 +55,7 @@ export default function Navbar() {
    *
    * Desktop / tablet वर Navbar दिसेल.
    */
+
   const isCaptchaPage =
     location.pathname.replace(/\/+$/, "") ===
     "/dashboard/captcha";
@@ -65,7 +64,6 @@ export default function Navbar() {
   // NAV STYLES
   // ==========================================================
 
-  // CHANGED: smaller padding/text between lg and xl so links fit on 1024px laptops
   const navButton =
     "group relative rounded-full border border-transparent px-2.5 py-2 text-sm font-medium text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md xl:px-4 xl:text-base";
 
@@ -82,7 +80,6 @@ export default function Navbar() {
 
   // ==========================================================
   // BODY SCROLL SAFETY
-  // Prevent accidental body scroll lock from mobile menu
   // ==========================================================
 
   useEffect(() => {
@@ -137,7 +134,6 @@ export default function Navbar() {
       >
         <div className="pointer-events-none absolute inset-0 bg-white/10" />
 
-        {/* CHANGED: flex-col -> always flex-row, added gap-3 (no more 2-line stack on mobile) */}
         <div
           className="
             relative mx-auto flex max-w-7xl
@@ -146,9 +142,8 @@ export default function Navbar() {
           "
         >
           {/* Welcome Text */}
-          {/* CHANGED: added min-w-0 so the text can shrink and truncate */}
+
           <div className="flex min-w-0 items-center gap-2 text-white">
-            {/* CHANGED: added shrink-0 so the dot never squishes */}
             <span
               className="
                 inline-block h-2 w-2 shrink-0
@@ -157,14 +152,13 @@ export default function Navbar() {
               "
             />
 
-            {/* CHANGED: added truncate */}
             <span className="truncate font-semibold">
               {topText}
             </span>
           </div>
 
           {/* Contact Information */}
-          {/* CHANGED: flex-wrap -> shrink-0 (stays on one line, never wraps) */}
+
           <div
             className="
               flex shrink-0 items-center
@@ -270,17 +264,17 @@ export default function Navbar() {
         </div>
 
         <div className="relative mx-auto max-w-7xl">
+
           {/* ====================================================
               DESKTOP / MAIN ROW
           ==================================================== */}
 
-          {/* CHANGED: added gap-3 so groups never touch each other */}
           <div className="flex items-center justify-between gap-3">
+
             {/* ==================================================
                 BRAND LOGO + COMPANY NAME
             ================================================== */}
 
-            {/* CHANGED: added min-w-0 so the company name can truncate */}
             <Link
               to="/"
               className="group flex min-w-0 items-center gap-3"
@@ -329,10 +323,7 @@ export default function Navbar() {
               </div>
 
               {/* Company Name */}
-              {/* CHANGED: always visible on ALL screens. Font size is smaller
-                  between lg and xl (text-base) so the desktop row still fits,
-                  and full size (text-xl) from xl up. truncate + min-w-0 shorten
-                  the name with "…" instead of breaking the layout. */}
+
               <div className="min-w-0">
                 <div
                   className="
@@ -373,7 +364,6 @@ export default function Navbar() {
                 DESKTOP NAV LINKS
             ================================================== */}
 
-            {/* CHANGED: md:flex -> lg:flex (768px was too narrow for links + buttons) */}
             <div
               className="
                 hidden items-center gap-1
@@ -478,7 +468,6 @@ export default function Navbar() {
                 DESKTOP RIGHT ACTION / AUTH BUTTONS
             ================================================== */}
 
-            {/* CHANGED: md:flex -> lg:flex, added shrink-0 */}
             <div
               className="
                 hidden shrink-0 items-center gap-3
@@ -487,6 +476,7 @@ export default function Navbar() {
             >
               {user ? (
                 <div className="flex items-center gap-3">
+
                   {/* Wallet */}
 
                   <Link
@@ -512,9 +502,8 @@ export default function Navbar() {
 
                     <span>
                       ₹
-                      {wallet?.currentBalance?.toFixed(
-                        2
-                      ) || "0.00"}
+                      {wallet?.currentBalance?.toFixed(2) ||
+                        "0.00"}
                     </span>
                   </Link>
 
@@ -542,16 +531,15 @@ export default function Navbar() {
                     >
                       <LayoutDashboard className="h-4 w-4" />
 
-                      {user.role ===
-                      "superadmin"
+                      {user.role === "superadmin"
                         ? "👑 Super Admin"
                         : "Admin Panel"}
                     </Link>
                   ) : (
                     <div className="flex items-center gap-2">
+
                       {/* Captcha */}
 
-                      {/* CHANGED: added title + label hidden between lg and xl (icon stays) */}
                       <Link
                         to="/dashboard/captcha"
                         title="Solve Captcha"
@@ -600,7 +588,6 @@ export default function Navbar() {
                         "
                       >
                         <LayoutDashboard className="h-3.5 w-3.5" />
-
                         Dashboard
                       </Link>
                     </div>
@@ -625,8 +612,13 @@ export default function Navbar() {
                   </button>
                 </div>
               ) : (
+                /* =================================================
+                   GUEST DESKTOP MENU
+                ================================================= */
+
                 <div className="flex items-center gap-2">
-                  {/* Login */}
+
+                  {/* ONLY LOGIN */}
 
                   <Link
                     to="/login"
@@ -643,32 +635,6 @@ export default function Navbar() {
                   >
                     Log In
                   </Link>
-
-                  {/* Join Network */}
-
-                  <Link
-                    to="/register"
-                    className="
-                      flex items-center gap-1.5
-                      rounded-lg
-                      bg-gradient-to-r
-                      from-violet-600
-                      via-pink-500
-                      to-orange-400
-                      px-4 py-2
-                      text-xs font-bold
-                      text-white shadow-lg
-                      transition-all duration-300
-                      hover:-translate-y-0.5
-                      hover:scale-[1.02]
-                      hover:brightness-110
-                      hover:shadow-xl
-                    "
-                  >
-                    <UserIcon className="h-3.5 w-3.5" />
-
-                    Join Network
-                  </Link>
                 </div>
               )}
             </div>
@@ -677,8 +643,8 @@ export default function Navbar() {
                 MOBILE ACTIONS
             ================================================== */}
 
-            {/* CHANGED: md:hidden -> lg:hidden, added shrink-0 */}
             <div className="flex shrink-0 items-center gap-2 lg:hidden">
+
               {user && (
                 <Link
                   to="/dashboard"
@@ -696,9 +662,8 @@ export default function Navbar() {
                   "
                 >
                   ₹
-                  {wallet?.currentBalance?.toFixed(
-                    0
-                  ) || "0"}
+                  {wallet?.currentBalance?.toFixed(0) ||
+                    "0"}
                 </Link>
               )}
 
@@ -714,9 +679,7 @@ export default function Navbar() {
                     ? "Close menu"
                     : "Open menu"
                 }
-                aria-expanded={
-                  mobileMenuOpen
-                }
+                aria-expanded={mobileMenuOpen}
                 className="
                   rounded-xl p-2
                   text-slate-600
@@ -736,17 +699,10 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* CHANGED: the separate "MOBILE COMPANY NAME" row was removed.
-              The name now sits beside the logo (see Brand section above),
-              so the mobile bar is one clean row instead of two. */}
-
           {/* ====================================================
               MOBILE DROPDOWN
           ==================================================== */}
 
-          {/* CHANGED: md:hidden -> lg:hidden, and added max-h + overflow-y-auto
-              so a long menu can be scrolled on small phones (the header is
-              sticky, so without this the bottom items were unreachable). */}
           {mobileMenuOpen && (
             <div
               className="
@@ -948,14 +904,11 @@ export default function Navbar() {
                   {/* Admin */}
 
                   {(user.role === "admin" ||
-                    user.role ===
-                      "superadmin") && (
+                    user.role === "superadmin") && (
                     <Link
                       to="/admin"
                       onClick={() =>
-                        setMobileMenuOpen(
-                          false
-                        )
+                        setMobileMenuOpen(false)
                       }
                       className={`
                         ${mobileButton}
@@ -968,8 +921,7 @@ export default function Navbar() {
                         hover:to-pink-100
                       `}
                     >
-                      {user.role ===
-                      "superadmin"
+                      {user.role === "superadmin"
                         ? "👑 Super Admin"
                         : "Admin Panel"}
                     </Link>
@@ -1003,6 +955,9 @@ export default function Navbar() {
                 ================================================= */
 
                 <div className="flex flex-col gap-2 pt-2">
+
+                  {/* ONLY LOGIN */}
+
                   <Link
                     to="/login"
                     onClick={() =>
@@ -1025,28 +980,6 @@ export default function Navbar() {
                     Log In
                   </Link>
 
-                  <Link
-                    to="/register"
-                    onClick={() =>
-                      setMobileMenuOpen(false)
-                    }
-                    className="
-                      w-full rounded-xl
-                      bg-gradient-to-r
-                      from-violet-600
-                      via-pink-500
-                      to-orange-400
-                      py-2.5
-                      text-center font-bold
-                      text-white shadow-md
-                      transition-all duration-300
-                      hover:-translate-y-0.5
-                      hover:brightness-110
-                      hover:shadow-lg
-                    "
-                  >
-                    Join Now
-                  </Link>
                 </div>
               )}
             </div>

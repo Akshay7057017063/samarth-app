@@ -93,7 +93,7 @@ import walletRoutes from "./routes/wallet.js";
 import cmsRoutes from "./routes/cms.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import binaryRoutes from "./routes/binary.js";
-
+import testEmailRoutes from "./routes/testEmail.js";
 // =====================================================
 // LEGACY DATASTORE
 // =====================================================
@@ -427,7 +427,7 @@ app.get(
 // =====================================================
 // API ROUTES
 // =====================================================
-
+app.use("/api", testEmailRoutes);
 //
 // Authentication
 //
@@ -731,25 +731,27 @@ const shutdownServer =
     }
   };
 
+
 // =====================================================
 // SIGNAL HANDLERS
 // =====================================================
 
-process.on(
-  "SIGINT",
-  () =>
-    shutdownServer(
-      "SIGINT"
-    )
-);
+process.on("SIGINT", () => {
+  console.log(
+    "\n⚠️ SIGINT received (Ctrl+C or process manager)."
+  );
 
-process.on(
-  "SIGTERM",
-  () =>
-    shutdownServer(
-      "SIGTERM"
-    )
-);
+  void shutdownServer("SIGINT");
+});
+
+process.on("SIGTERM", () => {
+  console.log(
+    "\n⚠️ SIGTERM received (process manager or OS)."
+  );
+
+  void shutdownServer("SIGTERM");
+});
+
 
 // =====================================================
 // UNHANDLED PROMISE REJECTION
