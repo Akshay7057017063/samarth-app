@@ -12,3 +12,139 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   background: #ffffff;
 }
+
+/* =========================================
+   RAINBOW THEME — SAMARTH PRODUCT SHOWCASE
+========================================= */
+
+@keyframes rainbow-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes rainbow-glow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.9;
+  }
+}
+
+.rainbow-text {
+  background-image: linear-gradient(
+    90deg,
+    #22d3ee,
+    #818cf8,
+    #e879f9,
+    #fb7185,
+    #fbbf24,
+    #34d399,
+    #22d3ee
+  );
+  background-size: 300% 300%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-flow 7s ease infinite;
+}
+
+.rainbow-border {
+  background: linear-gradient(
+    90deg,
+    #22d3ee,
+    #818cf8,
+    #e879f9,
+    #fb7185,
+    #fbbf24,
+    #34d399,
+    #22d3ee
+  );
+  background-size: 300% 300%;
+  animation: rainbow-flow 6s ease infinite;
+}
+
+.rainbow-card {
+  position: relative;
+  background: linear-gradient(
+    120deg,
+    #22d3ee,
+    #818cf8,
+    #e879f9,
+    #fb7185,
+    #fbbf24,
+    #34d399,
+    #22d3ee
+  );
+  background-size: 300% 300%;
+  animation: rainbow-flow 8s ease infinite;
+}
+
+.rainbow-button {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    100deg,
+    #0891b2,
+    #4f46e5,
+    #9333ea,
+    #db2777,
+    #ea580c,
+    #0891b2
+  );
+  background-size: 300% 300%;
+  animation: rainbow-flow 6s ease infinite;
+  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.18);
+}
+
+.rainbow-button:hover {
+  box-shadow:
+    0 0 20px rgba(168, 85, 247, 0.3),
+    0 0 35px rgba(34, 211, 238, 0.15);
+}
+
+.rainbow-icon {
+  color: #22d3ee;
+  animation: rainbow-icon-color 5s linear infinite;
+}
+
+@keyframes rainbow-icon-color {
+  0% { color: #22d3ee; }
+  25% { color: #c084fc; }
+  50% { color: #fb7185; }
+  75% { color: #fbbf24; }
+  100% { color: #22d3ee; }
+}
+
+.rainbow-orb {
+  animation: rainbow-glow 8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.rainbow-delay-1 {
+  animation-delay: 1.5s;
+}
+
+.rainbow-delay-2 {
+  animation-delay: 3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rainbow-text,
+  .rainbow-border,
+  .rainbow-card,
+  .rainbow-button,
+  .rainbow-icon,
+  .rainbow-orb {
+    animation: none;
+  }
+}
