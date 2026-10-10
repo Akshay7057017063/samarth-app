@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   Activity,
@@ -15,31 +16,59 @@ import { Link } from "react-router-dom";
 const LAYERS = [
   {
     name: "Layer 1: Organic Bamboo Jacquard Fabric",
-    desc: "Hypoallergenic, ultra-breathable, and anti-dust mite surface ensuring soft temperature regulation all night.",
+    desc: "Soft, breathable fabric designed for comfortable temperature regulation during sleep.",
     color: "from-emerald-400 to-teal-400",
+    glow: "hover:border-emerald-400/60",
+    active:
+      "border-emerald-400/70 from-emerald-500/20 to-teal-500/10",
   },
   {
     name: "Layer 2: Neodymium Bio-Magnets (3,500 - 4,000 Gauss)",
-    desc: "Strategically aligned magnetic fields penetrate deep tissues, stimulating iron in hemoglobin to enhance blood circulation and oxygenation.",
-    color: "from-cyan-400 to-blue-400",
-    activeHighlight: true,
+    desc: "A magnetic layer featuring aligned neodymium magnets. Claims about improved circulation or other medical benefits require reliable clinical evidence.",
+    color: "from-cyan-400 to-blue-500",
+    glow: "hover:border-cyan-400/60",
+    active:
+      "border-cyan-400/70 from-cyan-500/20 to-blue-500/10",
   },
   {
     name: "Layer 3: Acupressure Therapeutic Foam",
-    desc: "Targeted contouring relief across the cervical spine, lumbar region, and knee joints for restorative orthopedic sleep.",
-    color: "from-indigo-400 to-purple-400",
+    desc: "Contoured foam with textured nodes, designed to provide a distinctive feel and support a comfortable resting surface.",
+    color: "from-indigo-400 to-purple-500",
+    glow: "hover:border-purple-400/60",
+    active:
+      "border-purple-400/70 from-indigo-500/20 to-purple-500/10",
   },
   {
     name: "Layer 4: Far-Infrared (FIR) Resonance Layer",
-    desc: "Emits natural restorative far-infrared rays that soothe muscle stiffness, reduce lactic acid buildup, and lower stress.",
-    color: "from-amber-400 to-orange-400",
+    desc: "A far-infrared layer included in the product design. Specific claims about pain relief or other health effects should be clinically substantiated.",
+    color: "from-amber-400 to-orange-500",
+    glow: "hover:border-orange-400/60",
+    active:
+      "border-orange-400/70 from-amber-500/20 to-orange-500/10",
   },
   {
     name: "Layer 5: Anti-Slip Breathable Bottom Base",
-    desc: "Durable non-slip grip layer that anchors firmly to any single or double mattress.",
-    color: "from-slate-400 to-slate-300",
+    desc: "A durable, breathable base designed to help keep the pad securely positioned on a mattress.",
+    color: "from-pink-400 to-rose-500",
+    glow: "hover:border-pink-400/60",
+    active:
+      "border-pink-400/70 from-pink-500/20 to-rose-500/10",
   },
 ];
+
+const DEFAULT_PRODUCT = {
+  name: "Bio-Magnetic Healthcare Mattress Pad",
+  tagline:
+    "Comfort-focused design for your sleep and wellness routine",
+  price: "₹7,499",
+  features: [
+    "Neodymium 4000 Gauss Magnets",
+    "Orthopedic Memory Foam",
+    "Acupressure Micro-Nodes",
+    "Breathable Bamboo Fabric",
+  ],
+  badge: "Flagship Product",
+};
 
 export default function InteractiveProductExplorer({
   products = [],
@@ -48,317 +77,247 @@ export default function InteractiveProductExplorer({
   const [activeProductIndex, setActiveProductIndex] =
     useState(0);
 
-  const product = products[activeProductIndex] || {
-    name: "Bio-Magnetic Healthcare Mattress Pad",
-    tagline:
-      "Natural Pain Relief, Improved Micro-Circulation & Deep Sleep Therapy",
-    price: "₹7,499",
-    features: [
-      "Neodymium 4000 Gauss Magnets",
-      "Orthopedic Memory Foam",
-      "Acupressure Micro-Nodes",
-      "100% Breathable Bamboo",
-    ],
-    badge: "Flagship Product",
-  };
+  const product =
+    products[activeProductIndex] || DEFAULT_PRODUCT;
+
+  const displayedProducts =
+    products.length > 0 ? products : [DEFAULT_PRODUCT];
 
   return (
     <section
       id="products"
-      className="relative overflow-hidden bg-slate-950/60 py-20"
+      className="relative isolate overflow-hidden bg-slate-950 py-20 text-white"
     >
-      {/* Background radial glow */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/10 blur-[140px]" />
+      {/* Animated rainbow background glow */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="rainbow-orb absolute left-[-10%] top-[10%] h-72 w-72 rounded-full bg-red-500/20 blur-[110px]" />
+        <div className="rainbow-orb rainbow-delay-1 absolute right-[-8%] top-[25%] h-80 w-80 rounded-full bg-cyan-500/20 blur-[120px]" />
+        <div className="rainbow-orb rainbow-delay-2 absolute bottom-[-10%] left-[35%] h-80 w-80 rounded-full bg-purple-500/20 blur-[120px]" />
+
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.10),transparent_55%)]" />
+      </div>
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-8">
-
         {/* Header */}
         <div className="mx-auto mb-16 max-w-3xl text-center">
-
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-emerald-400">
-            <Sparkles className="h-3.5 w-3.5" />
-            Interactive Product Showcase
+          <div className="rainbow-border mb-5 inline-flex rounded-full p-[1px]">
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-100">
+              <Sparkles className="rainbow-icon h-4 w-4" />
+              Interactive Product Showcase
+            </div>
           </div>
 
-          <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
             Bio-Magnetic{" "}
-            <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+            <span className="rainbow-text">
               Health & Wellness System
             </span>
           </h2>
 
-          <p className="mt-3 text-sm leading-relaxed text-slate-400 sm:text-base">
-            Engineered with therapeutic magnetic resonance to
-            supercharge micro-circulation, melt chronic pain,
-            and restore restful sleep naturally without pills.
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
+            Explore the product layers, materials, and features
+            through an interactive multicolor showcase.
           </p>
 
-          {/* Product Switcher Pills */}
-          <div className="mt-8 flex flex-wrap justify-center gap-2.5">
-
-            {(products.length > 0
-              ? products
-              : [product]
-            ).map((p, idx) => (
+          {/* Product Switcher */}
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            {displayedProducts.map((p, idx) => (
               <button
-                key={idx}
+                key={p.id || p._id || `${p.name}-${idx}`}
                 type="button"
-                onClick={() =>
-                  setActiveProductIndex(idx)
-                }
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                onClick={() => setActiveProductIndex(idx)}
+                aria-pressed={activeProductIndex === idx}
+                className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-300 sm:text-sm ${
                   activeProductIndex === idx
-                    ? "scale-105 bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/25"
-                    : "bg-slate-800/80 text-slate-300 hover:bg-slate-700/80"
+                    ? "rainbow-button scale-[1.03] text-white shadow-lg shadow-purple-500/20"
+                    : "border border-slate-700 bg-slate-900/80 text-slate-300 hover:border-purple-400/60 hover:bg-slate-800"
                 }`}
               >
-                {p.name
-                  .split("(")[0]
-                  .trim()}
+                {(p.name || "Product").split("(")[0].trim()}
               </button>
             ))}
-
           </div>
         </div>
 
-        {/* 3D Interactive Showcase Card */}
-        <div className="grid grid-cols-1 items-center gap-8 rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl backdrop-blur-xl sm:p-10 lg:grid-cols-12">
+        {/* Main Showcase */}
+        <div className="rainbow-card rounded-3xl p-[1px]">
+          <div className="grid grid-cols-1 items-center gap-8 rounded-[23px] bg-slate-950/95 p-5 backdrop-blur-xl sm:p-8 lg:grid-cols-12 lg:p-10">
+            {/* Left: Interactive Layers */}
+            <div className="space-y-5 lg:col-span-7">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
+                  <Layers className="h-5 w-5 text-cyan-400" />
+                  <span>Exploded Multi-Layer Technology</span>
+                </div>
 
-          {/* Left: Interactive Multi-Layer Diagram */}
-          <div className="space-y-4 lg:col-span-7">
-
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-
-                <Layers className="h-4 w-4 text-emerald-400" />
-
-                <span>
-                  Exploded Multi-Layer Technology
+                <span className="rounded-lg border border-purple-400/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-semibold text-purple-200">
+                  Click any layer to explore
                 </span>
-
               </div>
 
-              <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
-                Click any layer to explore
-              </span>
-
-            </div>
-
-            {/* Interactive Layer Slices */}
-            <div className="space-y-3">
-
-              {LAYERS.map(
-                (layer, index) => {
-                  const isSelected =
-                    activeLayer === index;
+              <div className="space-y-3">
+                {LAYERS.map((layer, index) => {
+                  const isSelected = activeLayer === index;
 
                   return (
-                    <div
-                      key={index}
-                      onClick={() =>
-                        setActiveLayer(index)
-                      }
-                      className={`cursor-pointer rounded-2xl border p-4 transition-all duration-300 ${
+                    <button
+                      key={layer.name}
+                      type="button"
+                      onClick={() => setActiveLayer(index)}
+                      aria-expanded={isSelected}
+                      className={`group w-full rounded-2xl border bg-gradient-to-r p-4 text-left transition-all duration-300 ${
                         isSelected
-                          ? "scale-[1.02] border-emerald-500 bg-slate-800/90 shadow-lg shadow-emerald-500/10"
-                          : "border-slate-800/80 bg-slate-950/40 hover:border-slate-700 hover:bg-slate-800/50"
+                          ? `scale-[1.01] ${layer.active} shadow-lg shadow-purple-500/10`
+                          : `border-slate-800/90 from-slate-900/90 to-slate-950 hover:-translate-y-0.5 ${layer.glow}`
                       }`}
                     >
-
-                      <div className="flex items-center justify-between">
-
-                        <div className="flex items-center gap-3">
-
-                          <div
-                            className={`h-3 w-3 rounded-full bg-gradient-to-r ${layer.color} shadow-sm`}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className={`h-3.5 w-3.5 shrink-0 rounded-full bg-gradient-to-r ${layer.color} shadow-lg`}
                           />
 
-                          <h4
-                            className={`text-xs font-bold sm:text-sm ${
+                          <span
+                            className={`text-left text-xs font-bold leading-5 sm:text-sm ${
                               isSelected
                                 ? "text-white"
-                                : "text-slate-300"
+                                : "text-slate-300 group-hover:text-white"
                             }`}
                           >
                             {layer.name}
-                          </h4>
-
+                          </span>
                         </div>
 
                         <ChevronRight
-                          className={`h-4 w-4 text-slate-500 transition-transform ${
+                          className={`h-5 w-5 shrink-0 transition-all duration-300 ${
                             isSelected
-                              ? "rotate-90 text-emerald-400"
-                              : ""
+                              ? "rotate-90 text-cyan-300"
+                              : "text-slate-500 group-hover:text-purple-300"
                           }`}
                         />
-
                       </div>
 
                       {isSelected && (
-                        <div className="mt-3 border-t border-slate-700/60 pt-3 text-xs leading-relaxed text-slate-300">
+                        <div className="mt-4 border-t border-white/10 pt-3 text-xs leading-6 text-slate-300 sm:text-sm">
                           {layer.desc}
                         </div>
                       )}
-
-                    </div>
+                    </button>
                   );
-                }
-              )}
-
-            </div>
-
-            {/* Micro Indicators */}
-            <div className="grid grid-cols-3 gap-3 pt-3">
-
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-center">
-
-                <Zap className="mx-auto mb-1 h-4 w-4 text-amber-400" />
-
-                <div className="text-xs font-bold text-white">
-                  4,000 Gauss
-                </div>
-
-                <div className="text-[10px] text-slate-400">
-                  Therapeutic Power
-                </div>
-
+                })}
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-center">
-
-                <Shield className="mx-auto mb-1 h-4 w-4 text-emerald-400" />
-
-                <div className="text-xs font-bold text-white">
-                  ISO & GMP
-                </div>
-
-                <div className="text-[10px] text-slate-400">
-                  Medical Standard
-                </div>
-
-              </div>
-
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-center">
-
-                <Activity className="mx-auto mb-1 h-4 w-4 text-cyan-400" />
-
-                <div className="text-xs font-bold text-white">
-                  100% Safe
-                </div>
-
-                <div className="text-[10px] text-slate-400">
-                  Drug-Free Healing
-                </div>
-
-              </div>
-
-            </div>
-          </div>
-
-          {/* Right: Product Highlights Card */}
-          <div className="space-y-6 rounded-2xl border border-slate-700/70 bg-gradient-to-b from-slate-800/80 to-slate-950 p-6 shadow-xl sm:p-8 lg:col-span-5">
-
-            <div className="flex items-center justify-between">
-
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/20 px-3 py-1 text-[11px] font-bold text-amber-300">
-                {product.badge ||
-                  "Certified Wellness"}
-              </span>
-
-              <div className="text-2xl font-black text-emerald-400">
-                {product.price}
-              </div>
-
-            </div>
-
-            <div>
-
-              <h3 className="text-xl font-bold text-white">
-                {product.name}
-              </h3>
-
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                {product.tagline}
-              </p>
-
-            </div>
-
-            {/* Feature Checklist */}
-            <div className="space-y-2.5 border-t border-slate-800 pt-2 text-xs">
-
-              {(product.features || []).map(
-                (feat, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2.5 text-slate-200"
-                  >
-
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-
-                    <span>
-                      {feat}
-                    </span>
-
+              {/* Feature Indicators */}
+              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
+                <div className="rounded-xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 to-blue-500/5 p-4 text-center transition hover:border-cyan-400/50">
+                  <Zap className="mx-auto mb-2 h-5 w-5 text-cyan-300" />
+                  <div className="text-sm font-bold text-white">
+                    4,000 Gauss
                   </div>
-                )
-              )}
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    Magnetic Specification
+                  </div>
+                </div>
 
-            </div>
+                <div className="rounded-xl border border-purple-400/20 bg-gradient-to-br from-purple-500/10 to-pink-500/5 p-4 text-center transition hover:border-purple-400/50">
+                  <Shield className="mx-auto mb-2 h-5 w-5 text-purple-300" />
+                  <div className="text-sm font-bold text-white">
+                    ISO & GMP
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    Verify Applicable Certifications
+                  </div>
+                </div>
 
-            {/* Direct Selling & Earning Synergy Banner */}
-            <div className="space-y-1 rounded-xl border border-emerald-500/30 bg-emerald-950/60 p-3.5 text-xs text-emerald-200">
-
-              <div className="flex items-center gap-1.5 font-bold text-emerald-300">
-
-                <Award className="h-4 w-4 text-emerald-400" />
-
-                Distributor Benefits Included
-
+                <div className="rounded-xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 p-4 text-center transition hover:border-emerald-400/50">
+                  <Activity className="mx-auto mb-2 h-5 w-5 text-emerald-300" />
+                  <div className="text-sm font-bold text-white">
+                    Drug-Free Design
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    Product Feature
+                  </div>
+                </div>
               </div>
-
-              <p className="text-[11px] leading-normal text-emerald-300/80">
-                Enrolling with this package unlocks Level 1
-                to Level 3 referral bonuses and 50 daily
-                captcha tasks for additional income.
-              </p>
-
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col gap-3 pt-2">
+            {/* Right: Product Details */}
+            <div className="rainbow-card rounded-2xl p-[1px] lg:col-span-5">
+              <div className="space-y-6 rounded-[15px] bg-gradient-to-b from-slate-900 to-slate-950 p-5 sm:p-7">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1.5 text-[11px] font-bold text-amber-200">
+                    {product.badge || "Featured Product"}
+                  </span>
 
-              {/* Public registration is disabled.
-                  New members are created by authenticated
-                  members from their dashboard. */}
+                  <div className="rainbow-text text-2xl font-black">
+                    {product.price}
+                  </div>
+                </div>
 
-              <Link
-                to="/activate-account"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.01] hover:shadow-emerald-500/40"
-              >
-                <UserCheck className="h-4 w-4" />
-                Activate Existing Account
-              </Link>
+                <div>
+                  <h3 className="text-xl font-bold leading-snug text-white sm:text-2xl">
+                    {product.name}
+                  </h3>
 
-              <Link
-                to="/login"
-                className="w-full rounded-xl bg-slate-800/80 px-4 py-2.5 text-center text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-              >
-                Existing Member Login
-              </Link>
+                  <p className="mt-3 text-sm leading-6 text-slate-400">
+                    {product.tagline}
+                  </p>
+                </div>
 
+                {/* Product Features */}
+                <div className="space-y-3 border-t border-slate-800 pt-5">
+                  {(product.features || []).map((feat, i) => (
+                    <div
+                      key={`${feat}-${i}`}
+                      className="flex items-start gap-3 text-sm text-slate-200"
+                    >
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Distributor Information */}
+                <div className="rounded-xl border border-purple-400/30 bg-gradient-to-r from-purple-500/10 via-pink-500/5 to-cyan-500/10 p-4">
+                  <div className="flex items-center gap-2 font-bold text-white">
+                    <Award className="h-5 w-5 text-amber-300" />
+                    Distributor Benefits
+                  </div>
+
+                  <p className="mt-2 text-xs leading-6 text-slate-300">
+                    Review the applicable referral program rules,
+                    account eligibility, and task availability
+                    before activation. Earnings are subject to
+                    the published program terms.
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-3 pt-1">
+                  <Link
+                    to="/activate-account"
+                    className="rainbow-button inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-purple-500/20 sm:text-sm"
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    Activate Existing Account
+                  </Link>
+
+                  <Link
+                    to="/login"
+                    className="inline-flex w-full items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-center text-xs font-semibold text-slate-300 transition-all hover:border-cyan-400/50 hover:bg-slate-800 hover:text-white sm:text-sm"
+                  >
+                    Existing Member Login
+                  </Link>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-[11px] leading-5 text-slate-400">
+                  New member registration is available only
+                  inside the authenticated member dashboard.
+                </div>
+              </div>
             </div>
-
-            <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 px-3.5 py-3 text-[11px] leading-5 text-slate-400">
-              New member registration is available only
-              inside the authenticated member dashboard.
-            </div>
-
           </div>
-
         </div>
-
       </div>
     </section>
   );
