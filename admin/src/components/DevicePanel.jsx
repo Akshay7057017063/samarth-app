@@ -13,7 +13,6 @@ const badge = {
 };
 
 // Shows registered device + history of one customer and allows
-// "Reset device" (revoke) after identity verification.
 const DevicePanel = ({ customerId }) => {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
