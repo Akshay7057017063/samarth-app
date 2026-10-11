@@ -227,7 +227,7 @@ const Dashboard = () => {
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Overview of your Samarth platform
+            Overview of your DIGITAL LYF platform
           </p>
         </div>
 
@@ -754,7 +754,7 @@ const Dashboard = () => {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Live information from the Samarth backend
+                Live information from the DIGITAL LYFbackend
               </p>
 
             </div>
@@ -856,7 +856,7 @@ const Dashboard = () => {
           <div>
 
             <h2 className="text-xl font-bold">
-              Welcome to Samarth Admin Panel 👋
+              Welcome to DIGITAL LYFAdmin Panel 👋
             </h2>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">

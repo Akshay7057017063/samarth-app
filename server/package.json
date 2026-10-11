@@ -1,7 +1,7 @@
 {
   "name": "samarth-server",
   "version": "1.0.0",
-  "description": "Backend API for Samarth Platform - Chain Referral, Captcha Earning, TDS, and CMS Admin",
+  "description": "Backend API for DIGITAL LYFPlatform - Chain Referral, Captcha Earning, TDS, and CMS Admin",
   "main": "server.js",
   "type": "module",
   "scripts": {

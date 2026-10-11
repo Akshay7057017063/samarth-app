@@ -2938,7 +2938,7 @@ export default function UserDashboard() {
                 </div>
 
                 <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500">
-                  Welcome to your Samarth India customer portal. Your dashboard is connected to your account data, wallet, binary network and task activity.
+                  Welcome to your DIGITAL LYFIndia customer portal. Your dashboard is connected to your account data, wallet, binary network and task activity.
                 </p>
 
               </div>
