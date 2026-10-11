@@ -1711,6 +1711,10 @@ export const impersonateCustomer =
 
             name:
               user.name,
+
+            // Admin impersonation (skips device binding check)
+            imp:
+              true,
           },
           JWT_SECRET,
           {

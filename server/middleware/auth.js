@@ -1,5 +1,7 @@
 
 import jwt from "jsonwebtoken";
+import { User } from "../models/User.js";
+import { UserDevice } from "../models/UserDevice.js";
 
 // =====================================================
 // JWT SECRET
@@ -17,7 +19,7 @@ if (!JWT_SECRET) {
 // AUTHENTICATE JWT TOKEN
 // =====================================================
 
-export const authenticateToken = (req, res, next) => {
+export const authenticateToken = async (req, res, next) => {
   try {
     // -------------------------------------------------
     // CHECK JWT SECRET
@@ -79,6 +81,53 @@ export const authenticateToken = (req, res, next) => {
     // -------------------------------------------------
     // STORE DECODED USER INFORMATION
     // -------------------------------------------------
+
+    // -------------------------------------------------
+    // DEVICE BINDING CHECK (customers only)
+    //
+    // - token must carry the device id it was issued to
+    // - that device must STILL be the active device
+    // - token must belong to the current session version
+    // Admin tokens and admin impersonation tokens skip this.
+    // -------------------------------------------------
+
+    const isCustomer =
+      String(decoded.role || "").toLowerCase() === "user";
+
+    if (isCustomer && !decoded.imp) {
+      const deviceDenied = (message) =>
+        res.status(401).json({
+          success: false,
+          code: "DEVICE_SESSION_REVOKED",
+          message,
+        });
+
+      if (!decoded.did) {
+        return deviceDenied(
+          "Please login again to verify your device."
+        );
+      }
+
+      const [account, device] = await Promise.all([
+        User.findById(decoded.id).select("sessionVersion status"),
+        UserDevice.findOne({
+          userId: decoded.id,
+          deviceId: decoded.did,
+          status: "active",
+        }).select("_id"),
+      ]);
+
+      if (
+        !account ||
+        !device ||
+        Number(decoded.sv || 0) !==
+          Number(account.sessionVersion || 0)
+      ) {
+        return deviceDenied(
+          "This device is no longer approved for your account. Please login again or contact admin."
+        );
+      }
+    }
 
     req.user = decoded;
 

@@ -10,6 +10,7 @@ import CustomerDetails from "./pages/customer/CustomerDetails";
 import CaptchaWork from "./pages/captcha/CaptchaWork";
 import Wallets from "./pages/wallet/Wallets";
 import PaymentReport from "./pages/reports/PaymentReport";
+import DeviceRequests from "./pages/devices/DeviceRequests";
 
 const Placeholder = ({ title }) => {
   return (
@@ -48,6 +49,8 @@ const App = () => {
           <Route path="/captcha" element={<CaptchaWork />} />
 
           <Route path="/wallets" element={<Wallets />} />
+
+          <Route path="/devices" element={<DeviceRequests />} />
 
           <Route
             path="/reports"
