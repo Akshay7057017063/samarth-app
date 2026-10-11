@@ -5,6 +5,7 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  Smartphone,
   Settings,
   Users,
   Wallet,
@@ -26,6 +27,11 @@ const Sidebar = ({ open, setOpen }) => {
       name: "Customers",
       path: "/customers",
       icon: Users,
+    },
+    {
+      name: "Devices",
+      path: "/devices",
+      icon: Smartphone,
     },
     {
       name: "Captcha Work",

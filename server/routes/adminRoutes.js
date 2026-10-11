@@ -60,6 +60,14 @@ import {
   searchBinaryUsers,
 } from "../controllers/admin/binary.controller.js";
 
+import {
+  listDevices,
+  getCustomerDevices,
+  approveDevice,
+  rejectDevice,
+  revokeActiveDevice,
+} from "../controllers/admin/device.controller.js";
+
 const router = express.Router();
 
 // =====================================================
@@ -70,6 +78,16 @@ router.use(
   authenticateToken,
   requireSuperOrAdmin
 );
+
+// =====================================================
+// DEVICE BINDING MANAGEMENT
+// =====================================================
+
+router.get("/devices", listDevices);
+router.post("/devices/:deviceId/approve", approveDevice);
+router.post("/devices/:deviceId/reject", rejectDevice);
+router.get("/customers/:id/devices", getCustomerDevices);
+router.post("/customers/:id/devices/revoke", revokeActiveDevice);
 
 // =====================================================
 // ADMIN DASHBOARD

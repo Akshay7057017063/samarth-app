@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import API_BASE_URL from "../config/api";
+import { createDeviceProof } from "../utils/deviceKey";
 
 // =====================================================
 // /activate-account
@@ -97,6 +98,13 @@ export default function ActivateAccountPage() {
     setLoading(true);
 
     try {
+      // This browser becomes the first trusted device
+      const deviceProof =
+        await createDeviceProof(
+          "activate",
+          cleanIdentifier
+        );
+
       const res =
         await fetch(
           `${API_BASE_URL}/auth/activate`,
@@ -117,6 +125,8 @@ export default function ActivateAccountPage() {
 
               pin:
                 cleanPin,
+
+              deviceProof,
             }),
           }
         );

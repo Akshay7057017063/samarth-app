@@ -58,6 +58,13 @@ const userSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Incremented to revoke all existing login sessions
+    // (used by device binding when a device is replaced).
+    sessionVersion: {
+      type: Number,
+      default: 0,
+    },
+
     status: {
       type: String,
       enum: ["active", "inactive", "suspended"],

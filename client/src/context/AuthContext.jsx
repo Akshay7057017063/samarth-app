@@ -6,6 +6,8 @@ import React, {
   useCallback,
 } from "react";
 
+import { createDeviceProof } from "../utils/deviceKey";
+
 const AuthContext =
   createContext(null);
 
@@ -355,6 +357,13 @@ export const AuthProvider = ({
           url
         );
 
+        /* Device-bound key proof (server verifies signature) */
+        const deviceProof =
+          await createDeviceProof(
+            "login",
+            String(loginId).trim()
+          );
+
         const res =
           await fetch(url, {
             method: "POST",
@@ -367,6 +376,7 @@ export const AuthProvider = ({
             body: JSON.stringify({
               loginId,
               password,
+              deviceProof,
             }),
           });
 
@@ -388,6 +398,7 @@ export const AuthProvider = ({
         ) {
           return {
             success: false,
+            code: data?.code || "",
             message:
               data?.message ||
               "Invalid login credentials.",

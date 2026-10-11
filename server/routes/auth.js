@@ -7,6 +7,14 @@ import crypto from "crypto";
 import { User } from "../models/User.js";
 import { Wallet } from "../models/Wallet.js";
 import { LoginCode } from "../models/LoginCode.js";
+import { UserDevice } from "../models/UserDevice.js";
+import {
+  DEVICE_ERROR,
+  verifyDeviceProof,
+  getActiveDevice,
+  registerFirstDevice,
+  createPendingRequest,
+} from "../utils/deviceBinding.js";
 import {
   ActivationPin,
   ACTIVATION_PIN_MAX_ATTEMPTS,
@@ -52,7 +60,7 @@ const isMongoActive = () => {
 // HELPER: CREATE JWT
 // =====================================================
 
-const createToken = (user) => {
+const createToken = (user, deviceId = "") => {
   if (!JWT_SECRET) {
     throw new Error("JWT_SECRET is not configured.");
   }
@@ -64,6 +72,10 @@ const createToken = (user) => {
       userCode: user.userCode || user.memberId || "",
       role: user.role || "user",
       name: user.name || "",
+      // Device binding claims (customers only)
+      ...(deviceId
+        ? { did: deviceId, sv: Number(user.sessionVersion || 0) }
+        : {}),
     },
     JWT_SECRET,
     {
@@ -357,10 +369,94 @@ router.post("/login", async (req, res) => {
     }
 
     // -------------------------------------------------
+    // DEVICE BINDING (customers only)
+    // -------------------------------------------------
+
+    let boundDeviceId = "";
+
+    if (user.role === "user") {
+      const proofResult = verifyDeviceProof({
+        proof: req.body?.deviceProof,
+        purpose: "login",
+        identifier: cleanId,
+      });
+
+      if (!proofResult.ok) {
+        return res.status(400).json({
+          success: false,
+          code: proofResult.code,
+          message:
+            "Secure device verification failed. Please use the latest app version in your browser and try again.",
+        });
+      }
+
+      const activeDevice = await getActiveDevice(user._id);
+
+      if (!activeDevice) {
+        // First trusted device for this customer.
+        const registered = await registerFirstDevice({
+          user,
+          proofResult,
+          req,
+          via: "first_login",
+        });
+
+        if (
+          !registered ||
+          registered.deviceId !== proofResult.deviceId
+        ) {
+          // Lost a race to another device.
+          const pending = await createPendingRequest({
+            user,
+            proofResult,
+            req,
+          });
+
+          return res.status(403).json({
+            success: false,
+            code: DEVICE_ERROR.NOT_APPROVED,
+            requestId: String(pending._id),
+            message:
+              "This device is not approved for your account. A request has been sent to admin. Please contact admin for approval.",
+          });
+        }
+
+        boundDeviceId = registered.deviceId;
+      } else if (activeDevice.deviceId === proofResult.deviceId) {
+        activeDevice.lastLoginAt = new Date();
+        activeDevice.lastIp = String(
+          req.headers["x-forwarded-for"] ||
+            req.socket?.remoteAddress ||
+            ""
+        )
+          .split(",")[0]
+          .trim();
+        await activeDevice.save();
+
+        boundDeviceId = activeDevice.deviceId;
+      } else {
+        // DIFFERENT device: never switch automatically.
+        const pending = await createPendingRequest({
+          user,
+          proofResult,
+          req,
+        });
+
+        return res.status(403).json({
+          success: false,
+          code: DEVICE_ERROR.NOT_APPROVED,
+          requestId: String(pending._id),
+          message:
+            "This device is not approved for your account. A device approval request has been sent to admin. Please contact admin to approve your new device.",
+        });
+      }
+    }
+
+    // -------------------------------------------------
     // CREATE JWT
     // -------------------------------------------------
 
-    const token = createToken(user);
+    const token = createToken(user, boundDeviceId);
 
     // -------------------------------------------------
     // RESPONSE
@@ -1336,11 +1432,50 @@ const activatedWithPaidPin = pinType === "paid";
     }
 
     // -------------------------------------------------
+    // DEVICE BINDING: the browser that verified the PIN
+    // becomes the first trusted device (best effort).
+    // -------------------------------------------------
+
+    let deviceRegistered = false;
+
+    try {
+      if (req.body?.deviceProof) {
+        const proofResult = verifyDeviceProof({
+          proof: req.body.deviceProof,
+          purpose: "activate",
+          identifier,
+        });
+
+        if (proofResult.ok) {
+          const existing = await getActiveDevice(
+            activatedUser._id
+          );
+
+          if (!existing) {
+            const registered = await registerFirstDevice({
+              user: activatedUser,
+              proofResult,
+              req,
+              via: "activation",
+            });
+
+            deviceRegistered =
+              registered?.deviceId === proofResult.deviceId;
+          }
+        }
+      }
+    } catch (deviceError) {
+      console.error("Activation device binding error:", deviceError);
+      // Activation already succeeded; first login will bind.
+    }
+
+    // -------------------------------------------------
     // SUCCESS
     // -------------------------------------------------
 
     return res.json({
       success: true,
+      deviceRegistered,
       message:
         "Account activated successfully. You can now login.",
       memberId: activatedUser.memberId,

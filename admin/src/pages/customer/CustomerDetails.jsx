@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import DevicePanel from "../../components/DevicePanel";
 
 const CustomerDetails = () => {
   const { id } = useParams();
@@ -2199,6 +2200,9 @@ const CustomerDetails = () => {
           </div>
         </div>
       )}
+
+      {/* DEVICE BINDING */}
+      <DevicePanel customerId={customer._id || customer.id} />
     </div>
   );
 };
