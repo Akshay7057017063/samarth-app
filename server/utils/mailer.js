@@ -1,4 +1,3 @@
-
 import nodemailer from "nodemailer";
 
 const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
@@ -27,10 +26,72 @@ const transporter = nodemailer.createTransport({
     servername: smtpHost,
   },
 
-  connectionTimeout: 20000,
-  greetingTimeout: 20000,
-  socketTimeout: 30000,
+  // Keep these below the admin panel's 15s request timeout so a
+  // blocked / unreachable SMTP server returns a clear 502 error
+  // instead of a generic "timeout of 15000ms exceeded".
+  connectionTimeout: 8000,
+  greetingTimeout: 8000,
+  socketTimeout: 12000,
 });
+
+// =====================================================
+// BREVO HTTP API (works where SMTP ports are blocked)
+// =====================================================
+//
+// Hosts such as Render free web services block outbound SMTP
+// ports (25 / 465 / 587). When BREVO_API_KEY is set, emails are
+// sent over HTTPS (port 443) using Brevo's API instead.
+// If BREVO_API_KEY is not set, the normal SMTP transport is used.
+// =====================================================
+
+const sendViaBrevo = async ({ to, subject, html, text }) => {
+  const senderEmail =
+    process.env.BREVO_SENDER_EMAIL ||
+    process.env.SMTP_USER;
+
+  const senderName =
+    process.env.BREVO_SENDER_NAME ||
+    "Digital Lyf PVT. LTD.";
+
+  if (!senderEmail) {
+    throw new Error(
+      "BREVO_SENDER_EMAIL is not configured."
+    );
+  }
+
+  const response = await fetch(
+    "https://api.brevo.com/v3/smtp/email",
+    {
+      method: "POST",
+      headers: {
+        "api-key": process.env.BREVO_API_KEY,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender: {
+          name: senderName,
+          email: senderEmail,
+        },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+      }),
+      signal: AbortSignal.timeout(10000),
+    }
+  );
+
+  if (!response.ok) {
+    const details = await response.text();
+
+    throw new Error(
+      `Brevo API error ${response.status}: ${details}`
+    );
+  }
+
+  return response.json();
+};
 
 
 // =====================================================
@@ -58,6 +119,15 @@ export async function sendMail({
 }) {
   if (!to) {
     throw new Error("Recipient email is required.");
+  }
+
+  if (process.env.BREVO_API_KEY) {
+    return sendViaBrevo({
+      to,
+      subject,
+      html,
+      text,
+    });
   }
 
   if (
@@ -415,6 +485,14 @@ export async function sendActivationPinEmail({
 // =====================================================
 
 export async function verifyMailerConnection() {
+  if (process.env.BREVO_API_KEY) {
+    return {
+      success: true,
+      message:
+        "Brevo API is configured (emails are sent over HTTPS).",
+    };
+  }
+
   if (
     !process.env.SMTP_USER ||
     !process.env.SMTP_PASSWORD
