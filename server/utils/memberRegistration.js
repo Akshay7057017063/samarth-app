@@ -1,4 +1,3 @@
-
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import mongoose from "mongoose";
@@ -464,37 +463,6 @@ export const registerInactiveMember = async (
     }
 
     /* -----------------------------------------------
-       DUPLICATE EMAIL
-    ------------------------------------------------ */
-
-    const existingEmail = await User.findOne({
-      email: cleanEmail,
-    })
-      .select("_id")
-      .lean();
-
-    if (existingEmail) {
-      return fail(400, "Email already registered.");
-    }
-
-    /* -----------------------------------------------
-       DUPLICATE PHONE
-    ------------------------------------------------ */
-
-    const existingPhone = await User.findOne({
-      phone: cleanPhone,
-    })
-      .select("_id")
-      .lean();
-
-    if (existingPhone) {
-      return fail(
-        400,
-        "Phone number already registered."
-      );
-    }
-
-    /* -----------------------------------------------
        GENERATE UNIQUE MEMBER ID
     ------------------------------------------------ */
 
@@ -712,6 +680,22 @@ export const registerInactiveMember = async (
        SUCCESS
     ------------------------------------------------ */
 
+    /* -----------------------------------------------
+       ACCOUNT COUNT FOR THIS EMAIL / PHONE
+    ------------------------------------------------ */
+
+    const [emailAccountCount, phoneAccountCount] =
+      await Promise.all([
+        User.countDocuments({
+          email: cleanEmail,
+          role: "user",
+        }),
+        User.countDocuments({
+          phone: cleanPhone,
+          role: "user",
+        }),
+      ]);
+
     return {
       status: 201,
 
@@ -719,7 +703,12 @@ export const registerInactiveMember = async (
         success: true,
 
         message:
-          "Member registered successfully. The account is inactive until Paid PIN activation. No referral income has been credited yet.",
+          `Member registered successfully. The account is inactive until Paid PIN activation. No referral income has been credited yet. Accounts with this mobile number: ${phoneAccountCount}. Accounts with this email: ${emailAccountCount}.`,
+
+        accountCounts: {
+          phone: phoneAccountCount,
+          email: emailAccountCount,
+        },
 
         member: {
           _id: placedUser._id,
@@ -767,7 +756,7 @@ export const registerInactiveMember = async (
     if (error?.code === 11000) {
       return fail(
         400,
-        "A user with the same email, phone or member ID already exists."
+        "A user with the same member ID already exists."
       );
     }
 

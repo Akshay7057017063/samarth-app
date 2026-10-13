@@ -990,7 +990,7 @@ router.post(
         return res.status(400).json({
           success: false,
           message:
-            "A user with the same email, phone or member ID already exists.",
+            "A user with the same member ID already exists.",
         });
       }
 

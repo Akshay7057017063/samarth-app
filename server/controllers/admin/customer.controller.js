@@ -167,36 +167,6 @@ export const createCustomer = async (
     }
 
     /* -----------------------------------------------
-       DUPLICATE CHECKS
-    ------------------------------------------------ */
-
-    const existingEmail =
-      await User.findOne({
-        email: cleanEmail,
-      });
-
-    if (existingEmail) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "A customer with this email already exists.",
-      });
-    }
-
-    const existingPhone =
-      await User.findOne({
-        phone: cleanPhone,
-      });
-
-    if (existingPhone) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "A customer with this phone number already exists.",
-      });
-    }
-
-    /* -----------------------------------------------
        GENERATE MEMBER CODE
     ------------------------------------------------ */
 
@@ -524,12 +494,29 @@ export const createCustomer = async (
        RESPONSE
     ------------------------------------------------ */
 
+    const [emailAccountCount, phoneAccountCount] =
+      await Promise.all([
+        User.countDocuments({
+          email: cleanEmail,
+          role: "user",
+        }),
+        User.countDocuments({
+          phone: cleanPhone,
+          role: "user",
+        }),
+      ]);
+
     return res.status(201).json({
       success:
         true,
 
       message:
-        "Customer created successfully as an inactive account. Send an activation PIN to activate the account.",
+        `Customer created successfully as an inactive account. Send an activation PIN to activate the account. Accounts with this mobile number: ${phoneAccountCount}. Accounts with this email: ${emailAccountCount}.`,
+
+      accountCounts: {
+        phone: phoneAccountCount,
+        email: emailAccountCount,
+      },
 
       emailSent:
         false,
@@ -572,7 +559,7 @@ export const createCustomer = async (
       return res.status(400).json({
         success: false,
         message:
-          "A customer with the same unique information already exists.",
+          "A customer with the same member ID or user code already exists.",
       });
     }
 
@@ -1563,7 +1550,7 @@ export const updateCustomer =
         return res.status(400).json({
           success: false,
           message:
-            "Email, phone, member ID or user code already exists.",
+            "Member ID or user code already exists.",
         });
       }
 
