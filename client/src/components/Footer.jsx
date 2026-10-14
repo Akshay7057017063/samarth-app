@@ -16,7 +16,7 @@ export default function Footer() {
 
   const address =
     cmsContent?.officeAddress ||
-    "Ganga Shopping Mall, 2nd Floor, Main Agra Road, Dausa, Rajasthan 303303";
+    "city center mall sangamner, Maharashtra, India";
 
   const phone =
     cmsContent?.supportPhone ||
