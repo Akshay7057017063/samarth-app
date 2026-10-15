@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 // USER DEVICE (Device Binding / Trusted Device)
 // =====================================================
 //
-// status:
+
 //   active   -> the ONE trusted device of the customer
 //   pending  -> new device waiting for admin approval
 //   revoked  -> previously active device removed by admin
