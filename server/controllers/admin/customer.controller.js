@@ -75,6 +75,11 @@ export const getUsers = async (req, res) => {
    CREATE CUSTOMER
 ===================================================== */
 
+
+/* =====================================================
+   CREATE CUSTOMER — ROOT SPONSOR + NORMAL CUSTOMER
+===================================================== */
+
 export const createCustomer = async (req, res) => {
   let session;
 
@@ -88,6 +93,7 @@ export const createCustomer = async (req, res) => {
       position,
     } = req.body || {};
 
+    // 1. Validate required fields
     if (
       !name ||
       !email ||
@@ -97,8 +103,7 @@ export const createCustomer = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Name, email, phone and password are required.",
+        message: "Name, email, phone and password are required.",
       });
     }
 
@@ -106,6 +111,9 @@ export const createCustomer = async (req, res) => {
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanPhone = String(phone).trim();
     const cleanPassword = String(password);
+    const cleanSponsorCode = String(sponsorCode || "")
+      .trim()
+      .toUpperCase();
 
     if (!cleanName || !cleanEmail || !cleanPhone) {
       return res.status(400).json({
@@ -117,31 +125,94 @@ export const createCustomer = async (req, res) => {
     if (cleanPassword.trim().length < 6) {
       return res.status(400).json({
         success: false,
-        message:
-          "Customer password must be at least 6 characters.",
+        message: "Password must be at least 6 characters.",
       });
     }
 
-    /* -----------------------------------------------
-       GENERATE MEMBER CODE
-    ------------------------------------------------ */
+    // 2. Prevent duplicate email or phone
+    const duplicate = await User.findOne({
+      role: "user",
+      $or: [
+        { email: cleanEmail },
+        { phone: cleanPhone },
+      ],
+    })
+      .select("_id email phone")
+      .lean();
 
-    const latestUser = await User.findOne({
+    if (duplicate) {
+      return res.status(400).json({
+        success: false,
+        message:
+          duplicate.email === cleanEmail
+            ? "A customer with this email already exists."
+            : "A customer with this phone number already exists.",
+      });
+    }
+
+    // 3. Find sponsor, if a sponsor code was provided
+    let sponsorUser = null;
+
+    if (cleanSponsorCode) {
+      sponsorUser = await User.findOne({
+        role: "user",
+        $or: [
+          { userCode: cleanSponsorCode },
+          { memberId: cleanSponsorCode },
+        ],
+      });
+
+      if (!sponsorUser) {
+        return res.status(400).json({
+          success: false,
+          message: "Sponsor code was not found.",
+        });
+      }
+
+      if (
+        String(sponsorUser.email || "").toLowerCase() ===
+          cleanEmail ||
+        String(sponsorUser.phone || "") === cleanPhone
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "A customer cannot sponsor themselves.",
+        });
+      }
+    } else {
+      // No sponsor code is allowed only for the first customer.
+      const existingCustomer = await User.exists({
+        role: "user",
+      });
+
+      if (existingCustomer) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Sponsor code is required because a customer already exists. Use the first customer's Referral Code.",
+        });
+      }
+    }
+
+    // 4. Generate a unique member ID
+    const latestUsers = await User.find({
       memberId: /^SI\d+$/i,
     })
       .select("memberId")
-      .sort({ memberId: -1 })
       .lean();
 
     let memberNumber = 681909;
 
-    if (latestUser?.memberId) {
-      const parsed = Number(
-        String(latestUser.memberId).replace(/^SI/i, "")
+    for (const item of latestUsers) {
+      const number = Number(
+        String(item.memberId || "").replace(/^SI/i, "")
       );
 
-      if (Number.isSafeInteger(parsed) && parsed >= 0) {
-        memberNumber = parsed + 1;
+      if (
+        Number.isSafeInteger(number) &&
+        number >= memberNumber
+      ) {
+        memberNumber = number + 1;
       }
     }
 
@@ -159,57 +230,9 @@ export const createCustomer = async (req, res) => {
       memberCode = `SI${memberNumber}`;
     }
 
-    /* -----------------------------------------------
-       VALIDATE SPONSOR
-    ------------------------------------------------ */
-
-    let sponsorUser = null;
-
-    if (sponsorCode && String(sponsorCode).trim()) {
-      const cleanSponsorCode = String(sponsorCode)
-        .trim()
-        .toUpperCase();
-
-      sponsorUser = await User.findOne({
-        role: "user",
-        $or: [
-          { userCode: cleanSponsorCode },
-          { memberId: cleanSponsorCode },
-        ],
-      });
-
-      if (!sponsorUser) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Sponsor code was not found. Please check the code and try again.",
-        });
-      }
-    }
-
-    /* -----------------------------------------------
-       POSITION
-    ------------------------------------------------ */
-
-    const cleanPosition =
-      normalizeType(position) === "right"
-        ? "right"
-        : "left";
-
-    /* -----------------------------------------------
-       HASH PASSWORD
-    ------------------------------------------------ */
-
-    const passwordHash = await bcrypt.hash(
-      cleanPassword,
-      10
-    );
-
+    // 5. Prepare customer account
+    const passwordHash = await bcrypt.hash(cleanPassword, 10);
     const now = new Date();
-
-    /* -----------------------------------------------
-       CREATE CUSTOMER OBJECT
-    ------------------------------------------------ */
 
     const newUser = new User({
       memberId: memberCode,
@@ -221,18 +244,15 @@ export const createCustomer = async (req, res) => {
       password: passwordHash,
 
       role: "user",
-
-      // New accounts cannot log in until activated.
       status: "inactive",
       activationDate: null,
       userType: "UNPAID",
 
+      // Referral tree
       sponsorId: sponsorUser?._id || null,
-
       sponsorCode: sponsorUser
         ? sponsorUser.userCode || sponsorUser.memberId || ""
         : "",
-
       sponsorMemberId: sponsorUser?.memberId || "",
 
       treePath: sponsorUser
@@ -242,10 +262,23 @@ export const createCustomer = async (req, res) => {
         : "/",
 
       level: sponsorUser
-        ? asNumber(sponsorUser.level || 1) + 1
+        ? Number(sponsorUser.level || 1) + 1
         : 1,
 
-      position: cleanPosition,
+      // Binary tree: first customer is the root.
+      // This initializes the root; it does not place later
+      // customers into the binary tree.
+      binaryParentId: null,
+      binaryPosition: null,
+      binaryLeftId: null,
+      binaryRightId: null,
+      binaryLevel: 1,
+      binaryPath: "/",
+
+      position:
+        String(position || "").trim().toLowerCase() === "right"
+          ? "right"
+          : "left",
 
       joiningPackage: "",
       rank: "Distributor",
@@ -263,31 +296,40 @@ export const createCustomer = async (req, res) => {
       },
     });
 
-    /* -----------------------------------------------
-       MONGODB TRANSACTION
-    ------------------------------------------------ */
-
+    // 6. Save customer and zero-balance wallet atomically
     session = await mongoose.startSession();
 
     let savedUser;
 
     await session.withTransaction(async () => {
+      // Recheck root condition inside transaction.
+      // This helps prevent creating another root customer.
+      if (!sponsorUser) {
+        const existingCustomer = await User.exists({
+          role: "user",
+        }).session(session);
+
+        if (existingCustomer) {
+          const error = new Error(
+            "A root customer already exists. Sponsor code is required."
+          );
+          error.statusCode = 409;
+          throw error;
+        }
+      }
+
       savedUser = await newUser.save({ session });
 
-      // New customers start with a zero balance.
-      // No welcome bonus is credited here.
       await Wallet.create(
         [
           {
             userId: savedUser._id,
             memberId: savedUser.memberId,
-
             currentBalance: 0,
             totalEarnings: 0,
             captchaEarnings: 0,
             referralCommissions: 0,
             totalWithdrawn: 0,
-
             todayCaptchasSolved: 0,
             lastCaptchaDate: null,
           },
@@ -295,13 +337,6 @@ export const createCustomer = async (req, res) => {
         { session }
       );
 
-      /*
-       * Only direct referral counters are changed here.
-       *
-       * Binary counts are derived from binaryLeftId and
-       * binaryRightId. This function does not place the
-       * new user into the binary tree.
-       */
       if (sponsorUser) {
         await User.updateOne(
           {
@@ -320,45 +355,22 @@ export const createCustomer = async (req, res) => {
       }
     });
 
-    /* -----------------------------------------------
-       ACCOUNT COUNTS
-    ------------------------------------------------ */
-
-    const [emailAccountCount, phoneAccountCount] =
-      await Promise.all([
-        User.countDocuments({
-          email: cleanEmail,
-          role: "user",
-        }),
-
-        User.countDocuments({
-          phone: cleanPhone,
-          role: "user",
-        }),
-      ]);
-
     return res.status(201).json({
       success: true,
+      message: sponsorUser
+        ? "Customer created successfully. Send an activation PIN to activate the account."
+        : "First root customer created successfully. This customer's Referral Code can be used for the next customer. Send an activation PIN to activate the account.",
 
-      message:
-        `Customer created successfully as an inactive account. ` +
-        `Send an activation PIN to activate the account. ` +
-        `Accounts with this mobile number: ${phoneAccountCount}. ` +
-        `Accounts with this email: ${emailAccountCount}.`,
-
-      accountCounts: {
-        phone: phoneAccountCount,
-        email: emailAccountCount,
-      },
-
+      isRootCustomer: !sponsorUser,
       emailSent: false,
 
       user: {
         ...getSafeUser(savedUser),
-
         accountId: savedUser._id,
         memberId: savedUser.memberId,
         userCode: savedUser.userCode,
+        referralCode: savedUser.userCode,
+        sponsorId: savedUser.sponsorId || null,
       },
     });
   } catch (error) {
@@ -368,13 +380,14 @@ export const createCustomer = async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          "A customer with the same member ID, user code, email, or phone already exists.",
+          "Member ID, user code, email, or phone already exists.",
       });
     }
 
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
-      message: "Failed to create customer.",
+      message:
+        error.message || "Failed to create customer.",
     });
   } finally {
     if (session) {
@@ -1570,14 +1583,24 @@ const reverseDirectReferralBonus = async (
     return;
   }
 
-  const amount = asNumber(
-    originalTransaction.amount ??
-      originalTransaction.netAmount
-  );
+ const transactionAmount = asNumber(
+  originalTransaction.amount
+);
 
-  if (amount <= 0) {
-    return;
-  }
+const netAmount = asNumber(
+  originalTransaction.netAmount
+);
+
+// amount is zero असला तरी netAmount मध्ये रक्कम
+// असल्यास योग्य transaction amount वापरा.
+const amount =
+  transactionAmount > 0
+    ? transactionAmount
+    : netAmount;
+
+if (amount <= 0) {
+  return;
+}
 
   const wallet = await Wallet.findOne({
     userId: sponsor._id,

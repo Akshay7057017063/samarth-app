@@ -1,0 +1,181 @@
+﻿
+Path                                                                          LineNumber Line                                                
+----                                                                          ---------- ----                                                
+C:\Users\Akshay\samarth-app\server\controllers\admin\captcha.controller.js          1565           currentBalance:                           
+C:\Users\Akshay\samarth-app\server\controllers\admin\captcha.controller.js          1567               wallet?.currentBalance,               
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          285             currentBalance: 0,                      
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          286             totalEarnings: 0,                       
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          312             $inc: {                                 
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          625     const currentBalance = asNumber(                
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          626       wallet?.currentBalance                        
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          629     const totalEarnings = asNumber(                 
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          630       wallet?.totalEarnings                         
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          651     const matchingIncome = asNumber(                
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          652       user?.matchingIncome                          
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          655     const todayMatchingIncome = asNumber(           
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          656       user?.todayMatchingIncome                     
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          663     const franchiseMatchingIncome = asNumber(       
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          664       user?.franchiseMatchingIncome                 
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          667     const totalIncome = asNumber(                   
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          668       user?.totalIncome                             
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          727       matchingIncome,                               
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          728       todayMatchingIncome,                          
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          731       franchiseMatchingIncome,                      
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          733       totalIncome,                                  
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          741       currentBalance,                               
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          742       walletBalance: currentBalance,                
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          744       totalEarnings,                                
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          761       matchingIncome,                               
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          762       todayMatchingIncome,                          
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          765       franchiseMatchingIncome,                      
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          767       totalIncome,                                  
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          857         matchingIncome,                             
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          858         todayMatchingIncome,                        
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          861         franchiseMatchingIncome,                    
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          863         totalIncome,                                
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          920   "matchingIncome",                                 
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          921   "todayMatchingIncome",                            
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          923   "franchiseMatchingIncome",                        
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js          924   "totalIncome",                                    
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js         1593     wallet.currentBalance                           
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js         1607   wallet.currentBalance = balanceAfter;             
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js         1609   wallet.totalEarnings = Math.max(                  
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js         1611     asNumber(wallet.totalEarnings) - amount         
+C:\Users\Akshay\samarth-app\server\controllers\admin\customer.controller.js         2310             $set: {                                 
+C:\Users\Akshay\samarth-app\server\controllers\admin\dashboard.controller.js          40           totalCurrentBalance: { $sum: "$currentB...
+C:\Users\Akshay\samarth-app\server\controllers\admin\dashboard.controller.js         137         totalCurrentBalance: toNumber(walletStats...
+C:\Users\Akshay\samarth-app\server\controllers\admin\dashboard.controller.js         162         totalWalletBalance: toNumber(walletStats....
+C:\Users\Akshay\samarth-app\server\controllers\admin\device.controller.js            193         $set: {                                     
+C:\Users\Akshay\samarth-app\server\controllers\admin\device.controller.js            219             $set: {                                 
+C:\Users\Akshay\samarth-app\server\controllers\admin\device.controller.js            234       { $inc: { sessionVersion: 1 } }               
+C:\Users\Akshay\samarth-app\server\controllers\admin\device.controller.js            262         $set: {                                     
+C:\Users\Akshay\samarth-app\server\controllers\admin\device.controller.js            315         $set: {                                     
+C:\Users\Akshay\samarth-app\server\controllers\admin\device.controller.js            328       { $inc: { sessionVersion: 1 } }               
+C:\Users\Akshay\samarth-app\server\controllers\admin\wallet.controller.js             54             currentBalance: 0,                      
+C:\Users\Akshay\samarth-app\server\controllers\admin\wallet.controller.js             55             totalEarnings: 0,                       
+C:\Users\Akshay\samarth-app\server\controllers\admin\wallet.controller.js             64         const currentBalance = toNumber(wallet.cu...
+C:\Users\Akshay\samarth-app\server\controllers\admin\wallet.controller.js             69           if (currentBalance < amountToApply) {     
+C:\Users\Akshay\samarth-app\server\controllers\admin\wallet.controller.js             73           newBalance = Number((currentBalance - a...
+C:\Users\Akshay\samarth-app\server\controllers\admin\wallet.controller.js             75           newBalance = Number((currentBalance + a...
+C:\Users\Akshay\samarth-app\server\controllers\admin\wallet.controller.js             78         wallet.currentBalance = newBalance;         
+C:\Users\Akshay\samarth-app\server\controllers\admin\withdrawal.controller.js        113           const currentBalance = toNumber(wallet....
+C:\Users\Akshay\samarth-app\server\controllers\admin\withdrawal.controller.js        118           wallet.currentBalance = Number(           
+C:\Users\Akshay\samarth-app\server\controllers\admin\withdrawal.controller.js        119             (currentBalance + refundAmount).toFix...
+C:\Users\Akshay\samarth-app\server\controllers\admin\withdrawal.controller.js        125           withdrawal.balanceAfter = wallet.curren...
+C:\Users\Akshay\samarth-app\server\controllers\admin\withdrawal.controller.js        137                 balanceAfter: wallet.currentBalance,
+C:\Users\Akshay\samarth-app\server\controllers\admin\withdrawal.controller.js        208         "_id memberId userCode name email panNumb...
+C:\Users\Akshay\samarth-app\server\controllers\admin\withdrawal.controller.js        245         totalIncome: toNumber(user.totalIncome),    
+C:\Users\Akshay\samarth-app\server\models\User.js                                    312     matchingIncome: {                               
+C:\Users\Akshay\samarth-app\server\models\User.js                                    318     todayMatchingIncome: {                          
+C:\Users\Akshay\samarth-app\server\models\User.js                                    330     franchiseMatchingIncome: {                      
+C:\Users\Akshay\samarth-app\server\models\User.js                                    336     totalIncome: {                                  
+C:\Users\Akshay\samarth-app\server\models\Wallet.js                                   33     currentBalance: {                               
+C:\Users\Akshay\samarth-app\server\models\Wallet.js                                   39     totalEarnings: {                                
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                    591           $set: {                                   
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                    891           $set: {                                   
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                   1216           $inc: {                                   
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                   1278               $set: {                               
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                   1314             $set: {                                 
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                   1387               $inc: {                               
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                   1604             currentBalance: 0,                      
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                   1605             totalEarnings: 0,                       
+C:\Users\Akshay\samarth-app\server\routes\auth.js                                   1853             $set: update,                           
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1395                   currentBalance:                   
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1398                   totalEarnings:                    
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1461             wallet.currentBalance =                 
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1463                 wallet.currentBalance,              
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1467             wallet.totalEarnings =                  
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1469                 wallet.totalEarnings,               
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1506                 wallet.currentBalance.toFixed(      
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1523             wallet.currentBalance =                 
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1526                   wallet.currentBalance +           
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1531             wallet.totalEarnings =                  
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1534                   wallet.totalEarnings +            
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1649                     wallet.currentBalance,          
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1798         currentBalance:                             
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                1800             ?.currentBalance ??                     
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                2064           currentBalance:                           
+C:\Users\Akshay\samarth-app\server\routes\captcha.js                                2066               wallet?.currentBalance,               
+C:\Users\Akshay\samarth-app\server\routes\wallet.js                                  198             currentBalance:                         
+C:\Users\Akshay\samarth-app\server\routes\wallet.js                                  201             totalEarnings:                          
+C:\Users\Akshay\samarth-app\server\routes\wallet.js                                  569             const currentBalance =                  
+C:\Users\Akshay\samarth-app\server\routes\wallet.js                                  571                 wallet.currentBalance || 0          
+C:\Users\Akshay\samarth-app\server\routes\wallet.js                                  579               currentBalance <                      
+C:\Users\Akshay\samarth-app\server\routes\wallet.js                                  594                   currentBalance -                  
+C:\Users\Akshay\samarth-app\server\routes\wallet.js                                  599             wallet.currentBalance =                 
+C:\Users\Akshay\samarth-app\server\scripts\auditBinaryWallet.js                       16       .select("_id memberId name status matchingI...
+C:\Users\Akshay\samarth-app\server\scripts\auditBinaryWallet.js                       41             currentBalance: wallet.currentBalance,  
+C:\Users\Akshay\samarth-app\server\scripts\auditBinaryWallet.js                       42             totalEarnings: wallet.totalEarnings,    
+C:\Users\Akshay\samarth-app\server\scripts\checkBinaryIncomeStatus.js                 38           matchingIncome: status.matchingIncome,    
+C:\Users\Akshay\samarth-app\server\scripts\checkBinaryIncomeStatus.js                 39           todayMatchingIncome: status.todayMatchi...
+C:\Users\Akshay\samarth-app\server\scripts\checkBinaryIncomeStatus.js                 40           totalIncome: status.totalIncome,          
+C:\Users\Akshay\samarth-app\server\scripts\checkDuplicateWallets.js                   19       currentBalance: w.currentBalance,             
+C:\Users\Akshay\samarth-app\server\scripts\checkDuplicateWallets.js                   20       totalEarnings: w.totalEarnings,               
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             453       currentBalance: 0,                            
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             454       totalEarnings: 0,                             
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             471   wallet.currentBalance = Number(wallet.currentBa...
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             472   wallet.totalEarnings = Number(wallet.totalEarni...
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             482   const balanceBefore = wallet.currentBalance;      
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             492   wallet.currentBalance = balanceAfter;             
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             494   wallet.totalEarnings = Number(                    
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             495     (wallet.totalEarnings + amount).toFixed(2)      
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             666     const balance = Number(wallet.currentBalance ...
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             705   const balanceBefore = Number(wallet.currentBala...
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             715   wallet.currentBalance = balanceAfter;             
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             717   wallet.totalEarnings = Number(                    
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             718     (Number(wallet.totalEarnings || 0) + amount)....
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             732       $inc: {                                       
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             733         matchingIncome: amount,                     
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             734         todayMatchingIncome: amount,                
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             735         totalIncome: amount,                        
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             901       currentBalance: 0,                            
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             902       totalEarnings: 0,                             
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             916   wallet.currentBalance = Number(wallet.currentBa...
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                             917   wallet.totalEarnings = Number(wallet.totalEarni...
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                            1054     "_id name memberId userCode status matchingIn...
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                            1171     matchingIncome: Number(parent.matchingIncome ...
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                            1172     todayMatchingIncome: Number(                    
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                            1173       parent.todayMatchingIncome || 0               
+C:\Users\Akshay\samarth-app\server\utils\binaryIncome.js                            1175     totalIncome: Number(parent.totalIncome || 0),   
+C:\Users\Akshay\samarth-app\server\utils\deviceBinding.js                            140         $set: {                                     
+C:\Users\Akshay\samarth-app\server\utils\deviceBinding.js                            181       $set: {                                       
+C:\Users\Akshay\samarth-app\server\utils\deviceBinding.js                            192       $set: {                                       
+C:\Users\Akshay\samarth-app\server\utils\memberRegistration.js                        91             $set: {                                 
+C:\Users\Akshay\samarth-app\server\utils\memberRegistration.js                       224           $set: {                                   
+C:\Users\Akshay\samarth-app\server\utils\memberRegistration.js                       235           $inc: {                                   
+C:\Users\Akshay\samarth-app\server\utils\memberRegistration.js                       616       currentBalance: 0,                            
+C:\Users\Akshay\samarth-app\server\utils\memberRegistration.js                       617       totalEarnings: 0,                             
+C:\Users\Akshay\samarth-app\server\utils\memberRegistration.js                       633         $inc: {                                     
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      200       matchingIncome: 250000,                       
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      201       todayMatchingIncome: 12000,                   
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      203       franchiseMatchingIncome: 45000,               
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      204       totalIncome: 382000,                          
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      263       matchingIncome: 0,                            
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      264       todayMatchingIncome: 0,                       
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      266       franchiseMatchingIncome: 0,                   
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      267       totalIncome: 0,                               
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      326       matchingIncome: 45000,                        
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      327       todayMatchingIncome: 3500,                    
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      329       franchiseMatchingIncome: 8500,                
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      330       totalIncome: 69000,                           
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      377         matchingIncome: 500,                        
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      378         totalIncome: 500,                           
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      409         matchingIncome: 500,                        
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      410         totalIncome: 500,                           
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      441         matchingIncome: 500,                        
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      442         totalIncome: 500,                           
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      473         matchingIncome: 0,                          
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      474         totalIncome: 0,                             
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      505         matchingIncome: 0,                          
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      506         totalIncome: 0,                             
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      530         currentBalance: 382000.00,                  
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      544         currentBalance: 350.00,                     
+C:\Users\Akshay\samarth-app\server\dataStore.js                                      558         currentBalance: 69000.00,                   
+C:\Users\Akshay\samarth-app\server\diagnose-income.js                                 31       "_id memberId userCode name status userType...
+C:\Users\Akshay\samarth-app\server\diagnose-income.js                                 75           matchingIncome: user.matchingIncome,      
+C:\Users\Akshay\samarth-app\server\diagnose-income.js                                 76           todayMatchingIncome: user.todayMatching...
+C:\Users\Akshay\samarth-app\server\diagnose-income.js                                 77           totalIncome: user.totalIncome,            
+C:\Users\Akshay\samarth-app\server\diagnose-income.js                                 81               currentBalance: wallet.currentBalance,
+C:\Users\Akshay\samarth-app\server\diagnose-income.js                                 82               totalEarnings: wallet.totalEarnings,  
+
+
