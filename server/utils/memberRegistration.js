@@ -356,21 +356,6 @@ export const registerInactiveMember = async (
     }
 
     /* -----------------------------------------------
-       SPONSOR PAID VALIDATION
-    ------------------------------------------------ */
-
-    if (
-      String(sponsor.userType || "")
-        .trim()
-        .toUpperCase() !== "PAID"
-    ) {
-      return fail(
-        403,
-        "Only a PAID sponsor can register a new referral. Please activate your account with a valid Paid PIN."
-      );
-    }
-
-    /* -----------------------------------------------
        CLEAN INPUT
     ------------------------------------------------ */
 
@@ -673,7 +658,8 @@ export const registerInactiveMember = async (
      *
      * The ₹100 direct referral income must be processed
      * only after this referred member is successfully
-     * activated with a valid Paid PIN.
+     * activated with a valid Paid PIN. The active sponsor
+     * may be either PAID or UNPAID.
      */
 
     /* -----------------------------------------------
@@ -703,7 +689,7 @@ export const registerInactiveMember = async (
         success: true,
 
         message:
-          `Member registered successfully. The account is inactive until Paid PIN activation. No referral income has been credited yet. Accounts with this mobile number: ${phoneAccountCount}. Accounts with this email: ${emailAccountCount}.`,
+          `Member registered successfully. The account remains inactive until a valid activation PIN is used. No income has been credited during registration. Eligible ₹100 direct referral income is processed if this member activates with a Paid PIN. Accounts with this mobile number: ${phoneAccountCount}. Accounts with this email: ${emailAccountCount}.`,
 
         accountCounts: {
           phone: phoneAccountCount,
@@ -736,7 +722,7 @@ export const registerInactiveMember = async (
           amount: 100,
           credited: false,
           message:
-            "Direct referral income is processed after successful Paid PIN activation.",
+            "Eligible ₹100 direct referral income is processed after this member activates with a Paid PIN. Active PAID and UNPAID sponsors can qualify.",
         },
       },
     };
