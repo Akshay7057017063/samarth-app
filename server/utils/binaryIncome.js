@@ -256,7 +256,7 @@ export async function getBinaryPairHistory(
 //
 // Business rules:
 // - Direct referral income = ₹100.
-// - Sponsor must be active and PAID.
+// - Sponsor must be active; PAID and UNPAID sponsors can qualify.
 // - Referred member must be active and PAID.
 // - Referred member's sponsorId must match the sponsor.
 // - The same referral must not be credited twice.
@@ -330,14 +330,6 @@ async function processDirectReferralIncomeInSession({
       .toLowerCase() !== "active"
   ) {
     throw new Error("Sponsor account must be active.");
-  }
-
-  if (
-    String(sponsor.userType || "")
-      .trim()
-      .toUpperCase() !== "PAID"
-  ) {
-    throw new Error("Sponsor account must be PAID.");
   }
 
   // ---------------------------------------------------
