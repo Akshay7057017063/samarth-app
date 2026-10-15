@@ -1,7 +1,7 @@
+
 import express from "express";
 
 import { authenticateToken } from "../middleware/auth.js";
-
 import { requireSuperOrAdmin } from "../middleware/adminAuth.js";
 
 // =====================================================
@@ -18,7 +18,6 @@ import {
   adjustWallet,
   sellPackage,
   impersonateCustomer,
-  deleteCustomer,
   getSales,
   toggleCustomerStatus,
   getWithdrawals,
@@ -35,10 +34,11 @@ import {
 } from "../controllers/adminController.js";
 
 // =====================================================
-// CUSTOMER ACTIVATION PIN CONTROLLERS
+// CUSTOMER MANAGEMENT CONTROLLERS
 // =====================================================
 
 import {
+  deleteCustomer,
   generateActivationPin,
   resendActivationPin,
 } from "../controllers/admin/customer.controller.js";
@@ -60,6 +60,10 @@ import {
   searchBinaryUsers,
 } from "../controllers/admin/binary.controller.js";
 
+// =====================================================
+// DEVICE BINDING CONTROLLERS
+// =====================================================
+
 import {
   listDevices,
   getCustomerDevices,
@@ -68,10 +72,15 @@ import {
   revokeActiveDevice,
 } from "../controllers/admin/device.controller.js";
 
+// =====================================================
+// ROUTER
+// =====================================================
+
 const router = express.Router();
 
 // =====================================================
 // ADMIN AUTHENTICATION
+// All routes below require admin/superadmin access.
 // =====================================================
 
 router.use(
@@ -84,10 +93,26 @@ router.use(
 // =====================================================
 
 router.get("/devices", listDevices);
-router.post("/devices/:deviceId/approve", approveDevice);
-router.post("/devices/:deviceId/reject", rejectDevice);
-router.get("/customers/:id/devices", getCustomerDevices);
-router.post("/customers/:id/devices/revoke", revokeActiveDevice);
+
+router.post(
+  "/devices/:deviceId/approve",
+  approveDevice
+);
+
+router.post(
+  "/devices/:deviceId/reject",
+  rejectDevice
+);
+
+router.get(
+  "/customers/:id/devices",
+  getCustomerDevices
+);
+
+router.post(
+  "/customers/:id/devices/revoke",
+  revokeActiveDevice
+);
 
 // =====================================================
 // ADMIN DASHBOARD
@@ -102,13 +127,11 @@ router.get(
 // CAPTCHA STATISTICS
 // =====================================================
 
-// Overall CAPTCHA statistics
 router.get(
   "/captcha/stats",
   getCaptchaStats
 );
 
-// Specific customer's CAPTCHA statistics
 router.get(
   "/users/:id/captcha-stats",
   getCustomerCaptchaStats
@@ -116,29 +139,6 @@ router.get(
 
 // =====================================================
 // CAPTCHA SETTINGS
-// =====================================================
-//
-// GET /api/admin/captcha/settings
-// PUT /api/admin/captcha/settings
-//
-// These routes are protected by:
-// authenticateToken
-// requireSuperOrAdmin
-//
-// Admin controls:
-// - enabled
-// - CAPTCHA type
-// - length
-// - character sets
-// - symbols
-// - case sensitivity
-// - expiry
-// - submit cooldown
-// - daily limit
-// - reward amount
-// - max attempts
-// - refresh behaviour
-// - image settings
 // =====================================================
 
 router.get(
@@ -201,26 +201,10 @@ router.put(
 // CUSTOMER ACTIVATION PIN
 // =====================================================
 
-// Send new activation PIN
-// POST /api/admin/users/:id/send-activation-pin
-//
-// Body:
-// {
-//   "pinType": "paid" | "unpaid"
-// }
-
 router.post(
   "/users/:id/send-activation-pin",
   generateActivationPin
 );
-
-// Resend activation PIN
-// POST /api/admin/users/:id/resend-activation-pin
-//
-// Body:
-// {
-//   "pinType": "paid" | "unpaid"
-// }
 
 router.post(
   "/users/:id/resend-activation-pin",
@@ -270,7 +254,6 @@ router.get(
   getWithdrawals
 );
 
-// Withdrawal action
 router.put(
   "/withdrawals/:id/action",
   withdrawalAction
@@ -289,13 +272,11 @@ router.get(
 // SITE CONTENT
 // =====================================================
 
-// Get website + legacy settings
 router.get(
   "/site-content",
   getSiteContent
 );
 
-// Update website + legacy settings
 router.put(
   "/site-content",
   updateSiteContent
@@ -304,128 +285,62 @@ router.put(
 // =====================================================
 // BINARY TREE MANAGEMENT
 // =====================================================
-//
-// All routes below are automatically protected by:
-//
-// authenticateToken
-// requireSuperOrAdmin
-//
-// because router.use() above applies to all routes.
-// =====================================================
 
-// -----------------------------------------------------
-// Get Binary Tree Root
-// GET /api/admin/binary/root
-// -----------------------------------------------------
-
+// Get binary root
 router.get(
   "/binary/root",
   getBinaryRoot
 );
 
-// -----------------------------------------------------
-// Search Users for Binary Placement
-// GET /api/admin/binary/users?search=ABC
-// -----------------------------------------------------
-
+// Search users for binary placement
 router.get(
   "/binary/users",
   searchBinaryUsers
 );
 
-// -----------------------------------------------------
-// Get Binary Tree
-// GET /api/admin/binary/tree/:userId?depth=5
-// -----------------------------------------------------
-
+// Get binary tree
 router.get(
   "/binary/tree/:userId",
   getAdminBinaryTree
 );
 
-// -----------------------------------------------------
-// Get Binary Children
-// GET /api/admin/binary/children/:userId
-// -----------------------------------------------------
-
+// Get binary children
 router.get(
   "/binary/children/:userId",
   getAdminBinaryChildren
 );
 
-// -----------------------------------------------------
-// Get Binary Parent
-// GET /api/admin/binary/parent/:userId
-// -----------------------------------------------------
-
+// Get binary parent
 router.get(
   "/binary/parent/:userId",
   getAdminBinaryParent
 );
 
-// -----------------------------------------------------
-// Get Binary Status
-// GET /api/admin/binary/status/:userId
-// -----------------------------------------------------
-
+// Get binary status
 router.get(
   "/binary/status/:userId",
   getAdminBinaryStatus
 );
 
-// -----------------------------------------------------
-// Get Binary Team Counts
-// GET /api/admin/binary/counts/:userId
-// -----------------------------------------------------
-
+// Get binary team counts
 router.get(
   "/binary/counts/:userId",
   getBinaryTeamCounts
 );
 
-// -----------------------------------------------------
-// Manual Binary Placement
-// POST /api/admin/binary/place
-//
-// Body:
-// {
-//   "userId": "...",
-//   "parentId": "...",
-//   "position": "left"
-// }
-// -----------------------------------------------------
-
+// Manual binary placement
 router.post(
   "/binary/place",
   placeBinaryUser
 );
 
-// -----------------------------------------------------
-// Automatic Binary Placement
-// POST /api/admin/binary/auto-place
-//
-// Body:
-// {
-//   "userId": "..."
-// }
-//
-// Optional:
-// {
-//   "userId": "...",
-//   "parentId": "..."
-// }
-// -----------------------------------------------------
-
+// Automatic binary placement
 router.post(
   "/binary/auto-place",
   autoPlaceBinaryUser
 );
 
-// -----------------------------------------------------
-// Synchronize Binary Team Counts
-// POST /api/admin/binary/sync-counts/:userId
-// -----------------------------------------------------
-
+// Synchronize binary team counts
 router.post(
   "/binary/sync-counts/:userId",
   syncAdminBinaryCounts

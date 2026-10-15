@@ -355,20 +355,6 @@ export const registerInactiveMember = async (
       );
     }
 
-    /* -----------------------------------------------
-       SPONSOR PAID VALIDATION
-    ------------------------------------------------ */
-
-    if (
-      String(sponsor.userType || "")
-        .trim()
-        .toUpperCase() !== "PAID"
-    ) {
-      return fail(
-        403,
-        "Only a PAID sponsor can register a new referral. Please activate your account with a valid Paid PIN."
-      );
-    }
 
     /* -----------------------------------------------
        CLEAN INPUT

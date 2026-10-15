@@ -1,6 +1,6 @@
-
 import React from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import CaptchaWorkstation from "../../components/CaptchaWorkstation";
 
 import {
@@ -17,6 +17,52 @@ import {
 } from "lucide-react";
 
 export default function CaptchaEarnPage() {
+  const { user } = useAuth();
+
+  /*
+   * Zero PIN (UNPAID PIN) members do not have CAPTCHA access.
+   * The backend also blocks them; this only avoids showing the
+   * workstation and a confusing error to those members.
+   */
+  const isZeroPinUser =
+    String(user?.userType ?? "").trim().toLowerCase() === "unpaid";
+
+  if (isZeroPinUser) {
+    return (
+      <div className="relative flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-gradient-to-br from-violet-50 via-white to-orange-50 px-4 text-slate-800">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-violet-300/20 blur-3xl" />
+          <div className="absolute right-[-100px] top-16 h-80 w-80 rounded-full bg-pink-300/20 blur-3xl" />
+          <div className="absolute bottom-[-100px] right-1/4 h-80 w-80 rounded-full bg-orange-300/15 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/80 bg-white/90 p-8 text-center shadow-xl backdrop-blur-xl">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+            <KeyRound className="h-6 w-6" />
+          </div>
+
+          <h1 className="mt-5 text-xl font-black text-slate-900">
+            Captcha Workstation Not Available
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            CAPTCHA work is not available for accounts activated with a free
+            (zero) PIN. You can still register new members and use your
+            binary team and wallet.
+          </p>
+
+          <Link
+            to="/dashboard"
+            className="mt-6 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-pink-500 to-orange-500 px-5 py-3 text-xs font-extrabold text-white shadow-lg shadow-violet-200 transition-all hover:-translate-y-0.5 hover:shadow-xl"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="

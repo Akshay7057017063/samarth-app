@@ -21,14 +21,50 @@ export const FIRST_QUALIFYING_DOWNLINE = 3;
 export const DIRECT_REFERRAL_INCOME = 100;
 
 // =====================================================
+// ZERO PIN ACTIVATION RULE
+// =====================================================
+//
+// A member activated with a ZERO PIN:
+// - Does NOT earn captcha income / has no captcha access.
+// - Does NOT give the sponsor (upline) the Rs100
+//   direct referral bonus.
+//
+// The flag is stored on the User document as
+// `activatedWithZeroPin: true` (set during activation).
+// For safety, a few alternative markers are also honoured.
+// =====================================================
+
+export function isZeroPinActivatedUser(user) {
+  if (!user) {
+    return false;
+  }
+
+  if (user.activatedWithZeroPin === true) {
+    return true;
+  }
+
+  const type = String(
+    user.activationType ||
+      user.activationPinType ||
+      user.pinType ||
+      ""
+  )
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+
+  return type === "ZERO_PIN" || type === "ZEROPIN";
+}
+
+// =====================================================
 // UNPAID PAIR MILESTONES
 // =====================================================
 //
 // Pair #5 is unpaid.
 // Pair #10, #20, #30, #40, #50 ... are unpaid.
 //
-// These milestone pairs are recorded with ₹0 payout.
-// Every other eligible pair pays ₹450.
+// These milestone pairs are recorded with Rs0 payout.
+// Every other eligible pair pays Rs450.
 //
 // Use isUnpaidPairMilestone() for the actual rule.
 // The Set below lists common milestones for compatibility
@@ -255,9 +291,11 @@ export async function getBinaryPairHistory(
 // =====================================================
 //
 // Business rules:
-// - Direct referral income = ₹100.
-// - Sponsor must be active and PAID.
+// - Direct referral income = Rs100.
+// - Sponsor must be active (PAID or zero-PIN activated).
 // - Referred member must be active and PAID.
+// - Referred member must NOT be activated with a ZERO PIN
+//   (zero PIN activation = no referral bonus for sponsor).
 // - Referred member's sponsorId must match the sponsor.
 // - The same referral must not be credited twice.
 // - Wallet and transaction changes use the same session.
@@ -332,13 +370,9 @@ async function processDirectReferralIncomeInSession({
     throw new Error("Sponsor account must be active.");
   }
 
-  if (
-    String(sponsor.userType || "")
-      .trim()
-      .toUpperCase() !== "PAID"
-  ) {
-    throw new Error("Sponsor account must be PAID.");
-  }
+  // NOTE: The sponsor may be PAID or zero-PIN activated.
+  // A zero-PIN sponsor still earns Rs100 when the member
+  // they referred is activated with a valid PAID PIN.
 
   // ---------------------------------------------------
   // FIND AND VALIDATE REFERRED MEMBER
@@ -358,6 +392,26 @@ async function processDirectReferralIncomeInSession({
       .toLowerCase() !== "active"
   ) {
     throw new Error("Referred member must be active.");
+  }
+
+  // ---------------------------------------------------
+  // ZERO PIN ACTIVATION: NO REFERRAL BONUS
+  //
+  // Checked before the PAID check so a zero PIN member
+  // is always skipped quietly (no error, no payout) and
+  // never breaks the activation flow of the caller.
+  // ---------------------------------------------------
+
+  if (isZeroPinActivatedUser(referredUser)) {
+    return {
+      success: true,
+      alreadyProcessed: false,
+      skipped: true,
+      reason: "ZERO_PIN_ACTIVATION",
+      amount: 0,
+      referenceKey,
+      transaction: null,
+    };
   }
 
   if (
@@ -643,7 +697,7 @@ async function processSingleBinaryPair({
   }
 
   // ---------------------------------------------------
-  // PAID BINARY PAIR: ₹450
+  // PAID BINARY PAIR: Rs450
   // ---------------------------------------------------
 
   const amount = BINARY_PAIR_INCOME;
@@ -1133,6 +1187,7 @@ export default {
   DIRECT_REFERRAL_INCOME,
   FIRST_QUALIFYING_DOWNLINE,
   UNPAID_PAIR_MILESTONES,
+  isZeroPinActivatedUser,
   isUnpaidPairMilestone,
   calculateEligiblePairCount,
   buildBinaryPairReferenceKey,

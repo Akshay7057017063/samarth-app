@@ -1,15 +1,15 @@
-
-import React, { useMemo, useState } from "react";
-
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
-  Check,
-  Circle,
   GitBranch,
+  Minus,
   Network,
-  ShieldCheck,
+  Plus,
   Users,
+  X,
+  ArrowLeft,
+  Crosshair,
 } from "lucide-react";
 
 // ============================================================
@@ -17,253 +17,80 @@ import {
 // ============================================================
 
 const getChildren = (node) => {
-  if (!node?.children) {
-    return { left: null, right: null };
-  }
-
-  if (
-    typeof node.children === "object" &&
-    !Array.isArray(node.children)
-  ) {
-    return {
-      left: node.children.left || null,
-      right: node.children.right || null,
-    };
-  }
-
+  if (!node?.children) return { left: null, right: null };
   if (Array.isArray(node.children)) {
-    return {
-      left: node.children[0] || null,
-      right: node.children[1] || null,
-    };
+    return { left: node.children[0] || null, right: node.children[1] || null };
   }
-
+  if (typeof node.children === "object") {
+    return { left: node.children.left || null, right: node.children.right || null };
+  }
   return { left: null, right: null };
 };
 
-const getMemberName = (node) =>
-  node?.name ||
-  node?.fullName ||
-  node?.memberName ||
-  node?.username ||
-  "Member";
+const getName = (n) =>
+  n?.name || n?.fullName || n?.memberName || n?.username || "Member";
 
 const getInitials = (name) => {
-  const parts = String(name || "Member")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 0) return "M";
-
-  if (parts.length === 1) {
-    return parts[0].charAt(0).toUpperCase();
-  }
-
-  return (
-    parts[0].charAt(0) +
-    parts[parts.length - 1].charAt(0)
-  ).toUpperCase();
+  const p = String(name || "M").trim().split(/\s+/).filter(Boolean);
+  if (!p.length) return "M";
+  if (p.length === 1) return p[0][0].toUpperCase();
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
 };
 
-const getMemberId = (node) =>
-  node?.memberId ||
-  node?.userCode ||
-  node?.username ||
-  "";
-
-const getStatus = (node) =>
-  String(node?.status || "inactive")
-    .trim()
-    .toLowerCase();
-
-const getLevel = (node) =>
-  Number(node?.binaryLevel ?? node?.level ?? 1);
-
-const getDirectCount = (node) =>
-  Number(node?.directReferralsCount ?? node?.totalReferral ?? 0);
-
-const getTeamCount = (node) =>
-  Number(node?.totalTeam ?? node?.teamCount ?? 0);
-
-const getLeftCount = (node) =>
-  Number(node?.leftCount ?? 0);
-
-const getRightCount = (node) =>
-  Number(node?.rightCount ?? 0);
+const getMemberId = (n) => n?.memberId || n?.userCode || n?.username || "";
+const isActiveNode = (n) =>
+  String(n?.status || "inactive").trim().toLowerCase() === "active";
+const getLevel = (n) => Number(n?.binaryLevel ?? n?.level ?? 1);
+const getDirect = (n) => Number(n?.directReferralsCount ?? n?.totalReferral ?? 0);
+const getTeam = (n) => Number(n?.totalTeam ?? n?.teamCount ?? 0);
+const getLeft = (n) => Number(n?.leftCount ?? 0);
+const getRight = (n) => Number(n?.rightCount ?? 0);
 
 // ============================================================
-// EMPTY SLOT
-// ============================================================
-
-function EmptySlot({ position }) {
-  const isLeft = position === "left";
-
-  return (
-    <div className="flex w-[108px] flex-col items-center sm:w-[140px]">
-      <div
-        className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed sm:h-16 sm:w-16 ${
-          isLeft
-            ? "border-violet-300 bg-violet-50 text-violet-400"
-            : "border-orange-300 bg-orange-50 text-orange-400"
-        }`}
-      >
-        <Circle className="h-4 w-4 sm:h-5 sm:w-5" />
-      </div>
-
-      <span
-        className={`mt-1.5 text-[9px] font-black uppercase sm:text-[10px] ${
-          isLeft ? "text-violet-600" : "text-orange-600"
-        }`}
-      >
-        {isLeft ? "Left" : "Right"}
-      </span>
-
-      <span className="mt-0.5 text-[9px] text-slate-400">
-        Empty slot
-      </span>
-    </div>
-  );
-}
-
-// ============================================================
-// MEMBER NODE
+// SMALL NODE (what you see in the tree)
 // ============================================================
 
 function MemberNode({
   node,
-  isRoot = false,
-  position = null,
+  isRoot,
   expanded,
   hasChildren,
   onToggle,
+  onSelect,
+  selected,
 }) {
-  const name = getMemberName(node);
-  const memberId = getMemberId(node);
-  const isActive = getStatus(node) === "active";
-  const initials = getInitials(name);
-  const level = getLevel(node);
-  const directCount = getDirectCount(node);
-  const teamCount = getTeamCount(node);
-  const leftCount = getLeftCount(node);
-  const rightCount = getRightCount(node);
+  const name = getName(node);
+  const active = isActiveNode(node);
 
   return (
-    <div
-      className={`flex w-[108px] flex-col items-center rounded-2xl px-1.5 py-2 transition sm:w-[140px] sm:px-2 sm:py-3 ${
-        isRoot
-          ? "border border-violet-200 bg-white shadow-md shadow-violet-100"
-          : "border border-slate-100 bg-white/90 shadow-sm"
-      }`}
-    >
-      {/* MEMBER AVATAR */}
-
-      <div className="relative">
-        {isRoot && (
-          <div className="absolute -inset-1 rounded-full bg-violet-300/30 blur-md" />
-        )}
-
-        <div
-          className={`relative flex h-12 w-12 items-center justify-center rounded-full border-2 text-white shadow-sm sm:h-[62px] sm:w-[62px] sm:border-[3px] ${
-            isRoot
-              ? "border-white bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500"
-              : isActive
-              ? "border-emerald-100 bg-gradient-to-br from-emerald-500 to-violet-600"
-              : "border-slate-200 bg-gradient-to-br from-slate-400 to-slate-500"
-          }`}
-        >
-          <span className="text-sm font-black sm:text-base">
-            {initials}
-          </span>
-
-          {isActive && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-emerald-500 sm:h-5 sm:w-5">
-              <Check className="h-2.5 w-2.5 text-white" />
-            </span>
-          )}
-
-          {isRoot && (
-            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full border border-white bg-slate-900 px-1.5 py-0.5 text-[7px] font-black uppercase text-white sm:px-2">
-              You
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* NAME */}
-
-      <div
-        className="mt-2 w-full truncate text-center text-[10px] font-black text-slate-800 sm:text-xs"
-        title={name}
+    <div className="flex w-[68px] flex-col items-center">
+      <button
+        type="button"
+        onClick={() => onSelect(node)}
+        aria-label={`View details of ${name}`}
+        className="group relative flex flex-col items-center focus:outline-none"
       >
-        {name}
-      </div>
-
-      {/* MEMBER ID */}
-
-      <div
-        className="mt-0.5 w-full truncate text-center font-mono text-[8px] font-bold text-slate-400 sm:text-[9px]"
-        title={memberId || "No ID"}
-      >
-        {memberId || "No ID"}
-      </div>
-
-      {/* POSITION AND LEVEL */}
-
-      <div className="mt-1.5 flex items-center justify-center gap-1">
-        {!isRoot && position && (
-          <span
-            className={`rounded-full px-1.5 py-0.5 text-[7px] font-black uppercase sm:text-[8px] ${
-              position === "left"
-                ? "bg-violet-50 text-violet-600"
-                : "bg-orange-50 text-orange-600"
-            }`}
-          >
-            {position}
-          </span>
-        )}
-
-        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[7px] font-black text-slate-500 sm:text-[8px]">
-          L{level}
-        </span>
-
         <span
-          className={`rounded-full px-1.5 py-0.5 text-[7px] font-black sm:text-[8px] ${
-            isActive
-              ? "bg-emerald-50 text-emerald-700"
-              : "bg-slate-100 text-slate-500"
-          }`}
+          className={`relative flex h-10 w-10 items-center justify-center rounded-full text-[11px] font-bold text-white transition group-active:scale-95 group-focus-visible:ring-2 group-focus-visible:ring-violet-500 group-focus-visible:ring-offset-2 ${
+            isRoot
+              ? "bg-gradient-to-br from-violet-600 to-orange-500"
+              : active
+              ? "bg-emerald-600"
+              : "bg-slate-400"
+          } ${selected ? "ring-2 ring-violet-500 ring-offset-2" : ""}`}
         >
-          {isActive ? "Active" : "Inactive"}
-        </span>
-      </div>
-
-      {/* TEAM COUNTS */}
-
-      <div className="mt-2 flex items-center justify-center gap-1.5 text-[8px] font-bold text-slate-500 sm:gap-2 sm:text-[9px]">
-        <span className="inline-flex items-center gap-0.5">
-          <Users className="h-3 w-3" />
-          {teamCount}
+          {getInitials(name)}
+          <span
+            className={`absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white ${
+              active ? "bg-emerald-400" : "bg-slate-300"
+            }`}
+          />
         </span>
 
-        <span className="text-slate-300">|</span>
-
-        <span>D {directCount}</span>
-      </div>
-
-      {/* BINARY COUNTS */}
-
-      <div className="mt-1.5 flex w-full items-center justify-center gap-1">
-        <span className="rounded-md bg-violet-50 px-1.5 py-1 text-[8px] font-black text-violet-600 sm:text-[9px]">
-          L: {leftCount}
+        <span className="mt-1 w-[64px] truncate text-center text-[10px] font-semibold leading-tight text-slate-800">
+          {isRoot ? "You" : name}
         </span>
-
-        <span className="rounded-md bg-orange-50 px-1.5 py-1 text-[8px] font-black text-orange-600 sm:text-[9px]">
-          R: {rightCount}
-        </span>
-      </div>
-
-      {/* EXPAND / COLLAPSE */}
+      </button>
 
       {hasChildren && (
         <button
@@ -271,119 +98,241 @@ function MemberNode({
           onClick={onToggle}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} ${name}'s team`}
-          className="mt-2 flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 active:scale-95 sm:h-8 sm:w-8"
+          className="mt-0.5 inline-flex min-h-[22px] items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1.5 text-[9px] font-semibold text-slate-600 active:bg-slate-100"
         >
           {expanded ? (
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-3 w-3" />
           ) : (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3 w-3" />
           )}
+          {getTeam(node)}
         </button>
-      )}
-
-      {!hasChildren && (
-        <span className="mt-2 text-[8px] text-slate-400">
-          End of branch
-        </span>
       )}
     </div>
   );
 }
 
-// ============================================================
-// RECURSIVE TREE NODE
-// ============================================================
-
-function TreeNode({
-  node,
-  isRoot = false,
-  position = null,
-}) {
-  const [expanded, setExpanded] = useState(true);
-
-  const children = useMemo(
-    () => getChildren(node),
-    [node]
+function EmptySlot({ side }) {
+  return (
+    <div className="flex w-[68px] flex-col items-center">
+      <span
+        className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed text-[9px] font-semibold ${
+          side === "left"
+            ? "border-violet-200 text-violet-300"
+            : "border-orange-200 text-orange-300"
+        }`}
+      >
+        {side === "left" ? "L" : "R"}
+      </span>
+      <span className="mt-1 text-[9px] text-slate-400">Empty</span>
+    </div>
   );
+}
 
-  const leftChild = children.left;
-  const rightChild = children.right;
-  const hasLeft = Boolean(leftChild);
-  const hasRight = Boolean(rightChild);
-  const hasChildren = hasLeft || hasRight;
+// ============================================================
+// RECURSIVE TREE
+// ============================================================
+
+// Wraps one child cell and draws the connector lines above it.
+function ChildCell({ side, both, muted, children }) {
+  const color = muted
+    ? "bg-slate-200"
+    : side === "left"
+    ? "bg-violet-300"
+    : "bg-orange-300";
+
+  return (
+    <div className="relative px-1 pt-4">
+      {/* vertical drop to child */}
+      <span className={`absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 ${color}`} />
+      {/* horizontal arm toward the sibling */}
+      {both && side === "left" && (
+        <span className={`absolute left-1/2 right-0 top-0 h-px ${color}`} />
+      )}
+      {both && side === "right" && (
+        <span className={`absolute left-0 right-1/2 top-0 h-px ${color}`} />
+      )}
+      {children}
+    </div>
+  );
+}
+
+function TreeNode({ node, isRoot = false, depth = 0, selectedKey, onSelect }) {
+  const [expanded, setExpanded] = useState(depth < 2);
+  const { left, right } = useMemo(() => getChildren(node), [node]);
+  const hasChildren = Boolean(left || right);
+  const key = getMemberId(node) || getName(node);
 
   return (
     <div className="flex flex-col items-center">
       <MemberNode
         node={node}
         isRoot={isRoot}
-        position={position}
         expanded={expanded}
         hasChildren={hasChildren}
-        onToggle={() => setExpanded((prev) => !prev)}
+        onToggle={() => setExpanded((v) => !v)}
+        onSelect={onSelect}
+        selected={selectedKey === key}
       />
 
       {hasChildren && expanded && (
-        <div className="relative mt-4 sm:mt-6">
-          {/* Parent connector */}
-
-          <div className="absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 bg-slate-300 sm:h-6" />
-
-          {/* Children grid */}
-
-          <div
-            className={`relative grid grid-cols-2 pt-4 sm:pt-6 ${
-              hasLeft && hasRight
-                ? "gap-x-1 sm:gap-x-6"
-                : "gap-x-0"
-            }`}
-          >
-            {/* Horizontal connector */}
-
-            {hasLeft && hasRight && (
-              <div className="absolute left-1/4 right-1/4 top-0 h-px bg-slate-300" />
+        <div className="relative flex">
+          <span className="absolute left-1/2 top-0 h-0 w-px" />
+          <ChildCell side="left" both muted={!left}>
+            {left ? (
+              <TreeNode
+                node={left}
+                depth={depth + 1}
+                selectedKey={selectedKey}
+                onSelect={onSelect}
+              />
+            ) : (
+              <EmptySlot side="left" />
             )}
-
-            {/* Left branch connector */}
-
-            {hasLeft && (
-              <div className="absolute left-1/4 top-0 h-4 w-px bg-violet-300 sm:h-6" />
+          </ChildCell>
+          <ChildCell side="right" both muted={!right}>
+            {right ? (
+              <TreeNode
+                node={right}
+                depth={depth + 1}
+                selectedKey={selectedKey}
+                onSelect={onSelect}
+              />
+            ) : (
+              <EmptySlot side="right" />
             )}
-
-            {/* Right branch connector */}
-
-            {hasRight && (
-              <div className="absolute right-1/4 top-0 h-4 w-px bg-orange-300 sm:h-6" />
-            )}
-
-            {/* Left child */}
-
-            <div className="flex min-w-0 justify-center">
-              {leftChild ? (
-                <TreeNode
-                  node={leftChild}
-                  position="left"
-                />
-              ) : (
-                <EmptySlot position="left" />
-              )}
-            </div>
-
-            {/* Right child */}
-
-            <div className="flex min-w-0 justify-center">
-              {rightChild ? (
-                <TreeNode
-                  node={rightChild}
-                  position="right"
-                />
-              ) : (
-                <EmptySlot position="right" />
-              )}
-            </div>
-          </div>
+          </ChildCell>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// DETAIL SHEET (opens when a member is tapped)
+// ============================================================
+
+function Stat({ label, value, tone = "slate" }) {
+  const tones = {
+    slate: "bg-slate-50 text-slate-800",
+    violet: "bg-violet-50 text-violet-700",
+    orange: "bg-orange-50 text-orange-700",
+  };
+  return (
+    <div className={`rounded-xl px-3 py-2.5 ${tones[tone]}`}>
+      <div className="text-lg font-bold leading-none">{value}</div>
+      <div className="mt-1 text-[11px] font-medium opacity-70">{label}</div>
+    </div>
+  );
+}
+
+function Row({ label, value }) {
+  if (value === undefined || value === null || value === "") return null;
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2.5 text-sm last:border-0">
+      <span className="text-slate-500">{label}</span>
+      <span className="truncate text-right font-medium text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+function DetailSheet({ node, canFocus, onFocus, onClose }) {
+  useEffect(() => {
+    if (!node) return undefined;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [node, onClose]);
+
+  if (!node) return null;
+
+  const name = getName(node);
+  const active = isActiveNode(node);
+  const { left, right } = getChildren(node);
+  const hasChildren = Boolean(left || right);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${name} details`}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-sm sm:rounded-3xl"
+      >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
+
+        <div className="flex items-start gap-3">
+          <span
+            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white ${
+              active ? "bg-emerald-600" : "bg-slate-400"
+            }`}
+          >
+            {getInitials(name)}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <h4 className="truncate text-base font-bold text-slate-900">{name}</h4>
+            <p className="truncate font-mono text-xs text-slate-500">
+              {getMemberId(node) || "No ID"}
+            </p>
+            <span
+              className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                active
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {active ? "Active" : "Inactive"}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Stat label="Total team" value={getTeam(node)} />
+          <Stat label="Direct referrals" value={getDirect(node)} />
+          <Stat label="Left team" value={getLeft(node)} tone="violet" />
+          <Stat label="Right team" value={getRight(node)} tone="orange" />
+        </div>
+
+        <div className="mt-3">
+          <Row label="Level" value={`L${getLevel(node)}`} />
+          <Row label="Placement" value={node.position || node.side} />
+          <Row label="Sponsor" value={node.sponsorName || node.sponsorId} />
+          <Row label="Phone" value={node.phone || node.mobile} />
+          <Row label="Email" value={node.email} />
+          <Row label="Joined" value={node.joinedAt || node.createdAt} />
+        </div>
+
+        {canFocus && hasChildren && (
+          <button
+            type="button"
+            onClick={() => onFocus(node)}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-semibold text-white active:bg-violet-700"
+          >
+            <Crosshair className="h-4 w-4" />
+            View {name.split(" ")[0]}'s tree
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -392,125 +341,127 @@ function TreeNode({
 // MAIN COMPONENT
 // ============================================================
 
-export default function ReferralTreeVisualizer({
-  tree,
-  userMemberId,
-}) {
-  // Reserved for identifying the logged-in member if needed.
+export default function ReferralTreeVisualizer({ tree, userMemberId }) {
   void userMemberId;
+
+  const [selected, setSelected] = useState(null);
+  const [focusStack, setFocusStack] = useState([]); // drill-down history
+  const [zoom, setZoom] = useState(1);
 
   if (!tree) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center shadow-sm sm:rounded-3xl sm:p-10">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-500">
-          <Network className="h-7 w-7 animate-pulse" />
-        </div>
-
-        <h3 className="mt-4 text-sm font-black text-slate-800">
-          Loading Binary Tree
-        </h3>
-
-        <p className="mt-1 text-xs text-slate-400">
-          Preparing your member network...
-        </p>
+      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center">
+        <Network className="mx-auto h-7 w-7 animate-pulse text-violet-500" />
+        <h3 className="mt-3 text-sm font-bold text-slate-800">Loading binary tree</h3>
+        <p className="mt-1 text-xs text-slate-400">Preparing your network...</p>
       </div>
     );
   }
 
+  const currentRoot = focusStack.length ? focusStack[focusStack.length - 1] : tree;
+  const isTopRoot = focusStack.length === 0;
+  const selectedKey = selected ? getMemberId(selected) || getName(selected) : null;
+
+  const handleFocus = (node) => {
+    setFocusStack((s) => [...s, node]);
+    setSelected(null);
+  };
+
+  const clamp = (v) => Math.min(1.3, Math.max(0.6, Math.round(v * 10) / 10));
+
   return (
-    <div className="w-full min-w-0 space-y-4 sm:space-y-5">
+    <div className="w-full min-w-0 space-y-3">
       {/* HEADER */}
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-            <Network className="h-5 w-5" />
-          </div>
-
-          <div>
-            <h3 className="text-sm font-black text-slate-900 sm:text-base">
-              Binary Network
-            </h3>
-
-            <p className="mt-0.5 text-[10px] text-slate-500 sm:text-xs">
-              Explore your left and right teams
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+            <Network className="h-[18px] w-[18px]" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-bold text-slate-900">Binary network</h3>
+            <p className="truncate text-[11px] text-slate-500">
+              Tap a member to see details
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-[9px] font-bold text-emerald-700">
-            <ShieldCheck className="h-3 w-3" />
-            Active
+        {/* ZOOM */}
+        <div className="flex shrink-0 items-center rounded-full border border-slate-200 bg-white">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            onClick={() => setZoom((z) => clamp(z - 0.1))}
+            className="flex h-8 w-8 items-center justify-center text-slate-600 active:bg-slate-100"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <span className="w-9 text-center text-[11px] font-semibold text-slate-600">
+            {Math.round(zoom * 100)}%
           </span>
-
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[9px] font-bold text-slate-600">
-            <Circle className="h-3 w-3" />
-            Inactive
-          </span>
-
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1.5 text-[9px] font-bold text-violet-700">
-            <GitBranch className="h-3 w-3" />
-            Binary Position
-          </span>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            onClick={() => setZoom((z) => clamp(z + 0.1))}
+            className="flex h-8 w-8 items-center justify-center text-slate-600 active:bg-slate-100"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      {/* MOBILE TREE INSTRUCTIONS */}
-
-      <div className="rounded-xl border border-violet-100 bg-violet-50/70 px-3 py-2.5 text-[10px] leading-4 text-violet-700 sm:hidden">
-        <strong>Tip:</strong> Tap the arrow below a member to expand or
-        collapse their team. Swipe horizontally to view wider branches.
-      </div>
+      {/* BACK BAR when drilled into a member */}
+      {!isTopRoot && (
+        <button
+          type="button"
+          onClick={() => setFocusStack((s) => s.slice(0, -1))}
+          className="flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 active:bg-violet-100"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back · viewing {getName(currentRoot)}
+        </button>
+      )}
 
       {/* TREE CANVAS */}
-
-      <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-violet-50/50 shadow-inner sm:rounded-3xl">
+      <div className="w-full min-w-0 overflow-auto overscroll-contain rounded-2xl border border-slate-200 bg-slate-50/60">
         <div
-          className="flex w-max min-w-full justify-center px-2 py-5 sm:px-6 sm:py-8"
-          style={{
-            backgroundImage:
-              "radial-gradient(rgba(139,92,246,0.09) 1px, transparent 1px)",
-            backgroundSize: "18px 18px",
-          }}
+          className="flex w-max min-w-full justify-center px-3 py-4"
+          style={{ zoom }}
         >
-          <TreeNode node={tree} isRoot />
+          <TreeNode
+            key={getMemberId(currentRoot) || getName(currentRoot)}
+            node={currentRoot}
+            isRoot={isTopRoot}
+            selectedKey={selectedKey}
+            onSelect={setSelected}
+          />
         </div>
       </div>
 
       {/* LEGEND */}
-
-      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-4 sm:p-4">
-        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600">
-          <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-gradient-to-br from-violet-600 via-pink-500 to-orange-500" />
-          You
-        </div>
-
-        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600">
-          <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-gradient-to-br from-emerald-500 to-violet-600" />
-          Active Member
-        </div>
-
-        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600">
-          <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-gradient-to-br from-slate-400 to-slate-500" />
-          Inactive Member
-        </div>
-
-        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600">
-          <span className="h-px w-5 shrink-0 bg-slate-400" />
-          Connected Node
-        </div>
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] text-slate-600">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" /> Active
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Inactive
+        </span>
+        <span className="flex items-center gap-1.5">
+          <GitBranch className="h-3 w-3 text-violet-500" /> Left
+          <span className="h-px w-3 bg-violet-300" />
+          <span className="h-px w-3 bg-orange-300" /> Right
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Users className="h-3 w-3" /> Number = team size
+        </span>
       </div>
 
-      {/* DESCRIPTION */}
-
-      <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-3 text-center sm:rounded-2xl sm:px-4">
-        <p className="text-[10px] leading-5 text-violet-700 sm:text-xs">
-          Each circle represents one member. Connecting lines show the
-          parent-to-child binary placement. Use the arrow buttons to
-          navigate through your network.
-        </p>
-      </div>
+      {/* DETAIL SHEET */}
+      <DetailSheet
+        node={selected}
+        canFocus={selected !== currentRoot}
+        onFocus={handleFocus}
+        onClose={() => setSelected(null)}
+      />
     </div>
   );
 }

@@ -1,10 +1,14 @@
 import mongoose from "mongoose";
 
+/* =====================================================
+   TRANSACTION SCHEMA
+===================================================== */
+
 const transactionSchema = new mongoose.Schema(
   {
-    // =====================================================
-    // USER REFERENCE
-    // =====================================================
+    /* -----------------------------------------------
+       USER REFERENCE
+    ------------------------------------------------ */
 
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -21,9 +25,19 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // =====================================================
-    // TRANSACTION TYPE
-    // =====================================================
+    /* -----------------------------------------------
+       TRANSACTION TYPE
+
+       credit          = wallet credit
+       debit           = wallet debit/reversal
+       captcha_reward  = CAPTCHA reward
+       referral_bonus  = direct referral bonus
+       binary_income   = binary pair income
+       withdrawal      = withdrawal transaction
+
+       Debit transaction amounts remain positive.
+       The type field identifies the transaction direction.
+    ------------------------------------------------ */
 
     type: {
       type: String,
@@ -32,19 +46,16 @@ const transactionSchema = new mongoose.Schema(
         "debit",
         "captcha_reward",
         "referral_bonus",
-
-        // Binary pair completed income
         "binary_income",
-
         "withdrawal",
       ],
       required: true,
       index: true,
     },
 
-    // =====================================================
-    // TRANSACTION CATEGORY
-    // =====================================================
+    /* -----------------------------------------------
+       TRANSACTION CATEGORY
+    ------------------------------------------------ */
 
     category: {
       type: String,
@@ -60,37 +71,49 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // =====================================================
-    // UNIQUE TRANSACTION REFERENCE
-    // =====================================================
-    //
-    // Used for idempotency / duplicate protection.
-    //
-    // Binary pair example:
-    //
-    // BINARY_PAIR:<parentId>:<pairNumber>
-    //
-    // Example:
-    //
-    // BINARY_PAIR:68abc123...:1
-    // BINARY_PAIR:68abc123...:2
-    //
-    // sparse + unique means:
-    // - old transactions without referenceKey remain valid
-    // - same referenceKey cannot be inserted twice
-    //
-    // =====================================================
+    /* -----------------------------------------------
+       UNIQUE TRANSACTION REFERENCE
+
+       Example:
+       BINARY_PAIR:<parentId>:<pairNumber>
+
+       Referral bonus example:
+       DIRECT_REFERRAL:<sponsorId>:<customerId>
+
+       Reversal example:
+       DELETE_REVERSAL:DIRECT_REFERRAL:<sponsorId>:<customerId>
+
+       Missing references are allowed for legacy
+       transactions. Non-empty references remain unique.
+    ------------------------------------------------ */
 
     referenceKey: {
       type: String,
       trim: true,
+      default: undefined,
+
+      set: (value) => {
+        if (value === null || value === undefined) {
+          return undefined;
+        }
+
+        const cleanValue = String(value).trim();
+
+        return cleanValue.length > 0
+          ? cleanValue
+          : undefined;
+      },
+
       unique: true,
       sparse: true,
     },
 
-    // =====================================================
-    // AMOUNTS
-    // =====================================================
+    /* -----------------------------------------------
+       TRANSACTION AMOUNTS
+
+       Debit amounts are stored as positive values.
+       Do not store debit amounts as negative numbers.
+    ------------------------------------------------ */
 
     amount: {
       type: Number,
@@ -134,9 +157,9 @@ const transactionSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // =====================================================
-    // BALANCE INFORMATION
-    // =====================================================
+    /* -----------------------------------------------
+       BALANCE INFORMATION
+    ------------------------------------------------ */
 
     balanceBefore: {
       type: Number,
@@ -150,9 +173,9 @@ const transactionSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // =====================================================
-    // TRANSACTION STATUS
-    // =====================================================
+    /* -----------------------------------------------
+       TRANSACTION STATUS
+    ------------------------------------------------ */
 
     status: {
       type: String,
@@ -166,9 +189,9 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // =====================================================
-    // WITHDRAWAL / PAYOUT
-    // =====================================================
+    /* -----------------------------------------------
+       WITHDRAWAL / PAYOUT
+    ------------------------------------------------ */
 
     payoutMethod: {
       type: String,
@@ -199,9 +222,9 @@ const transactionSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // =====================================================
-    // DESCRIPTION / ADMIN REASON
-    // =====================================================
+    /* -----------------------------------------------
+       DESCRIPTION / ADMIN REASON
+    ------------------------------------------------ */
 
     description: {
       type: String,
@@ -215,9 +238,9 @@ const transactionSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // =====================================================
-    // ADMIN WHO CREATED THE TRANSACTION
-    // =====================================================
+    /* -----------------------------------------------
+       ADMIN REFERENCE
+    ------------------------------------------------ */
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -225,9 +248,9 @@ const transactionSchema = new mongoose.Schema(
       default: null,
     },
 
-    // =====================================================
-    // LEGACY / FRONTEND COMPATIBILITY
-    // =====================================================
+    /* -----------------------------------------------
+       LEGACY COMPATIBILITY
+    ------------------------------------------------ */
 
     timestamp: {
       type: Date,
@@ -239,9 +262,15 @@ const transactionSchema = new mongoose.Schema(
   }
 );
 
-// =========================================================
-// INDEXES
-// =========================================================
+/* =====================================================
+   DATABASE INDEXES
+===================================================== */
+
+/*
+ * referenceKey already declares its unique sparse index
+ * in the field definition above. Do not declare the same
+ * single-field unique index a second time here.
+ */
 
 // User transaction history
 transactionSchema.index({
@@ -255,27 +284,26 @@ transactionSchema.index({
   createdAt: -1,
 });
 
-// Transaction type + status
+// Filter transactions by type and status
 transactionSchema.index({
   type: 1,
   status: 1,
 });
 
-// Transaction category + date
+// Filter transactions by category and date
 transactionSchema.index({
   category: 1,
   createdAt: -1,
 });
 
-// =========================================================
-// MODEL
-// =========================================================
+/* =====================================================
+   MODEL EXPORTS
+===================================================== */
 
+// Reuse the model if it is already registered.
+// This prevents OverwriteModelError during reloads.
 export const Transaction =
   mongoose.models.Transaction ||
-  mongoose.model(
-    "Transaction",
-    transactionSchema
-  );
+  mongoose.model("Transaction", transactionSchema);
 
 export default Transaction;

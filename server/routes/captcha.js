@@ -801,12 +801,11 @@ router.post(
       // USER
       // -------------------------------------------------
 
-      const user =
-        await checkActiveUser(
+       const user =
+        await checkPaidActiveUser(
           req,
           res
         );
-
       if (!user) {
         return;
       }

@@ -49,6 +49,27 @@ const PASSWORD_RESET_CODE_EXPIRY_MINUTES = 10;
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 
 // =====================================================
+// KYC SETTINGS
+// =====================================================
+//
+// These rules are the same ones used by the frontend
+// (ProfileKycPage.jsx). Keep both in sync.
+//
+// PAN is marked "verified" automatically ONLY if you set
+// PAN_AUTO_VERIFY=true in .env. Default is false: an admin
+// (or a PAN verification service) must verify it.
+//
+// =====================================================
+
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const ACCOUNT_REGEX = /^\d{6,18}$/;
+const UPI_REGEX = /^[a-z0-9._-]{2,256}@[a-z][a-z0-9]{1,63}$/;
+const KYC_TEXT_MAX_LENGTH = 100;
+
+const PAN_AUTO_VERIFY = process.env.PAN_AUTO_VERIFY === "true";
+
+// =====================================================
 // HELPER: CHECK MONGODB
 // =====================================================
 
@@ -926,7 +947,9 @@ router.post("/register", (req, res) => {
 // Sponsor must be:
 // - role: user
 // - status: active
-// - userType: PAID
+//
+// Both PAID and zero PIN (UNPAID) activated members can
+// act as sponsors.
 //
 // =====================================================
 
@@ -959,7 +982,6 @@ router.get(
       const sponsor = await User.findOne({
         role: "user",
         status: "active",
-        userType: "PAID",
         $or: [
           {
             memberId: code,
@@ -1023,12 +1045,14 @@ router.post(
 //
 // 1. Paid PIN:
 //    - Account becomes PAID and active.
-//    - Sponsor can receive ₹100 direct referral income
-//      only when sponsor is active and PAID.
+//    - Sponsor receives ₹100 direct referral income when
+//      the sponsor is active. The sponsor may be PAID or
+//      zero PIN (UNPAID) activated.
 //
-// 2. Unpaid PIN:
+// 2. Unpaid (zero) PIN:
 //    - Account becomes UNPAID and active.
-//    - Direct referral income = ₹0.
+//    - Sponsor receives NO direct referral income.
+//    - Account gets no captcha access.
 //
 // 3. No welcome bonus is credited.
 //
@@ -1267,15 +1291,15 @@ router.post("/activate", async (req, res) => {
           return;
         }
 
-       const pinType = String(consumed.pinType || "")
-  .trim()
-  .toLowerCase();
+        const pinType = String(consumed.pinType || "")
+          .trim()
+          .toLowerCase();
 
-if (!["paid", "unpaid"].includes(pinType)) {
-  throw new Error("INVALID_PIN_TYPE");
-}
+        if (!["paid", "unpaid"].includes(pinType)) {
+          throw new Error("INVALID_PIN_TYPE");
+        }
 
-const activatedWithPaidPin = pinType === "paid";
+        const activatedWithPaidPin = pinType === "paid";
 
         // -----------------------------------------------
         // ACTIVATE USER
@@ -1312,7 +1336,8 @@ const activatedWithPaidPin = pinType === "paid";
         // Paid PIN   -> sponsor may get ₹100.
         // Unpaid PIN -> no direct referral income.
         //
-        // Sponsor must exist, be active and PAID.
+        // Sponsor must exist and be active. The sponsor
+        // may be PAID or zero PIN (UNPAID) activated.
         // Any failure here aborts the whole transaction.
         // -----------------------------------------------
 
@@ -1327,12 +1352,7 @@ const activatedWithPaidPin = pinType === "paid";
             String(sponsor?.status || "").toLowerCase() ===
             "active";
 
-          const sponsorIsPaid =
-            String(sponsor?.userType || "")
-              .trim()
-              .toUpperCase() === "PAID";
-
-          if (sponsor && sponsorIsActive && sponsorIsPaid) {
+          if (sponsor && sponsorIsActive) {
             const referralResult =
               await processDirectReferralIncome({
                 sponsorId: sponsor._id,
@@ -1619,6 +1639,18 @@ router.get(
 // =====================================================
 // PUT /api/auth/kyc
 // =====================================================
+//
+// Saves PAN + bank / UPI details for the logged-in member.
+//
+// - Every field is validated here (the frontend checks
+//   are only for convenience).
+// - Only the KYC fields are written, using $set, so other
+//   required fields on older user records can never make
+//   the save fail, and no other data is overwritten.
+// - A verified PAN cannot be changed by the member.
+// - panVerified is never read from the request body.
+//
+// =====================================================
 
 router.put(
   "/kyc",
@@ -1650,23 +1682,75 @@ router.put(
         });
       }
 
-      const {
-        panNumber,
-        accountHolderName,
-        accountNumber,
-        ifscCode,
-        bankName,
-        upiId,
-      } = req.body;
+      const body = req.body || {};
+
+      // undefined = field was not sent (keep old value)
+      const clean = (value) =>
+        value === undefined || value === null
+          ? undefined
+          : String(value).trim();
+
+      const pan = clean(body.panNumber)?.toUpperCase();
+      const holder = clean(body.accountHolderName);
+      const accountNumber = clean(body.accountNumber);
+      const ifsc = clean(body.ifscCode)?.toUpperCase();
+      const bank = clean(body.bankName);
+      const upi = clean(body.upiId)?.toLowerCase();
+
+      const fail = (message) =>
+        res.status(400).json({
+          success: false,
+          message,
+        });
 
       // -------------------------------------------------
-      // FIND USER
+      // VALIDATION
       // -------------------------------------------------
 
-      const user =
-        await User.findById(
-          req.user.id
+      if (pan && !PAN_REGEX.test(pan)) {
+        return fail(
+          "Invalid PAN format. It should look like ABCDE1234F."
         );
+      }
+
+      if (
+        accountNumber &&
+        !ACCOUNT_REGEX.test(accountNumber)
+      ) {
+        return fail(
+          "Account number must be 6 to 18 digits."
+        );
+      }
+
+      if (ifsc && !IFSC_REGEX.test(ifsc)) {
+        return fail(
+          "Invalid IFSC code. It should look like SBIN0001234."
+        );
+      }
+
+      if (upi && !UPI_REGEX.test(upi)) {
+        return fail(
+          "Invalid UPI ID. It should look like username@bank."
+        );
+      }
+
+      if (holder && holder.length > KYC_TEXT_MAX_LENGTH) {
+        return fail("Account holder name is too long.");
+      }
+
+      if (bank && bank.length > KYC_TEXT_MAX_LENGTH) {
+        return fail("Bank name is too long.");
+      }
+
+      // -------------------------------------------------
+      // FIND USER (only the fields we need)
+      // -------------------------------------------------
+
+      const user = await User.findById(
+        req.user.id
+      ).select(
+        "name memberId panNumber panVerified bankDetails"
+      );
 
       if (!user) {
         return res.status(404).json({
@@ -1675,77 +1759,115 @@ router.put(
         });
       }
 
+      const update = {};
+
       // -------------------------------------------------
       // PAN
       // -------------------------------------------------
 
-      if (
-        panNumber !== undefined &&
-        panNumber !== null &&
-        String(panNumber).trim()
-      ) {
-        user.panNumber =
-          String(panNumber)
-            .trim()
-            .toUpperCase();
+      if (pan) {
+        const panChanged =
+          pan !== (user.panNumber || "");
 
-        user.panVerified = true;
+        if (
+          panChanged &&
+          user.panVerified &&
+          user.panNumber
+        ) {
+          return fail(
+            "Your PAN is already verified and cannot be changed. Please contact admin."
+          );
+        }
+
+        if (panChanged) {
+          update.panNumber = pan;
+          update.panVerified = PAN_AUTO_VERIFY;
+        }
       }
 
       // -------------------------------------------------
-      // EXISTING BANK DETAILS
+      // BANK DETAILS
+      // Fields that were not sent keep their old value.
       // -------------------------------------------------
 
-      const existingBank =
-        user.bankDetails || {};
+      const existingBank = user.bankDetails || {};
 
-      user.bankDetails = {
+      const bankDetails = {
         accountHolderName:
-          accountHolderName !== undefined
-            ? String(
-                accountHolderName
-              ).trim()
+          holder !== undefined
+            ? holder
             : existingBank.accountHolderName ||
-              user.name,
+              user.name ||
+              "",
 
         accountNumber:
           accountNumber !== undefined
-            ? String(
-                accountNumber
-              ).trim()
-            : existingBank.accountNumber ||
-              "",
+            ? accountNumber
+            : existingBank.accountNumber || "",
 
         ifscCode:
-          ifscCode !== undefined
-            ? String(ifscCode)
-                .trim()
-                .toUpperCase()
-            : existingBank.ifscCode ||
-              "",
+          ifsc !== undefined
+            ? ifsc
+            : existingBank.ifscCode || "",
 
         bankName:
-          bankName !== undefined
-            ? String(
-                bankName
-              ).trim()
-            : existingBank.bankName ||
-              "",
+          bank !== undefined
+            ? bank
+            : existingBank.bankName || "",
 
         upiId:
-          upiId !== undefined
-            ? String(
-                upiId
-              ).trim()
-            : existingBank.upiId ||
-              "",
+          upi !== undefined
+            ? upi
+            : existingBank.upiId || "",
       };
+
+      // If any bank field is present, the full set is required.
+      const hasAnyBankField = Boolean(
+        bankDetails.accountNumber ||
+          bankDetails.ifscCode ||
+          bankDetails.bankName
+      );
+
+      if (
+        hasAnyBankField &&
+        (!bankDetails.accountHolderName ||
+          !bankDetails.accountNumber ||
+          !bankDetails.ifscCode ||
+          !bankDetails.bankName)
+      ) {
+        return fail(
+          "Please provide account holder name, bank name, account number and IFSC code together."
+        );
+      }
+
+      update.bankDetails = bankDetails;
 
       // -------------------------------------------------
       // SAVE
       // -------------------------------------------------
 
-      await user.save();
+      const updatedUser =
+        await User.findByIdAndUpdate(
+          user._id,
+          {
+            $set: update,
+          },
+          {
+            new: true,
+            runValidators: true,
+          }
+        ).select("-password");
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found.",
+        });
+      }
+
+      console.log(
+        `🏦 KYC updated for ${user.memberId} at ${new Date().toISOString()}`
+      );
 
       // -------------------------------------------------
       // RESPONSE
@@ -1755,7 +1877,7 @@ router.put(
         success: true,
         message:
           "KYC and Bank details updated successfully!",
-        user: formatUserResponse(user),
+        user: formatUserResponse(updatedUser),
       });
     } catch (error) {
       console.error(
