@@ -926,7 +926,7 @@ router.post("/register", (req, res) => {
 // Sponsor must be:
 // - role: user
 // - status: active
-// - userType: PAID
+// - userType may be PAID or UNPAID.
 //
 // =====================================================
 
@@ -959,7 +959,6 @@ router.get(
       const sponsor = await User.findOne({
         role: "user",
         status: "active",
-        userType: "PAID",
         $or: [
           {
             memberId: code,
@@ -1023,12 +1022,13 @@ router.post(
 //
 // 1. Paid PIN:
 //    - Account becomes PAID and active.
-//    - Sponsor can receive ₹100 direct referral income
-//      only when sponsor is active and PAID.
+//    - The sponsor can receive ₹100 direct referral income
+//      when the sponsor is active, whether PAID or UNPAID.
 //
 // 2. Unpaid PIN:
 //    - Account becomes UNPAID and active.
-//    - Direct referral income = ₹0.
+//    - This activation does not trigger the ₹100 direct
+//      referral bonus.
 //
 // 3. No welcome bonus is credited.
 //
@@ -1309,30 +1309,25 @@ const activatedWithPaidPin = pinType === "paid";
         // -----------------------------------------------
         // DIRECT REFERRAL INCOME (₹100)
         //
-        // Paid PIN   -> sponsor may get ₹100.
+        // Paid PIN   -> active sponsor may get ₹100.
         // Unpaid PIN -> no direct referral income.
         //
-        // Sponsor must exist, be active and PAID.
-        // Any failure here aborts the whole transaction.
+        // Sponsor eligibility does not depend on whether
+        // the sponsor's own account type is PAID or UNPAID.
         // -----------------------------------------------
 
         if (activatedWithPaidPin && activatedUser.sponsorId) {
           const sponsor = await User.findById(
             activatedUser.sponsorId
           )
-            .select("_id status userType")
+            .select("_id status")
             .session(session);
 
           const sponsorIsActive =
             String(sponsor?.status || "").toLowerCase() ===
             "active";
 
-          const sponsorIsPaid =
-            String(sponsor?.userType || "")
-              .trim()
-              .toUpperCase() === "PAID";
-
-          if (sponsor && sponsorIsActive && sponsorIsPaid) {
+          if (sponsor && sponsorIsActive) {
             const referralResult =
               await processDirectReferralIncome({
                 sponsorId: sponsor._id,
