@@ -951,22 +951,6 @@ router.post(
       }
 
       // -------------------------------------------------
-      // PAID ACCOUNT VALIDATION
-      // -------------------------------------------------
-
-      if (
-        String(sponsor.userType || "")
-          .trim()
-          .toUpperCase() !== "PAID"
-      ) {
-        return res.status(403).json({
-          success: false,
-          message:
-            "Only a PAID sponsor can register a new referral. Please activate your account with a valid Paid PIN.",
-        });
-      }
-
-      // -------------------------------------------------
       // REGISTER MEMBER
       //
       // New member remains inactive and UNPAID.
