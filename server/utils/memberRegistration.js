@@ -23,10 +23,12 @@ const fail = (status, message) => ({
   },
 });
 
+
 /* =====================================================
    BINARY PLACEMENT HELPER
-   Search the selected subtree breadth-first.
-   Left slots are checked before right slots.
+   LEFT  -> Left -> Left -> Left ...
+   RIGHT -> Right -> Right -> Right ...
+   Never switch to the opposite side.
 ===================================================== */
 
 const placeInSelectedBinarySide = async ({
@@ -38,111 +40,92 @@ const placeInSelectedBinarySide = async ({
     throw new Error("Invalid binary position.");
   }
 
-  const fieldFor = (side) =>
-    side === "left" ? "binaryLeftId" : "binaryRightId";
+  const field =
+    position === "left"
+      ? "binaryLeftId"
+      : "binaryRightId";
 
-  const sponsorNode = await User.findById(sponsorId)
-    .select("_id binaryLeftId binaryRightId")
-    .lean();
+  let currentParentId = sponsorId;
+  const visited = new Set();
 
-  if (!sponsorNode) {
-    throw new Error("Binary sponsor was not found.");
-  }
+  while (currentParentId) {
+    const parentKey = String(currentParentId);
 
-  const queue = [
-    {
-      parentId: sponsorNode._id,
-      side: position,
-    },
-  ];
+    // Prevent infinite loops if the existing tree has a cycle.
+    if (visited.has(parentKey)) {
+      throw new Error(
+        "Cycle detected in the selected binary branch."
+      );
+    }
 
-  const expandedNodes = new Set();
+    visited.add(parentKey);
 
-  while (queue.length > 0) {
-    const slot = queue.shift();
-    const field = fieldFor(slot.side);
-
-    const parent = await User.findById(slot.parentId)
+    const parent = await User.findById(currentParentId)
       .select("_id binaryLeftId binaryRightId")
       .lean();
 
     if (!parent) {
-      continue;
+      throw new Error(
+        "Binary placement parent was not found."
+      );
     }
 
     let childId = parent[field];
 
-    /* -----------------------------------------------
-       DANGLING REFERENCE CHECK
-    ------------------------------------------------ */
-
+    // If the selected-side slot is occupied, continue
+    // down that SAME side only.
     if (childId) {
-      const existingChild = await User.findById(childId)
+      const child = await User.findById(childId)
         .select("_id binaryLeftId binaryRightId")
         .lean();
 
-      if (!existingChild) {
-        const repaired = await User.updateOne(
-          {
-            _id: parent._id,
-            [field]: childId,
-          },
-          {
-            $set: {
-              [field]: null,
-            },
-          }
-        );
-
-        if (repaired.modifiedCount === 1) {
-          childId = null;
-        } else {
-          // Slot changed concurrently. Re-check it.
-          queue.unshift(slot);
-          continue;
-        }
-      } else {
-        const childKey = String(existingChild._id);
-
-        if (!expandedNodes.has(childKey)) {
-          expandedNodes.add(childKey);
-
-          // Preserve breadth-first order: Left, then Right.
-          queue.push(
-            {
-              parentId: existingChild._id,
-              side: "left",
-            },
-            {
-              parentId: existingChild._id,
-              side: "right",
-            }
-          );
-        }
-
+      if (child) {
+        currentParentId = child._id;
         continue;
       }
+
+      // Repair a dangling reference only if it is unchanged.
+      const repaired = await User.updateOne(
+        {
+          _id: parent._id,
+          [field]: childId,
+        },
+        {
+          $set: {
+            [field]: null,
+          },
+        }
+      );
+
+      if (repaired.modifiedCount !== 1) {
+        // Another request may have changed the slot.
+        // Re-check this parent instead of switching sides.
+        visited.delete(parentKey);
+        continue;
+      }
+
+      childId = null;
     }
 
-    /* -----------------------------------------------
-       EMPTY SLOT: PLACE MEMBER
-    ------------------------------------------------ */
-
+    // The selected-side slot is empty: try to place here.
     if (!childId) {
       try {
         await placeUserUnderParent({
           userId,
           parentId: parent._id,
-          position: slot.side,
+          position,
         });
 
         return {
           parentId: parent._id,
-          position: slot.side,
+          position,
         };
       } catch (placementError) {
-        // The slot might have been occupied by another request.
-        const refreshedParent = await User.findById(parent._id)
+        // If a concurrent registration filled the slot,
+        // follow that new child down the same-side chain.
+        const refreshedParent = await User.findById(
+          parent._id
+        )
           .select("_id binaryLeftId binaryRightId")
           .lean();
 
@@ -150,48 +133,36 @@ const placeInSelectedBinarySide = async ({
           throw placementError;
         }
 
-        const refreshedChildId = refreshedParent[field];
+        const refreshedChildId =
+          refreshedParent[field];
 
         if (!refreshedChildId) {
-          // Slot is still empty: preserve the actual error.
+          // The slot remains empty; preserve the real error.
           throw placementError;
         }
 
         const refreshedChild = await User.findById(
           refreshedChildId
         )
-          .select("_id binaryLeftId binaryRightId")
+          .select("_id")
           .lean();
 
         if (!refreshedChild) {
-          queue.unshift(slot);
+          // The reference may have changed again.
+          visited.delete(parentKey);
           continue;
         }
 
-        const childKey = String(refreshedChild._id);
-
-        if (!expandedNodes.has(childKey)) {
-          expandedNodes.add(childKey);
-
-          queue.push(
-            {
-              parentId: refreshedChild._id,
-              side: "left",
-            },
-            {
-              parentId: refreshedChild._id,
-              side: "right",
-            }
-          );
-        }
+        currentParentId = refreshedChild._id;
       }
     }
   }
 
   throw new Error(
-    `No available position found in the selected ${position} subtree. Verify the binary tree references and structure.`
+    `No available position found on the selected ${position} chain.`
   );
 };
+
 
 /* =====================================================
    CLEANUP HELPER
@@ -355,6 +326,20 @@ export const registerInactiveMember = async (
       );
     }
 
+    /* -----------------------------------------------
+       SPONSOR PAID VALIDATION
+    ------------------------------------------------ */
+
+    if (
+      String(sponsor.userType || "")
+        .trim()
+        .toUpperCase() !== "PAID"
+    ) {
+      return fail(
+        403,
+        "Only a PAID sponsor can register a new referral. Please activate your account with a valid Paid PIN."
+      );
+    }
 
     /* -----------------------------------------------
        CLEAN INPUT
