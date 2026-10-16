@@ -1452,6 +1452,42 @@ router.post("/activate", async (req, res) => {
     }
 
     // -------------------------------------------------
+    // 2 DIRECT RULE: SPONSOR BINARY TRIGGER
+    //
+    // The sponsor may have just reached 2 qualified
+    // directs, which unlocks his pending binary pairs.
+    // The sponsor is not always a binary ancestor of the
+    // activated member (spillover), so process him here.
+    // Safe to repeat: pairs are idempotent.
+    // -------------------------------------------------
+
+    try {
+      if (
+        activatedUser.sponsorId &&
+        String(activatedUser.userType || "").toUpperCase() ===
+          "PAID"
+      ) {
+        const sponsorBinaryResult =
+          await processCompletedBinaryPairIncome({
+            parentId: activatedUser.sponsorId,
+          });
+
+        binaryIncomeResult = {
+          processedAncestors:
+            binaryIncomeResult.processedAncestors || [],
+          totalPaid:
+            Number(binaryIncomeResult.totalPaid || 0) +
+            Number(sponsorBinaryResult?.totalPaid || 0),
+        };
+      }
+    } catch (sponsorBinaryError) {
+      console.error(
+        "Sponsor binary trigger error:",
+        sponsorBinaryError
+      );
+    }
+
+    // -------------------------------------------------
     // DEVICE BINDING: the browser that verified the PIN
     // becomes the first trusted device (best effort).
     // -------------------------------------------------
