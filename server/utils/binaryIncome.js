@@ -55,7 +55,48 @@ export function isZeroPinActivatedUser(user) {
 
   return type === "ZERO_PIN" || type === "ZEROPIN";
 }
+// =====================================================
+// COUNT QUALIFIED DIRECT REFERRALS
+// Requires ACTIVE + PAID + NOT ZERO-PIN activated
+// =====================================================
 
+export async function countQualifiedDirectReferrals(
+  sponsorId,
+  { session = null } = {}
+) {
+  if (!sponsorId) {
+    return 0;
+  }
+
+  let query = User.find({
+    role: "user",
+    sponsorId,
+  }).select(
+    "status userType activatedWithZeroPin activationType activationPinType pinType"
+  );
+
+  if (session) {
+    query = query.session(session);
+  }
+
+  const directs = await query.lean();
+
+  return directs.filter((user) => {
+    const isActive =
+      String(user.status || "")
+        .trim()
+        .toLowerCase() === "active";
+
+    const isPaid =
+      String(user.userType || "")
+        .trim()
+        .toUpperCase() === "PAID";
+
+    const isZeroPin = isZeroPinActivatedUser(user);
+
+    return isActive && isPaid && !isZeroPin;
+  }).length;
+}
 // =====================================================
 // UNPAID PAIR MILESTONES
 // =====================================================
