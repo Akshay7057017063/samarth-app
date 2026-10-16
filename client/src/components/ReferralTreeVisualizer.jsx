@@ -158,7 +158,7 @@ function ChildCell({ side, both, muted, children }) {
 }
 
 function TreeNode({ node, isRoot = false, depth = 0, selectedKey, onSelect }) {
-  const [expanded, setExpanded] = useState(depth < 2);
+  const [expanded, setExpanded] = useState(true);
   const { left, right } = useMemo(() => getChildren(node), [node]);
   const hasChildren = Boolean(left || right);
   const key = getMemberId(node) || getName(node);

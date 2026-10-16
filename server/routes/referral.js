@@ -460,10 +460,7 @@ router.get(
       // -------------------------------------------------
 
       const binaryTree =
-        await getMyBinaryTree(
-          user._id,
-          5
-        );
+        await getMyBinaryTree(user._id);
 
       if (!binaryTree) {
         return res.status(404).json({

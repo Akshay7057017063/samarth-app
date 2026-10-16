@@ -765,24 +765,50 @@ export const getBinaryParent = async (
    to prevent infinite recursion.
 ========================================================= */
 
+/* =========================================================
+   GET COMPLETE BINARY TREE
+
+   Customer tree:
+   - Returns the full subtree from the requested root.
+   - No default depth restriction.
+   - Includes active and inactive members.
+   - Uses binaryLeftId and binaryRightId as the source
+     of truth for actual placement.
+   - Prevents duplicate nodes and infinite recursion.
+
+   Compatibility:
+   - Existing callers passing maxDepth still work.
+   - Explicit finite maxDepth values remain supported.
+   - Omit maxDepth to retrieve the complete tree.
+========================================================= */
+
 export const getBinaryTree = async (
   rootId,
-  maxDepth = 5,
+  maxDepth = Infinity,
   session = null
 ) => {
   if (!rootId || !isValidObjectId(rootId)) {
     throw new Error("Invalid root ID");
   }
 
-  const parsedDepth = Number(maxDepth);
+  // No depth limit when maxDepth is omitted.
+  // Explicit finite limits remain supported for compatibility.
+  let depth = Infinity;
 
-  const depth = Math.max(
-    1,
-    Math.min(
-      Number.isFinite(parsedDepth) ? parsedDepth : 5,
-      10
-    )
-  );
+  if (
+    maxDepth !== null &&
+    maxDepth !== undefined &&
+    maxDepth !== Infinity
+  ) {
+    const parsedDepth = Number(maxDepth);
+
+    if (
+      Number.isFinite(parsedDepth) &&
+      parsedDepth > 0
+    ) {
+      depth = parsedDepth;
+    }
+  }
 
   let rootQuery = User.findById(rootId).select(
     BINARY_PUBLIC_FIELDS
@@ -804,9 +830,14 @@ export const getBinaryTree = async (
     );
   }
 
+  // Track IDs across the complete subtree so the same member
+  // cannot be rendered repeatedly or cause infinite recursion.
   const visited = new Set();
 
-  const buildNode = async (userId, currentDepth) => {
+  const buildNode = async (
+    userId,
+    currentDepth
+  ) => {
     if (!userId) {
       return null;
     }
@@ -836,32 +867,73 @@ export const getBinaryTree = async (
     const node = {
       _id: user._id,
 
-      memberId: user.memberId || user.userCode || "—",
-      userCode: user.userCode || user.memberId || "—",
+      memberId:
+        user.memberId ||
+        user.userCode ||
+        "—",
 
-      name: user.name || "Unknown Member",
+      userCode:
+        user.userCode ||
+        user.memberId ||
+        "—",
+
+      name:
+        user.name ||
+        "Unknown Member",
+
       email: user.email || "",
       phone: user.phone || "",
 
-      status: user.status || "inactive",
-      userType: user.userType || "UNPAID",
-      rank: user.rank || "Distributor",
+      status:
+        user.status ||
+        "inactive",
 
-      binaryParentId: user.binaryParentId || null,
-      binaryPosition: user.binaryPosition || null,
-      binaryLevel: Number(user.binaryLevel || 1),
-      binaryPath: user.binaryPath || "/",
+      userType:
+        user.userType ||
+        "UNPAID",
 
-      leftCount: Number(user.leftCount || 0),
-      rightCount: Number(user.rightCount || 0),
-      totalTeam: Number(user.totalTeam || 0),
-      activeTeam: Number(user.activeTeam || 0),
+      rank:
+        user.rank ||
+        "Distributor",
 
-      leftBusiness: Number(user.leftBusiness || 0),
-      rightBusiness: Number(user.rightBusiness || 0),
+      binaryParentId:
+        user.binaryParentId ||
+        null,
 
-      leftPv: Number(user.leftPv || 0),
-      rightPv: Number(user.rightPv || 0),
+      binaryPosition:
+        user.binaryPosition ||
+        null,
+
+      binaryLevel:
+        Number(user.binaryLevel || 1),
+
+      binaryPath:
+        user.binaryPath ||
+        "/",
+
+      leftCount:
+        Number(user.leftCount || 0),
+
+      rightCount:
+        Number(user.rightCount || 0),
+
+      totalTeam:
+        Number(user.totalTeam || 0),
+
+      activeTeam:
+        Number(user.activeTeam || 0),
+
+      leftBusiness:
+        Number(user.leftBusiness || 0),
+
+      rightBusiness:
+        Number(user.rightBusiness || 0),
+
+      leftPv:
+        Number(user.leftPv || 0),
+
+      rightPv:
+        Number(user.rightPv || 0),
 
       children: {
         left: null,
@@ -869,10 +941,17 @@ export const getBinaryTree = async (
       },
     };
 
+    /*
+     * Preserve explicit maxDepth support.
+     *
+     * When maxDepth is omitted, depth is Infinity and this
+     * condition never stops traversal due to depth.
+     */
     if (currentDepth >= depth) {
       return node;
     }
 
+    // Build the full left subtree.
     if (user.binaryLeftId) {
       node.children.left = await buildNode(
         user.binaryLeftId,
@@ -880,6 +959,7 @@ export const getBinaryTree = async (
       );
     }
 
+    // Build the full right subtree.
     if (user.binaryRightId) {
       node.children.right = await buildNode(
         user.binaryRightId,
@@ -892,17 +972,27 @@ export const getBinaryTree = async (
 
   return buildNode(root._id, 1);
 };
-
 /* =========================================================
    GET BINARY TREE FOR CURRENT USER
 ========================================================= */
 
+/* =========================================================
+   GET COMPLETE BINARY TREE FOR CURRENT USER
+
+   Defaults to the complete downline. Existing callers can
+   still supply an explicit depth or MongoDB session.
+========================================================= */
+
 export const getMyBinaryTree = async (
   userId,
-  maxDepth = 5,
+  maxDepth = Infinity,
   session = null
 ) => {
-  return getBinaryTree(userId, maxDepth, session);
+  return getBinaryTree(
+    userId,
+    maxDepth,
+    session
+  );
 };
 
 /* =========================================================
