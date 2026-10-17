@@ -35,6 +35,7 @@ import "dotenv/config";
 
 import dns from "node:dns";
 
+
 const isProduction =
   String(
     process.env.NODE_ENV || ""
@@ -94,6 +95,8 @@ import cmsRoutes from "./routes/cms.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import binaryRoutes from "./routes/binary.js";
 import testEmailRoutes from "./routes/testEmail.js";
+import adminPaymentReportRoutes from "./routes/adminPaymentReport.js";
+import adminCustomerEditRoutes from "./routes/adminCustomerEdit.js";
 // =====================================================
 // LEGACY DATASTORE
 // =====================================================
@@ -494,6 +497,8 @@ app.use(
   "/api/binary",
   binaryRoutes
 );
+app.use("/api/admin/payment-report", adminPaymentReportRoutes);
+app.use("/api/admin/customer-edit", adminCustomerEditRoutes);
 
 // =====================================================
 // 404 HANDLER

@@ -6,6 +6,7 @@ import AdminLayout from "./layouts/AdminLayout";
 import Login from "./pages/auth/Login";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Customer from "./pages/customer/Customer";
+import EditCustomer from "./pages/customer/EditCustomer";
 import CustomerDetails from "./pages/customer/CustomerDetails";
 import CaptchaWork from "./pages/captcha/CaptchaWork";
 import Wallets from "./pages/wallet/Wallets";
@@ -40,6 +41,10 @@ const App = () => {
           <Route path="/dashboard" element={<Dashboard />} />
 
           <Route path="/customers" element={<Customer />} />
+          <Route
+  path="/customers/:id/edit"
+  element={<EditCustomer />}
+/>
 
           <Route
             path="/customers/:id"

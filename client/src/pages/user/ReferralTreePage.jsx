@@ -193,6 +193,23 @@ export default function ReferralTreePage() {
         getBinaryTreeFromResponse(
           treeJson
         );
+        const treeDebug = inspectBinaryTree(binaryTree);
+
+console.log("[BINARY TREE DEBUG]", {
+  endpoint: `${API_BASE_URL}/referral/tree`,
+  rootName: binaryTree?.name,
+  rootId: binaryTree?._id,
+  rootTeamCount: binaryTree?.totalTeam,
+  responseTotalCount:
+    treeJson?.stats?.totalCount ??
+    treeJson?.stats?.totalTeam ??
+    null,
+  nodesIncludingRoot: treeDebug.nodeCount,
+  descendantsInResponse:
+    Math.max(0, treeDebug.nodeCount - (binaryTree ? 1 : 0)),
+  maximumDepth: treeDebug.maxDepth,
+  duplicateReferences: treeDebug.duplicateCount,
+});
 
       setTreeData(
         binaryTree || null

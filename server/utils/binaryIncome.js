@@ -15,23 +15,31 @@ export const BINARY_PAIR_INCOME = 450;
 export const FIRST_QUALIFYING_DOWNLINE = 3;
 
 // =====================================================
-// DIRECT REFERRAL INCOME SETTINGS
+// DIRECT REFERRAL / QUALIFICATION SETTINGS
 // =====================================================
 
+// Legacy constant retained for backward compatibility.
+// New direct referral payout uses the qualification bonus.
 export const DIRECT_REFERRAL_INCOME = 100;
+
+export const REQUIRED_QUALIFIED_DIRECTS = 3;
+
+export const FIRST_QUALIFICATION_REFERRAL_BONUS = 300;
+
+export const BINARY_PAIR_REFERRAL_INCOME = 200;
 
 // =====================================================
 // ZERO PIN ACTIVATION RULE
 // =====================================================
 //
-// A member activated with a ZERO PIN:
-// - Does NOT earn captcha income / has no captcha access.
-// - Does NOT give the sponsor (upline) the Rs100
-//   direct referral bonus.
+// A ZERO-PIN activated member:
+// - Does not qualify as a PAID direct referral.
+// - Does not receive CAPTCHA access through the existing
+//   paid-account checks.
+// - Does not trigger direct referral bonus for the sponsor.
 //
-// The flag is stored on the User document as
-// `activatedWithZeroPin: true` (set during activation).
-// For safety, a few alternative markers are also honoured.
+// The sponsor may still be active without being PAID,
+// preserving the existing sponsor eligibility behavior.
 // =====================================================
 
 export function isZeroPinActivatedUser(user) {
@@ -55,6 +63,7 @@ export function isZeroPinActivatedUser(user) {
 
   return type === "ZERO_PIN" || type === "ZEROPIN";
 }
+
 // =====================================================
 // COUNT QUALIFIED DIRECT REFERRALS
 // Requires ACTIVE + PAID + NOT ZERO-PIN activated
@@ -97,6 +106,7 @@ export async function countQualifiedDirectReferrals(
     return isActive && isPaid && !isZeroPin;
   }).length;
 }
+
 // =====================================================
 // UNPAID PAIR MILESTONES
 // =====================================================
@@ -105,11 +115,8 @@ export async function countQualifiedDirectReferrals(
 // Pair #10, #20, #30, #40, #50 ... are unpaid.
 //
 // These milestone pairs are recorded with Rs0 payout.
-// Every other eligible pair pays Rs450.
-//
-// Use isUnpaidPairMilestone() for the actual rule.
-// The Set below lists common milestones for compatibility
-// and display. The helper supports milestones beyond #100.
+// The additional Rs200 pair referral bonus is also NOT
+// credited for an unpaid milestone pair.
 // =====================================================
 
 export const UNPAID_PAIR_MILESTONES = new Set([
@@ -140,18 +147,19 @@ export function isUnpaidPairMilestone(pairNumber) {
 // CALCULATE ELIGIBLE PAIRS
 // =====================================================
 //
-// First qualification:
-// - Minimum 3 active binary downline members.
+// First binary qualification:
+// - At least 3 active binary downline members.
 // - At least one active member on LEFT.
 // - At least one active member on RIGHT.
-// - Qualification may be 2 LEFT + 1 RIGHT,
-//   or 1 LEFT + 2 RIGHT.
+//
+// A 2 LEFT + 1 RIGHT OR 1 LEFT + 2 RIGHT placement
+// qualifies for the first pair.
 //
 // After qualification:
 // - Every 1 LEFT + 1 RIGHT represents one pair.
-// - Each eligible pair is processed only once.
-// - Pair #5 and every multiple of 10 from #10 onward
-//   are recorded as unpaid milestones.
+// - Each pair is processed at most once.
+// - Pair #5 and each multiple of 10 from #10 onward
+//   remain unpaid milestones.
 // =====================================================
 
 export function calculateEligiblePairCount({
@@ -175,6 +183,69 @@ export function calculateEligiblePairCount({
 }
 
 // =====================================================
+// INCOME QUALIFICATION STATUS
+// Requires 3 qualified direct referrals AND binary
+// qualification (3 active members across both sides).
+// =====================================================
+
+export async function getIncomeQualificationStatus(
+  parentId,
+  { session = null } = {}
+) {
+  if (!parentId) {
+    return {
+      qualified: false,
+      qualifyingDirectCount: 0,
+      requiredDirectCount: REQUIRED_QUALIFIED_DIRECTS,
+      eligiblePairCount: 0,
+      leftActiveCount: 0,
+      rightActiveCount: 0,
+      hasRequiredDirects: false,
+      hasBinaryQualification: false,
+    };
+  }
+
+  const qualifyingDirectCount =
+    await countQualifiedDirectReferrals(parentId, { session });
+
+  const activeCounts = await countActiveBinaryTeam(parentId, {
+    session,
+  });
+
+  const leftActiveCount = Number(
+    activeCounts?.leftActiveCount || 0
+  );
+
+  const rightActiveCount = Number(
+    activeCounts?.rightActiveCount || 0
+  );
+
+  const eligiblePairCount = calculateEligiblePairCount({
+    leftActiveCount,
+    rightActiveCount,
+  });
+
+  const hasRequiredDirects =
+    qualifyingDirectCount >= REQUIRED_QUALIFIED_DIRECTS;
+
+  const hasBinaryQualification = eligiblePairCount >= 1;
+
+  return {
+    qualified: hasRequiredDirects && hasBinaryQualification,
+
+    qualifyingDirectCount,
+    requiredDirectCount: REQUIRED_QUALIFIED_DIRECTS,
+
+    leftActiveCount,
+    rightActiveCount,
+    eligiblePairCount,
+
+    hasRequiredDirects,
+    hasBinaryQualification,
+  };
+}
+
+// =====================================================
 // BINARY PAIR REFERENCE KEY
 // =====================================================
 
@@ -186,7 +257,7 @@ export function buildBinaryPairReferenceKey(
 }
 
 // =====================================================
-// DIRECT REFERRAL REFERENCE KEY
+// LEGACY DIRECT REFERRAL REFERENCE KEY
 // =====================================================
 
 export function buildDirectReferralReferenceKey(
@@ -195,6 +266,29 @@ export function buildDirectReferralReferenceKey(
 ) {
   return `DIRECT_REFERRAL:${String(sponsorId)}:${String(
     referredUserId
+  )}`;
+}
+
+// =====================================================
+// FIRST QUALIFICATION BONUS REFERENCE KEY
+// One qualification bonus per parent.
+// =====================================================
+
+export function buildDirectQualificationReferenceKey(parentId) {
+  return `DIRECT_QUALIFICATION:${String(parentId)}`;
+}
+
+// =====================================================
+// BINARY PAIR REFERRAL BONUS REFERENCE KEY
+// One Rs200 bonus per eligible pair after the first pair.
+// =====================================================
+
+export function buildBinaryPairReferralReferenceKey(
+  parentId,
+  pairNumber
+) {
+  return `BINARY_PAIR_REFERRAL:${String(parentId)}:${Number(
+    pairNumber
   )}`;
 }
 
@@ -305,14 +399,18 @@ export async function getBinaryPairHistory(
       return {
         pairNumber,
         amount,
+
         grossAmount: Number(
           transaction.grossAmount ?? amount
         ),
+
         netAmount: Number(
           transaction.netAmount ?? amount
         ),
+
         paid: amount > 0,
         milestone: isUnpaidPairMilestone(pairNumber),
+
         category: transaction.category || "referral",
         createdAt: transaction.createdAt || null,
         referenceKey: transaction.referenceKey,
@@ -331,15 +429,18 @@ export async function getBinaryPairHistory(
 // INTERNAL SESSION-BASED FUNCTION
 // =====================================================
 //
-// Business rules:
-// - Direct referral income = Rs100.
-// - Sponsor must be active (PAID or zero-PIN activated).
-// - Referred member must be active and PAID.
-// - Referred member must NOT be activated with a ZERO PIN
-//   (zero PIN activation = no referral bonus for sponsor).
-// - Referred member's sponsorId must match the sponsor.
-// - The same referral must not be credited twice.
-// - Wallet and transaction changes use the same session.
+// New rule:
+// - No Rs100 direct payout for each customer.
+// - Sponsor must be active.
+// - Referred user must be active and PAID.
+// - ZERO-PIN members never qualify.
+// - Relationship must match the sponsor.
+// - The same legacy referral must not be processed twice.
+//
+// The Rs300 first qualification bonus is credited by the
+// binary processor after both qualification conditions
+// are met. Later eligible pairs may earn the additional
+// Rs200 pair referral bonus.
 // =====================================================
 
 async function processDirectReferralIncomeInSession({
@@ -347,21 +448,15 @@ async function processDirectReferralIncomeInSession({
   referredUserId,
   session,
 }) {
-  if (!sponsorId) {
+  if (!sponsorId || !referredUserId) {
     throw new Error(
-      "sponsorId is required for direct referral income."
-    );
-  }
-
-  if (!referredUserId) {
-    throw new Error(
-      "referredUserId is required for direct referral income."
+      "Sponsor ID and referred user ID are required."
     );
   }
 
   if (!session) {
     throw new Error(
-      "MongoDB session is required for direct referral income processing."
+      "MongoDB session is required for referral processing."
     );
   }
 
@@ -371,7 +466,7 @@ async function processDirectReferralIncomeInSession({
   );
 
   // ---------------------------------------------------
-  // CHECK PREVIOUS PAYOUT
+  // CHECK PREVIOUS LEGACY PAYOUT
   // ---------------------------------------------------
 
   const existingTransaction = await Transaction.findOne({
@@ -385,6 +480,7 @@ async function processDirectReferralIncomeInSession({
     return {
       success: true,
       alreadyProcessed: true,
+      skipped: true,
       amount: 0,
       referenceKey,
       transaction: existingTransaction,
@@ -395,25 +491,18 @@ async function processDirectReferralIncomeInSession({
   // FIND AND VALIDATE SPONSOR
   // ---------------------------------------------------
 
-  const sponsor = await User.findById(sponsorId).session(
-    session
-  );
+  const sponsor = await User.findById(sponsorId).session(session);
 
   if (!sponsor) {
     throw new Error("Sponsor account not found.");
   }
 
   if (
-    String(sponsor.status || "")
-      .trim()
-      .toLowerCase() !== "active"
+    String(sponsor.status || "").trim().toLowerCase() !==
+    "active"
   ) {
     throw new Error("Sponsor account must be active.");
   }
-
-  // NOTE: The sponsor may be PAID or zero-PIN activated.
-  // A zero-PIN sponsor still earns Rs100 when the member
-  // they referred is activated with a valid PAID PIN.
 
   // ---------------------------------------------------
   // FIND AND VALIDATE REFERRED MEMBER
@@ -428,25 +517,24 @@ async function processDirectReferralIncomeInSession({
   }
 
   if (
-    String(referredUser.status || "")
-      .trim()
-      .toLowerCase() !== "active"
+    String(referredUser.status || "").trim().toLowerCase() !==
+    "active"
   ) {
     throw new Error("Referred member must be active.");
   }
 
-  // ---------------------------------------------------
-  // ZERO PIN ACTIVATION: NO REFERRAL BONUS
-  //
-  // Checked before the PAID check so a zero PIN member
-  // is always skipped quietly (no error, no payout) and
-  // never breaks the activation flow of the caller.
-  // ---------------------------------------------------
+  if (
+    String(referredUser.userType || "").trim().toUpperCase() !==
+    "PAID"
+  ) {
+    throw new Error(
+      "Direct referral qualification requires a PAID member."
+    );
+  }
 
   if (isZeroPinActivatedUser(referredUser)) {
     return {
       success: true,
-      alreadyProcessed: false,
       skipped: true,
       reason: "ZERO_PIN_ACTIVATION",
       amount: 0,
@@ -456,147 +544,34 @@ async function processDirectReferralIncomeInSession({
   }
 
   if (
-    String(referredUser.userType || "")
-      .trim()
-      .toUpperCase() !== "PAID"
+    String(referredUser.sponsorId || "") !== String(sponsor._id)
   ) {
-    throw new Error(
-      "Direct referral income requires a PAID activated member."
-    );
+    throw new Error("Invalid direct referral relationship.");
   }
 
-  // ---------------------------------------------------
-  // VERIFY DIRECT REFERRAL RELATIONSHIP
-  // ---------------------------------------------------
-
-  if (
-    String(referredUser.sponsorId || "") !==
-    String(sponsor._id)
-  ) {
-    throw new Error(
-      "Invalid direct referral relationship."
-    );
-  }
-
-  // ---------------------------------------------------
-  // GET OR CREATE SPONSOR WALLET
-  // ---------------------------------------------------
-
-  let wallet = await Wallet.findOne({
-    userId: sponsor._id,
-  }).session(session);
-
-  if (!wallet) {
-    wallet = new Wallet({
-      userId: sponsor._id,
-      memberId:
-        sponsor.memberId || sponsor.userCode || "UNKNOWN",
-      currentBalance: 0,
-      totalEarnings: 0,
-      captchaEarnings: 0,
-      referralCommissions: 0,
-      totalWithdrawn: 0,
-      todayCaptchasSolved: 0,
-      lastCaptchaDate: null,
-    });
-
-    await wallet.save({
+  const qualifyingDirectCount =
+    await countQualifiedDirectReferrals(sponsor._id, {
       session,
     });
-  }
 
-  // ---------------------------------------------------
-  // NORMALIZE WALLET VALUES
-  // ---------------------------------------------------
-
-  wallet.currentBalance = Number(wallet.currentBalance || 0);
-  wallet.totalEarnings = Number(wallet.totalEarnings || 0);
-  wallet.referralCommissions = Number(
-    wallet.referralCommissions || 0
-  );
-
-  // ---------------------------------------------------
-  // CALCULATE BALANCE
-  // ---------------------------------------------------
-
-  const amount = DIRECT_REFERRAL_INCOME;
-  const balanceBefore = wallet.currentBalance;
-
-  const balanceAfter = Number(
-    (balanceBefore + amount).toFixed(2)
-  );
-
-  // ---------------------------------------------------
-  // UPDATE WALLET
-  // ---------------------------------------------------
-
-  wallet.currentBalance = balanceAfter;
-
-  wallet.totalEarnings = Number(
-    (wallet.totalEarnings + amount).toFixed(2)
-  );
-
-  wallet.referralCommissions = Number(
-    (wallet.referralCommissions + amount).toFixed(2)
-  );
-
-  await wallet.save({
-    session,
-  });
-
-  // ---------------------------------------------------
-  // CREATE TRANSACTION
-  // ---------------------------------------------------
-
-  const transaction = new Transaction({
-    userId: sponsor._id,
-    memberId:
-      sponsor.memberId || sponsor.userCode || "UNKNOWN",
-    type: "referral_bonus",
-    category: "referral",
-    amount,
-    grossAmount: amount,
-    tdsPercentage: 0,
-    tdsAmount: 0,
-    adminFeePercentage: 0,
-    adminFeeAmount: 0,
-    netAmount: amount,
-    balanceBefore,
-    balanceAfter,
-    referenceKey,
-    status: "completed",
-    payoutMethod: "WALLET_CREDIT",
-    payoutDetails: "",
-    description:
-      `Direct referral income of ₹${amount} for referring ${
-        referredUser.memberId ||
-        referredUser.userCode ||
-        referredUser._id
-      }.`,
-    reason: "Direct referral income",
-    timestamp: new Date(),
-  });
-
-  // ---------------------------------------------------
-  // SAVE TRANSACTION
-  //
-  // If saving fails, propagate the error. The caller's
-  // transaction must roll back the wallet changes too.
-  // Duplicate protection for concurrent requests also
-  // depends on the appropriate unique index in the
-  // Transaction model.
-  // ---------------------------------------------------
-
-  await transaction.save({
-    session,
-  });
-
+  // Individual Rs100 payouts are deliberately disabled.
+  // The bonus will be issued by the qualification processor.
   return {
     success: true,
     alreadyProcessed: false,
-    amount,
+    skipped: true,
+
+    reason:
+      qualifyingDirectCount < REQUIRED_QUALIFIED_DIRECTS
+        ? "THREE_QUALIFIED_DIRECTS_REQUIRED"
+        : "WAITING_FOR_BINARY_QUALIFICATION_OR_PAIR_BONUS",
+
+    qualifyingDirectCount,
+    requiredDirectCount: REQUIRED_QUALIFIED_DIRECTS,
+
+    amount: 0,
     referenceKey,
-    transaction,
+    transaction: null,
   };
 }
 
@@ -618,7 +593,7 @@ export async function processDirectReferralIncome({
   }
 
   // ---------------------------------------------------
-  // USE CALLER'S SESSION
+  // USE AN EXISTING SESSION
   // ---------------------------------------------------
 
   if (session) {
@@ -630,7 +605,7 @@ export async function processDirectReferralIncome({
   }
 
   // ---------------------------------------------------
-  // CREATE A NEW TRANSACTION
+  // CREATE A NEW TRANSACTION SESSION
   // ---------------------------------------------------
 
   const transactionSession = await mongoose.startSession();
@@ -650,6 +625,190 @@ export async function processDirectReferralIncome({
   } finally {
     await transactionSession.endSession();
   }
+}
+
+// =====================================================
+// CREDIT REFERRAL BONUS WITH TRANSACTION AUDIT
+// =====================================================
+//
+// Wallet update and transaction record use the same
+// MongoDB session. Unique referenceKey protects against
+// crediting the same bonus more than once.
+// =====================================================
+
+async function creditReferralLedgerBonus({
+  parent,
+  wallet,
+  amount,
+  referenceKey,
+  description,
+  session,
+}) {
+  if (!session) {
+    throw new Error("MongoDB session is required.");
+  }
+
+  const existing = await Transaction.findOne({
+    referenceKey,
+    type: "referral_bonus",
+  })
+    .session(session)
+    .lean();
+
+  if (existing) {
+    return 0;
+  }
+
+  const creditAmount = Number(amount);
+
+  if (!Number.isFinite(creditAmount) || creditAmount <= 0) {
+    throw new Error("Invalid referral bonus amount.");
+  }
+
+  const balanceBefore = Number(wallet.currentBalance || 0);
+
+  const balanceAfter = Number(
+    (balanceBefore + creditAmount).toFixed(2)
+  );
+
+  // ---------------------------------------------------
+  // UPDATE WALLET
+  // ---------------------------------------------------
+
+  wallet.currentBalance = balanceAfter;
+
+  wallet.totalEarnings = Number(
+    (Number(wallet.totalEarnings || 0) + creditAmount).toFixed(2)
+  );
+
+  wallet.referralCommissions = Number(
+    (Number(wallet.referralCommissions || 0) + creditAmount)
+      .toFixed(2)
+  );
+
+  await wallet.save({
+    session,
+  });
+
+  // ---------------------------------------------------
+  // UPDATE USER TOTAL INCOME
+  // ---------------------------------------------------
+
+  await User.findByIdAndUpdate(
+    parent._id,
+    {
+      $inc: {
+        totalIncome: creditAmount,
+      },
+    },
+    {
+      new: true,
+      session,
+    }
+  );
+
+  // ---------------------------------------------------
+  // CREATE REFERRAL TRANSACTION
+  // ---------------------------------------------------
+
+  const transaction = new Transaction({
+    userId: parent._id,
+
+    memberId: parent.memberId || parent.userCode || "UNKNOWN",
+
+    type: "referral_bonus",
+    category: "referral",
+
+    amount: creditAmount,
+    grossAmount: creditAmount,
+
+    tdsPercentage: 0,
+    tdsAmount: 0,
+
+    adminFeePercentage: 0,
+    adminFeeAmount: 0,
+
+    netAmount: creditAmount,
+
+    balanceBefore,
+    balanceAfter,
+
+    referenceKey,
+
+    status: "completed",
+
+    payoutMethod: "WALLET_CREDIT",
+    payoutDetails: "",
+
+    description,
+    reason: "Referral income bonus",
+    timestamp: new Date(),
+  });
+
+  await transaction.save({
+    session,
+  });
+
+  return creditAmount;
+}
+
+// =====================================================
+// FIRST QUALIFICATION BONUS: Rs300, ONCE ONLY
+// =====================================================
+
+async function processFirstQualificationReferralBonus({
+  parent,
+  wallet,
+  session,
+}) {
+  return creditReferralLedgerBonus({
+    parent,
+    wallet,
+
+    amount: FIRST_QUALIFICATION_REFERRAL_BONUS,
+
+    referenceKey: buildDirectQualificationReferenceKey(
+      parent._id
+    ),
+
+    description:
+      "First qualification referral bonus after 3 qualified directs and binary qualification.",
+
+    session,
+  });
+}
+
+// =====================================================
+// BINARY PAIR REFERRAL BONUS: Rs200 FROM PAIR #2 ONWARD
+// =====================================================
+
+async function processBinaryPairReferralBonus({
+  parent,
+  wallet,
+  pairNumber,
+  session,
+}) {
+  // The first qualifying pair receives the separate Rs300
+  // qualification bonus, not the additional Rs200 bonus.
+  if (Number(pairNumber) <= 1) {
+    return 0;
+  }
+
+  return creditReferralLedgerBonus({
+    parent,
+    wallet,
+
+    amount: BINARY_PAIR_REFERRAL_INCOME,
+
+    referenceKey: buildBinaryPairReferralReferenceKey(
+      parent._id,
+      pairNumber
+    ),
+
+    description: `Rs200 referral bonus for binary pair #${pairNumber}.`,
+
+    session,
+  });
 }
 
 // =====================================================
@@ -687,10 +846,17 @@ async function processSingleBinaryPair({
     .lean();
 
   if (existingTransaction) {
+    const existingAmount = Number(existingTransaction.amount || 0);
+
     return {
       pairNumber,
-      paid: Number(existingTransaction.amount || 0) > 0,
-      amount: Number(existingTransaction.amount || 0),
+
+      paid: existingAmount > 0,
+      amount: existingAmount,
+      binaryAmount: existingAmount,
+      referralAmount: 0,
+      pairTotalIncome: existingAmount,
+
       milestone: isUnpaidPairMilestone(pairNumber),
       referenceKey,
       skipped: true,
@@ -708,18 +874,25 @@ async function processSingleBinaryPair({
 
     const transaction = new Transaction({
       userId: parentId,
+
       memberId:
         parent.memberId || parent.userCode || "UNKNOWN",
+
       type: "binary_income",
       category: "referral",
+
       amount: 0,
       grossAmount: 0,
       netAmount: 0,
+
       balanceBefore: balance,
       balanceAfter: balance,
+
       referenceKey,
+
       description:
         `Binary pair #${pairNumber} completed - milestone pair, no payout`,
+
       status: "completed",
     });
 
@@ -729,8 +902,13 @@ async function processSingleBinaryPair({
 
     return {
       pairNumber,
+
       paid: false,
       amount: 0,
+      binaryAmount: 0,
+      referralAmount: 0,
+      pairTotalIncome: 0,
+
       milestone: true,
       referenceKey,
       skipped: false,
@@ -750,7 +928,7 @@ async function processSingleBinaryPair({
   );
 
   // ---------------------------------------------------
-  // UPDATE WALLET
+  // UPDATE WALLET FOR BINARY INCOME
   // ---------------------------------------------------
 
   wallet.currentBalance = balanceAfter;
@@ -764,7 +942,7 @@ async function processSingleBinaryPair({
   });
 
   // ---------------------------------------------------
-  // UPDATE USER INCOME TOTALS
+  // UPDATE USER BINARY INCOME TOTALS
   // ---------------------------------------------------
 
   await User.findByIdAndUpdate(
@@ -788,16 +966,22 @@ async function processSingleBinaryPair({
 
   const transaction = new Transaction({
     userId: parentId,
+
     memberId:
       parent.memberId || parent.userCode || "UNKNOWN",
+
     type: "binary_income",
     category: "referral",
+
     amount,
     grossAmount: amount,
     netAmount: amount,
+
     balanceBefore,
     balanceAfter,
+
     referenceKey,
+
     description: `Binary pair #${pairNumber} income`,
     status: "completed",
   });
@@ -806,10 +990,35 @@ async function processSingleBinaryPair({
     session,
   });
 
+  // ---------------------------------------------------
+  // ADD Rs200 REFERRAL BONUS FOR PAIR #2 ONWARD
+  // ---------------------------------------------------
+
+  const referralAmount =
+    await processBinaryPairReferralBonus({
+      parent,
+      wallet,
+      pairNumber,
+      session,
+    });
+
+  const pairTotalIncome = Number(
+    (amount + referralAmount).toFixed(2)
+  );
+
   return {
     pairNumber,
+
     paid: true,
+
+    // Keep amount as the actual binary amount so existing
+    // consumers still see Rs450 as the binary pair amount.
     amount,
+    binaryAmount: amount,
+
+    referralAmount,
+    pairTotalIncome,
+
     milestone: false,
     referenceKey,
     skipped: false,
@@ -873,7 +1082,7 @@ async function processCompletedBinaryPairIncomeInSession({
   }
 
   // ---------------------------------------------------
-  // COUNT ACTIVE DOWNLINE
+  // COUNT ACTIVE BINARY DOWNLINE
   // ---------------------------------------------------
 
   const activeCounts = await countActiveBinaryTeam(
@@ -884,20 +1093,20 @@ async function processCompletedBinaryPairIncomeInSession({
   );
 
   const leftCount = Number(
-    activeCounts.leftActiveCount || 0
+    activeCounts?.leftActiveCount || 0
   );
 
   const rightCount = Number(
-    activeCounts.rightActiveCount || 0
+    activeCounts?.rightActiveCount || 0
   );
 
   const totalActive = Number(
-    activeCounts.totalActiveCount ??
+    activeCounts?.totalActiveCount ??
       (leftCount + rightCount)
   );
 
   // ---------------------------------------------------
-  // CALCULATE ELIGIBLE PAIRS
+  // CALCULATE BINARY PAIRS
   // ---------------------------------------------------
 
   const eligiblePairCount = calculateEligiblePairCount({
@@ -906,22 +1115,77 @@ async function processCompletedBinaryPairIncomeInSession({
   });
 
   // ---------------------------------------------------
-  // NOT QUALIFIED
+  // REQUIRE 3 QUALIFIED DIRECT REFERRALS
+  // AND THE FIRST QUALIFYING BINARY PAIR
+  // ---------------------------------------------------
+
+  const qualifyingDirectCount =
+    await countQualifiedDirectReferrals(parentId, {
+      session,
+    });
+
+  if (qualifyingDirectCount < REQUIRED_QUALIFIED_DIRECTS) {
+    return {
+      success: true,
+
+      message:
+        "Income requires 3 active PAID direct referrals and binary qualification.",
+
+      reason: "THREE_QUALIFIED_DIRECTS_REQUIRED",
+
+      qualifyingDirectCount,
+      requiredDirectCount: REQUIRED_QUALIFIED_DIRECTS,
+
+      leftActiveCount: leftCount,
+      rightActiveCount: rightCount,
+      totalActiveDownline: totalActive,
+
+      firstQualificationRequired:
+        FIRST_QUALIFYING_DOWNLINE,
+
+      firstQualificationMet: false,
+
+      eligiblePairCount: 0,
+
+      processedPairs: [],
+      paidPairs: [],
+      unpaidPairs: [],
+
+      totalPaid: 0,
+    };
+  }
+
+  // ---------------------------------------------------
+  // NOT BINARY-QUALIFIED YET
   // ---------------------------------------------------
 
   if (eligiblePairCount <= 0) {
     return {
       success: true,
+
+      message:
+        "Binary income requires at least 3 active downline members, with members on both sides.",
+
+      reason: "BINARY_QUALIFICATION_REQUIRED",
+
+      qualifyingDirectCount,
+      requiredDirectCount: REQUIRED_QUALIFIED_DIRECTS,
+
       leftActiveCount: leftCount,
       rightActiveCount: rightCount,
       totalActiveDownline: totalActive,
+
       firstQualificationRequired:
         FIRST_QUALIFYING_DOWNLINE,
+
       firstQualificationMet: false,
+
       eligiblePairCount: 0,
+
       processedPairs: [],
       paidPairs: [],
       unpaidPairs: [],
+
       totalPaid: 0,
     };
   }
@@ -937,12 +1201,19 @@ async function processCompletedBinaryPairIncomeInSession({
   if (!wallet) {
     wallet = new Wallet({
       userId: parentId,
+
       memberId:
         parent.memberId || parent.userCode || "UNKNOWN",
+
       currentBalance: 0,
       totalEarnings: 0,
+
       captchaEarnings: 0,
       referralCommissions: 0,
+
+      totalWithdrawn: 0,
+      todayCaptchasSolved: 0,
+      lastCaptchaDate: null,
     });
 
     await wallet.save({
@@ -957,6 +1228,24 @@ async function processCompletedBinaryPairIncomeInSession({
   wallet.currentBalance = Number(wallet.currentBalance || 0);
   wallet.totalEarnings = Number(wallet.totalEarnings || 0);
   wallet.captchaEarnings = Number(wallet.captchaEarnings || 0);
+  wallet.referralCommissions = Number(
+    wallet.referralCommissions || 0
+  );
+
+  // ---------------------------------------------------
+  // FIRST QUALIFICATION BONUS: Rs300 ONCE
+  //
+  // The direct count and binary qualification have already
+  // been checked. The unique reference key prevents repeat
+  // credits on subsequent processor runs.
+  // ---------------------------------------------------
+
+  const qualificationBonusPaid =
+    await processFirstQualificationReferralBonus({
+      parent,
+      wallet,
+      session,
+    });
 
   // ---------------------------------------------------
   // FIND ALREADY PROCESSED PAIRS
@@ -971,7 +1260,9 @@ async function processCompletedBinaryPairIncomeInSession({
   const paidPairs = [];
   const unpaidPairs = [];
 
-  let totalPaid = 0;
+  // Include the qualification bonus in the total credited
+  // by this run when this was the first successful credit.
+  let totalPaid = Number(qualificationBonusPaid || 0);
 
   // ---------------------------------------------------
   // PROCESS EVERY ELIGIBLE PAIR NOT ALREADY RECORDED
@@ -1001,7 +1292,10 @@ async function processCompletedBinaryPairIncomeInSession({
 
     if (result.paid) {
       paidPairs.push(result);
-      totalPaid += Number(result.amount || 0);
+
+      totalPaid += Number(
+        result.pairTotalIncome ?? result.amount ?? 0
+      );
     } else {
       unpaidPairs.push(result);
     }
@@ -1011,19 +1305,30 @@ async function processCompletedBinaryPairIncomeInSession({
 
   return {
     success: true,
+
+    qualifyingDirectCount,
+    requiredDirectCount: REQUIRED_QUALIFIED_DIRECTS,
+
     leftActiveCount: leftCount,
     rightActiveCount: rightCount,
     totalActiveDownline: totalActive,
+
     firstQualificationRequired:
       FIRST_QUALIFYING_DOWNLINE,
+
     firstQualificationMet:
       totalActive >= FIRST_QUALIFYING_DOWNLINE &&
       leftCount >= 1 &&
       rightCount >= 1,
+
     eligiblePairCount,
+
+    qualificationBonusPaid,
+
     processedPairs,
     paidPairs,
     unpaidPairs,
+
     totalPaid,
   };
 }
@@ -1053,7 +1358,7 @@ export async function processCompletedBinaryPairIncome({
   }
 
   // ---------------------------------------------------
-  // CREATE A NEW TRANSACTION
+  // CREATE A NEW TRANSACTION SESSION
   // ---------------------------------------------------
 
   const transactionSession = await mongoose.startSession();
@@ -1106,7 +1411,16 @@ export async function getBinaryIncomeStatus(
   }
 
   // ---------------------------------------------------
-  // ACTIVE COUNTS
+  // QUALIFIED DIRECT REFERRALS
+  // ---------------------------------------------------
+
+  const qualifyingDirectCount =
+    await countQualifiedDirectReferrals(parentId, {
+      session,
+    });
+
+  // ---------------------------------------------------
+  // ACTIVE BINARY COUNTS
   // ---------------------------------------------------
 
   const activeCounts = await countActiveBinaryTeam(
@@ -1117,15 +1431,15 @@ export async function getBinaryIncomeStatus(
   );
 
   const leftCount = Number(
-    activeCounts.leftActiveCount || 0
+    activeCounts?.leftActiveCount || 0
   );
 
   const rightCount = Number(
-    activeCounts.rightActiveCount || 0
+    activeCounts?.rightActiveCount || 0
   );
 
   const totalActive = Number(
-    activeCounts.totalActiveCount ??
+    activeCounts?.totalActiveCount ??
       (leftCount + rightCount)
   );
 
@@ -1137,6 +1451,12 @@ export async function getBinaryIncomeStatus(
     leftActiveCount: leftCount,
     rightActiveCount: rightCount,
   });
+
+  const hasRequiredDirects =
+    qualifyingDirectCount >= REQUIRED_QUALIFIED_DIRECTS;
+
+  const incomeQualified =
+    hasRequiredDirects && eligiblePairCount >= 1;
 
   // ---------------------------------------------------
   // PROCESSED PAIRS
@@ -1164,7 +1484,7 @@ export async function getBinaryIncomeStatus(
   ).length;
 
   // ---------------------------------------------------
-  // FIRST QUALIFICATION
+  // FIRST BINARY QUALIFICATION
   // ---------------------------------------------------
 
   const firstQualificationMet =
@@ -1184,9 +1504,17 @@ export async function getBinaryIncomeStatus(
 
   return {
     parentId: parent._id,
+
     memberId: parent.memberId || parent.userCode || null,
     name: parent.name || "",
     status: parent.status || "inactive",
+
+    qualifyingDirectCount,
+    requiredDirectCount: REQUIRED_QUALIFIED_DIRECTS,
+
+    hasRequiredDirects,
+    firstQualificationMet,
+    incomeQualified,
 
     leftActiveCount: leftCount,
     rightActiveCount: rightCount,
@@ -1194,7 +1522,6 @@ export async function getBinaryIncomeStatus(
 
     firstQualificationRequired:
       FIRST_QUALIFYING_DOWNLINE,
-    firstQualificationMet,
 
     eligiblePairCount,
 
@@ -1207,12 +1534,24 @@ export async function getBinaryIncomeStatus(
     nextPairNumber,
 
     binaryPairIncome: BINARY_PAIR_INCOME,
+
+    // Legacy constant retained in the response for consumers
+    // that still read this field. New logic does not pay
+    // individual Rs100 referrals.
     directReferralIncome: DIRECT_REFERRAL_INCOME,
 
+    firstQualificationReferralBonus:
+      FIRST_QUALIFICATION_REFERRAL_BONUS,
+
+    binaryPairReferralIncome:
+      BINARY_PAIR_REFERRAL_INCOME,
+
     matchingIncome: Number(parent.matchingIncome || 0),
+
     todayMatchingIncome: Number(
       parent.todayMatchingIncome || 0
     ),
+
     totalIncome: Number(parent.totalIncome || 0),
 
     history,
@@ -1221,21 +1560,37 @@ export async function getBinaryIncomeStatus(
 
 // =====================================================
 // DEFAULT EXPORT
+// Keep existing exports and expose the new helpers.
 // =====================================================
 
 export default {
   BINARY_PAIR_INCOME,
   DIRECT_REFERRAL_INCOME,
   FIRST_QUALIFYING_DOWNLINE,
+
+  REQUIRED_QUALIFIED_DIRECTS,
+  FIRST_QUALIFICATION_REFERRAL_BONUS,
+  BINARY_PAIR_REFERRAL_INCOME,
+
   UNPAID_PAIR_MILESTONES,
+
   isZeroPinActivatedUser,
   isUnpaidPairMilestone,
+
+  countQualifiedDirectReferrals,
   calculateEligiblePairCount,
+  getIncomeQualificationStatus,
+
   buildBinaryPairReferenceKey,
   buildDirectReferralReferenceKey,
+  buildDirectQualificationReferenceKey,
+  buildBinaryPairReferralReferenceKey,
+
   getProcessedBinaryPairNumbers,
   getBinaryPairHistory,
+
   processDirectReferralIncome,
   processCompletedBinaryPairIncome,
+
   getBinaryIncomeStatus,
 };

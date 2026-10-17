@@ -16,6 +16,10 @@ import {
   normalizeCaptchaSettings,
 } from "../utils/captchaGenerator.js";
 
+import {
+  getIncomeQualificationStatus,
+} from "../utils/binaryIncome.js";
+
 const router = express.Router();
 
 // =====================================================
@@ -294,8 +298,8 @@ const getCaptchaSettings =
       const rewardAmount =
         normalizeRewardAmount(
           storedSettings.rewardAmount ??
-            storedSettings.captchaReward ??
-            DEFAULT_CAPTCHA_SETTINGS.rewardAmount
+          storedSettings.captchaReward ??
+          DEFAULT_CAPTCHA_SETTINGS.rewardAmount
         );
 
       // -------------------------------------------------
@@ -305,7 +309,7 @@ const getCaptchaSettings =
       const dailyLimit =
         clampInteger(
           storedSettings.dailyLimit ??
-            storedSettings.dailyCaptchaLimit,
+          storedSettings.dailyCaptchaLimit,
           LIMITS.dailyLimit.min,
           LIMITS.dailyLimit.max,
           DEFAULT_CAPTCHA_SETTINGS.dailyLimit
@@ -506,14 +510,35 @@ const checkActiveUser =
  * Require an active customer activated with a PAID PIN.
  * This backend check prevents direct API access by UNPAID users.
  */
+/**
+ * Require an active customer with a PAID PIN and
+ * completed income qualification.
+ *
+ * Income qualification requires:
+ * 1. Three active, PAID, non-ZERO-PIN direct referrals.
+ * 2. At least 3 active binary downline members.
+ * 3. At least one active member on each binary side.
+ *
+ * This check runs on the backend before CAPTCHA generation
+ * and before CAPTCHA rewards can be credited.
+ */
+/**
+ * Require an active customer with a PAID PIN and
+ * completed income qualification.
+ *
+ * Qualification requires:
+ * 1. Three active, PAID, non-ZERO-PIN direct referrals.
+ * 2. Required initial binary qualification.
+ */
 const checkPaidActiveUser = async (req, res) => {
-  // First verify the account exists, is active, and is not an admin.
+  // 1. Account must exist and be active
   const user = await checkActiveUser(req, res);
 
   if (!user) {
     return null;
   }
 
+  // 2. Account must be activated with a PAID PIN
   const userType = String(user.userType || "")
     .trim()
     .toUpperCase();
@@ -524,6 +549,38 @@ const checkPaidActiveUser = async (req, res) => {
       result: "paid_activation_required",
       message:
         "CAPTCHA work is available only to customers activated with a PAID PIN.",
+    });
+
+    return null;
+  }
+
+  // 3. Verify income qualification
+  const qualification = await getIncomeQualificationStatus(
+    user._id
+  );
+
+  if (!qualification?.qualified) {
+    res.status(403).json({
+      success: false,
+      result: "income_qualification_required",
+
+      requiredDirects:
+        qualification?.requiredDirectCount ?? 3,
+
+      qualifyingDirects:
+        qualification?.qualifyingDirectCount ?? 0,
+
+      leftActiveCount:
+        qualification?.leftActiveCount ?? 0,
+
+      rightActiveCount:
+        qualification?.rightActiveCount ?? 0,
+
+      eligiblePairCount:
+        qualification?.eligiblePairCount ?? 0,
+
+      message:
+        "CAPTCHA earning is locked. Complete 3 active PAID direct referrals and the initial binary qualification to unlock income.",
     });
 
     return null;
@@ -679,7 +736,7 @@ router.get(
       if (
         settings.dailyLimit <= 0 ||
         todaySolved >=
-          settings.dailyLimit
+        settings.dailyLimit
       ) {
         return res.status(429).json({
           success: false,
@@ -763,7 +820,7 @@ router.get(
           Math.max(
             0,
             settings.dailyLimit -
-              todaySolved
+            todaySolved
           ),
 
         refreshAfterSuccess:
@@ -801,7 +858,7 @@ router.post(
       // USER
       // -------------------------------------------------
 
-       const user =
+      const user =
         await checkPaidActiveUser(
           req,
           res
@@ -836,7 +893,7 @@ router.post(
 
       if (
         typeof token !==
-          "string" ||
+        "string" ||
         !token.trim()
       ) {
         return res.status(400).json({
@@ -851,7 +908,7 @@ router.post(
 
       if (
         typeof answer !==
-          "string" ||
+        "string" ||
         !answer.trim()
       ) {
         return res.status(400).json({
@@ -942,7 +999,7 @@ router.post(
         Math.max(
           0,
           Date.now() -
-            generatedAt
+          generatedAt
         );
 
       if (
@@ -1054,7 +1111,7 @@ router.post(
           if (
             cooldownMs > 0 &&
             elapsed <
-              cooldownMs
+            cooldownMs
           ) {
             const remainingSeconds =
               Math.ceil(
@@ -1177,7 +1234,7 @@ router.post(
       if (
         settings.dailyLimit <= 0 ||
         todayCorrectCount >=
-          settings.dailyLimit
+        settings.dailyLimit
       ) {
         return res.status(429).json({
           success: false,
@@ -1207,9 +1264,9 @@ router.post(
       const isCorrect =
         caseSensitive
           ? submittedAnswer ===
-            actualSolution
+          actualSolution
           : submittedAnswer.toLowerCase() ===
-            actualSolution.toLowerCase();
+          actualSolution.toLowerCase();
 
       // =================================================
       // WRONG ANSWER
@@ -1257,8 +1314,8 @@ router.post(
           captchaExpiresAt:
             verification.expiresAt
               ? new Date(
-                  verification.expiresAt
-                )
+                verification.expiresAt
+              )
               : null,
 
           caseSensitive,
@@ -1338,6 +1395,24 @@ router.post(
               );
             }
 
+
+
+            // -------------------------------------------
+            // INCOME QUALIFICATION RECHECK
+            // Prevent reward credit if qualification changed
+            // -------------------------------------------
+
+            const latestQualification =
+              await getIncomeQualificationStatus(
+                user._id,
+                { session }
+              );
+
+            if (!latestQualification?.qualified) {
+              throw new Error(
+                "INCOME_QUALIFICATION_REQUIRED"
+              );
+            }
             // -------------------------------------------
             // DAILY LIMIT RECHECK
             // -------------------------------------------
@@ -1363,9 +1438,9 @@ router.post(
 
             if (
               settings.dailyLimit <=
-                0 ||
+              0 ||
               successfulToday >=
-                settings.dailyLimit
+              settings.dailyLimit
             ) {
               throw new Error(
                 "DAILY_CAPTCHA_LIMIT_REACHED"
@@ -1425,8 +1500,8 @@ router.post(
             const lastCaptchaDate =
               wallet.lastCaptchaDate
                 ? new Date(
-                    wallet.lastCaptchaDate
-                  )
+                  wallet.lastCaptchaDate
+                )
                 : null;
 
             let sameWalletDay =
@@ -1440,11 +1515,11 @@ router.post(
             ) {
               sameWalletDay =
                 lastCaptchaDate.getFullYear() ===
-                  now.getFullYear() &&
+                now.getFullYear() &&
                 lastCaptchaDate.getMonth() ===
-                  now.getMonth() &&
+                now.getMonth() &&
                 lastCaptchaDate.getDate() ===
-                  now.getDate();
+                now.getDate();
             }
 
             if (
@@ -1488,9 +1563,9 @@ router.post(
 
             if (
               settings.dailyLimit <=
-                0 ||
+              0 ||
               wallet.todayCaptchasSolved >=
-                settings.dailyLimit
+              settings.dailyLimit
             ) {
               throw new Error(
                 "DAILY_CAPTCHA_LIMIT_REACHED"
@@ -1596,8 +1671,8 @@ router.post(
                   captchaExpiresAt:
                     verification.expiresAt
                       ? new Date(
-                          verification.expiresAt
-                        )
+                        verification.expiresAt
+                      )
                       : null,
 
                   caseSensitive,
@@ -1699,6 +1774,23 @@ router.post(
         }
 
         // ---------------------------------------------
+        // INCOME QUALIFICATION REQUIRED
+        // ---------------------------------------------
+
+        if (
+          error?.message ===
+          "INCOME_QUALIFICATION_REQUIRED"
+        ) {
+          return res.status(403).json({
+            success: false,
+            counted: false,
+            result: "income_qualification_required",
+            message:
+              "CAPTCHA earning is locked because your income qualification is incomplete.",
+          });
+        }
+
+        // ---------------------------------------------
         // DAILY LIMIT
         // ---------------------------------------------
 
@@ -1768,7 +1860,7 @@ router.post(
         Math.max(
           0,
           settings.dailyLimit -
-            solvedToday
+          solvedToday
         );
 
       return res.status(200).json({
@@ -1976,12 +2068,12 @@ router.get(
       const accuracy =
         total > 0
           ? Number(
-              (
-                (correct /
-                  total) *
-                100
-              ).toFixed(2)
-            )
+            (
+              (correct /
+                total) *
+              100
+            ).toFixed(2)
+          )
           : 0;
 
       // -------------------------------------------------
@@ -2049,7 +2141,7 @@ router.get(
             Math.max(
               0,
               settings.dailyLimit -
-                todayCorrect
+              todayCorrect
             ),
 
           captchaReward:

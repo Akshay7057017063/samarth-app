@@ -28,6 +28,7 @@ import {
   processCompletedBinaryPairIncome,
   processDirectReferralIncome,
 } from "../utils/binaryIncome.js";
+import { BankDetails } from "../models/BankDetails.js";
 
 const router = express.Router();
 
@@ -58,6 +59,11 @@ const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 // PAN is marked "verified" automatically ONLY if you set
 // PAN_AUTO_VERIFY=true in .env. Default is false: an admin
 // (or a PAN verification service) must verify it.
+//
+// KYC data is stored in the BankDetails collection
+// (one record per user). For backward compatibility the
+// same values are also mirrored on the User document, so
+// existing admin / withdrawal code keeps working.
 //
 // =====================================================
 
@@ -122,6 +128,63 @@ const formatUserResponse = (user) => {
   delete userObject.password;
 
   return userObject;
+};
+
+// =====================================================
+// HELPER: KYC (BankDetails collection)
+// =====================================================
+
+// Returns the user's KYC as one plain object.
+// BankDetails record is the source of truth. If it does not
+// exist yet (older members), values saved on the User
+// document are used as a fallback.
+const getKycForUser = async (user) => {
+  const record = await BankDetails.findOne({
+    userId: user._id,
+  }).lean();
+
+  if (record) {
+    return {
+      panNumber: record.panNumber || "",
+      panVerified: Boolean(record.panVerified),
+      bankDetails: {
+        accountHolderName: record.accountHolderName || "",
+        accountNumber: record.accountNumber || "",
+        ifscCode: record.ifscCode || "",
+        bankName: record.bankName || "",
+        upiId: record.upiId || "",
+      },
+    };
+  }
+
+  const legacy = user.bankDetails || {};
+
+  return {
+    panNumber: user.panNumber || "",
+    panVerified: Boolean(user.panVerified),
+    bankDetails: {
+      accountHolderName: legacy.accountHolderName || "",
+      accountNumber: legacy.accountNumber || "",
+      ifscCode: legacy.ifscCode || "",
+      bankName: legacy.bankName || "",
+      upiId: legacy.upiId || "",
+    },
+  };
+};
+
+// Puts KYC values on the user response object so the
+// frontend can keep reading user.panNumber / user.bankDetails.
+const withKyc = (userResponse, kyc) => {
+  if (!userResponse) {
+    return userResponse;
+  }
+
+  return {
+    ...userResponse,
+    panNumber: kyc.panNumber,
+    panVerified: kyc.panVerified,
+    bankDetails: kyc.bankDetails,
+  };
 };
 
 // =====================================================
@@ -480,6 +543,19 @@ router.post("/login", async (req, res) => {
     const token = createToken(user, boundDeviceId);
 
     // -------------------------------------------------
+    // KYC (from BankDetails collection)
+    // -------------------------------------------------
+
+    let userResponse = formatUserResponse(user);
+
+    try {
+      const kyc = await getKycForUser(user);
+      userResponse = withKyc(userResponse, kyc);
+    } catch (kycError) {
+      console.error("❌ Login KYC load error:", kycError);
+    }
+
+    // -------------------------------------------------
     // RESPONSE
     // -------------------------------------------------
 
@@ -487,7 +563,7 @@ router.post("/login", async (req, res) => {
       success: true,
       message: "Login successful.",
       token,
-      user: formatUserResponse(user),
+      user: userResponse,
     });
   } catch (error) {
     console.error("❌ Login error:", error);
@@ -1649,12 +1725,25 @@ router.get(
       }
 
       // -------------------------------------------------
+      // KYC (from BankDetails collection)
+      // -------------------------------------------------
+
+      let userResponse = formatUserResponse(user);
+
+      try {
+        const kyc = await getKycForUser(user);
+        userResponse = withKyc(userResponse, kyc);
+      } catch (kycError) {
+        console.error("❌ /me KYC load error:", kycError);
+      }
+
+      // -------------------------------------------------
       // RESPONSE
       // -------------------------------------------------
 
       return res.json({
         success: true,
-        user: formatUserResponse(user),
+        user: userResponse,
         wallet: wallet.toObject(),
       });
     } catch (error) {
@@ -1673,6 +1762,71 @@ router.get(
 );
 
 // =====================================================
+// GET /api/auth/kyc
+// =====================================================
+//
+// Returns the logged-in member's PAN + bank / UPI details
+// from the BankDetails collection.
+//
+// =====================================================
+
+router.get(
+  "/kyc",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      if (!isMongoActive()) {
+        return res.status(503).json({
+          success: false,
+          message:
+            "Database is currently unavailable.",
+        });
+      }
+
+      if (
+        !req.user?.id ||
+        !mongoose.Types.ObjectId.isValid(
+          req.user.id
+        )
+      ) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Invalid user session.",
+        });
+      }
+
+      const user = await User.findById(
+        req.user.id
+      ).select(
+        "name memberId userCode panNumber panVerified bankDetails"
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found.",
+        });
+      }
+
+      const kyc = await getKycForUser(user);
+
+      return res.json({
+        success: true,
+        kyc,
+      });
+    } catch (error) {
+      console.error("❌ KYC fetch error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch KYC.",
+      });
+    }
+  }
+);
+
+// =====================================================
 // PUT /api/auth/kyc
 // =====================================================
 //
@@ -1680,9 +1834,11 @@ router.get(
 //
 // - Every field is validated here (the frontend checks
 //   are only for convenience).
-// - Only the KYC fields are written, using $set, so other
-//   required fields on older user records can never make
-//   the save fail, and no other data is overwritten.
+// - Data is saved in the BankDetails collection
+//   (one record per user, upsert).
+// - The same values are mirrored on the User document
+//   with $set, so older code that reads user.bankDetails
+//   / user.panNumber keeps working.
 // - A verified PAN cannot be changed by the member.
 // - panVerified is never read from the request body.
 //
@@ -1785,7 +1941,7 @@ router.put(
       const user = await User.findById(
         req.user.id
       ).select(
-        "name memberId panNumber panVerified bankDetails"
+        "name memberId userCode panNumber panVerified bankDetails"
       );
 
       if (!user) {
@@ -1795,20 +1951,40 @@ router.put(
         });
       }
 
-      const update = {};
+      const memberId = String(
+        user.memberId || user.userCode || ""
+      )
+        .trim()
+        .toUpperCase();
+
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Member ID not found for this account. Please contact admin.",
+        });
+      }
+
+      // -------------------------------------------------
+      // CURRENT KYC (BankDetails record, or old User data)
+      // -------------------------------------------------
+
+      const current = await getKycForUser(user);
+
+      // PAN fields to save (only when changed)
+      const panUpdate = {};
 
       // -------------------------------------------------
       // PAN
       // -------------------------------------------------
 
       if (pan) {
-        const panChanged =
-          pan !== (user.panNumber || "");
+        const panChanged = pan !== (current.panNumber || "");
 
         if (
           panChanged &&
-          user.panVerified &&
-          user.panNumber
+          current.panVerified &&
+          current.panNumber
         ) {
           return fail(
             "Your PAN is already verified and cannot be changed. Please contact admin."
@@ -1816,8 +1992,8 @@ router.put(
         }
 
         if (panChanged) {
-          update.panNumber = pan;
-          update.panVerified = PAN_AUTO_VERIFY;
+          panUpdate.panNumber = pan;
+          panUpdate.panVerified = PAN_AUTO_VERIFY;
         }
       }
 
@@ -1826,7 +2002,7 @@ router.put(
       // Fields that were not sent keep their old value.
       // -------------------------------------------------
 
-      const existingBank = user.bankDetails || {};
+      const existingBank = current.bankDetails || {};
 
       const bankDetails = {
         accountHolderName:
@@ -1876,23 +2052,72 @@ router.put(
         );
       }
 
-      update.bankDetails = bankDetails;
-
       // -------------------------------------------------
-      // SAVE
+      // SAVE 1: BankDetails collection (upsert)
       // -------------------------------------------------
 
-      const updatedUser =
-        await User.findByIdAndUpdate(
-          user._id,
-          {
-            $set: update,
-          },
-          {
-            new: true,
-            runValidators: true,
-          }
-        ).select("-password");
+      const bankDetailsSet = {
+        memberId,
+        accountHolderName: bankDetails.accountHolderName,
+        accountNumber: bankDetails.accountNumber,
+        ifscCode: bankDetails.ifscCode,
+        bankName: bankDetails.bankName,
+        upiId: bankDetails.upiId,
+        ...panUpdate,
+      };
+
+      // Old members: copy existing PAN into the new record
+      // the first time, so it is not lost.
+      const setOnInsert = {
+        userId: user._id,
+      };
+
+      if (panUpdate.panNumber === undefined) {
+        setOnInsert.panNumber = current.panNumber || "";
+        setOnInsert.panVerified = Boolean(
+          current.panVerified
+        );
+      }
+
+      const savedKyc = await BankDetails.findOneAndUpdate(
+        {
+          userId: user._id,
+        },
+        {
+          $set: bankDetailsSet,
+          $setOnInsert: setOnInsert,
+        },
+        {
+          new: true,
+          upsert: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+      // -------------------------------------------------
+      // SAVE 2: mirror on User document (compatibility)
+      // -------------------------------------------------
+
+      const userUpdate = {
+        bankDetails,
+      };
+
+      if (panUpdate.panNumber !== undefined) {
+        userUpdate.panNumber = panUpdate.panNumber;
+        userUpdate.panVerified = panUpdate.panVerified;
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(
+        user._id,
+        {
+          $set: userUpdate,
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      ).select("-password");
 
       if (!updatedUser) {
         return res.status(404).json({
@@ -1902,18 +2127,34 @@ router.put(
       }
 
       console.log(
-        `🏦 KYC updated for ${user.memberId} at ${new Date().toISOString()}`
+        `🏦 KYC updated for ${memberId} at ${new Date().toISOString()}`
       );
 
       // -------------------------------------------------
       // RESPONSE
       // -------------------------------------------------
 
+      const kycResponse = {
+        panNumber: savedKyc.panNumber || "",
+        panVerified: Boolean(savedKyc.panVerified),
+        bankDetails: {
+          accountHolderName: savedKyc.accountHolderName || "",
+          accountNumber: savedKyc.accountNumber || "",
+          ifscCode: savedKyc.ifscCode || "",
+          bankName: savedKyc.bankName || "",
+          upiId: savedKyc.upiId || "",
+        },
+      };
+
       return res.json({
         success: true,
         message:
           "KYC and Bank details updated successfully!",
-        user: formatUserResponse(updatedUser),
+        user: withKyc(
+          formatUserResponse(updatedUser),
+          kycResponse
+        ),
+        kyc: kycResponse,
       });
     } catch (error) {
       console.error(

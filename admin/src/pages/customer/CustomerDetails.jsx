@@ -28,6 +28,7 @@ import {
   X,
   GitBranch,
   Network,
+  Pencil,
 } from "lucide-react";
 
 import api from "../../services/api";
@@ -881,6 +882,14 @@ const CustomerDetails = () => {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:flex-col xl:flex-row">
+
+                <Link
+                  to={`/customers/${id}/edit`}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit Customer
+                </Link>
 
                 <button
                   type="button"
